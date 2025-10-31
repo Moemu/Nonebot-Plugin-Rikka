@@ -142,3 +142,7 @@ dmypy.json
 
 # vscode
 .vscode/
+
+# template
+pages/
+static/
