@@ -111,7 +111,7 @@ class PlayerMaiScore:
     """铺面类型"""
     song_level: str
     """铺面等级，如 `11+`"""
-    sone_difficulty: SongDifficulty
+    song_difficulty: SongDifficulty
     """铺面难度分类"""
     achievements: float
     """达成率"""

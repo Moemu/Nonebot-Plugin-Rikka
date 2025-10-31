@@ -12,10 +12,15 @@ from nonebot_plugin_alconna import (
     UniMessage,
     on_alconna,
 )
+from nonebot_plugin_alconna.uniseg import Image as UniImage
 from nonebot_plugin_orm import async_scoped_session
 
+from .config import config
 from .database import UserBindInfoORM
+from .renderer import PicRenderer
 from .score import LXNSScoreProvider, get_lxns_provider
+
+renderer = PicRenderer()
 
 COMMAND_PREFIXES = [".", "/"]
 
@@ -81,3 +86,46 @@ async def handle_bind_lxns(
             f"已绑定至游戏账号: {player_info.name} ⭐",
         ]
     ).finish()
+
+
+@alconna_b50.handle()
+async def handle_mai_b50(
+    event: Event,
+    db_session: async_scoped_session,
+    score_provider: LXNSScoreProvider = Depends(get_lxns_provider),
+):
+    user_id = event.get_user_id()
+
+    logger.info(f"[{user_id}] 获取玩家 Best50")
+    logger.debug(f"[{user_id}] 1/4 尝试从数据库中获取玩家码...")
+
+    user_bind_info = await UserBindInfoORM.get_user_bind_info(db_session, user_id)
+
+    if user_bind_info is None:
+        logger.warning(f"[{user_id}] 未能获取玩家码，数据库中不存在绑定的玩家数据")
+        logger.debug(f"[{user_id}] 1/4 尝试通过 QQ 请求玩家数据")
+        try:
+            player_info = await score_provider.fetch_player_info_by_qq(user_id, config.lxns_developer_api_key)
+        except ClientResponseError as e:
+            logger.warning(f"[{user_id}] 无法通过 QQ 号请求玩家数据: {e.code}: {e.message}")
+
+            await UniMessage(
+                [
+                    At(flag="user", target=user_id),
+                    "你还未绑定查分器，请使用 /bind 指令进行绑定！",
+                ]
+            ).finish()
+
+            return
+    else:
+        friend_code = user_bind_info.friend_code
+        logger.debug(f"[{user_id}] 2/4 发起 API 请求玩家信息...")
+        player_info = await score_provider.fetch_player_info(friend_code, config.lxns_developer_api_key)
+
+    logger.debug(f"[{user_id}] 3/4 发起 API 请求玩家 Best50...")
+    player_b50 = await score_provider.fetch_player_b50(friend_code, config.lxns_developer_api_key)
+
+    logger.debug(f"[{user_id}] 4/4 渲染玩家数据...")
+    pic = await renderer.render_mai_player_best50(player_b50, player_info)
+
+    await UniMessage([At(flag="user", target=user_id), UniImage(raw=pic)]).finish()

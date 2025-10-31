@@ -11,6 +11,7 @@ from typing import Dict
 from nonebot import get_driver
 
 from ._base import BaseScoreProvider
+from ._schema import PlayerMaiB50, PlayerMaiInfo
 from .providers.lxns import LXNSScoreProvider
 
 # --- 单例初始化（每个实现类仅初始化一次） ---
@@ -56,11 +57,10 @@ async def _close_score_providers():
 
 
 __all__ = [
-    # 基类
     "BaseScoreProvider",
-    # 实现类
     "LXNSScoreProvider",
-    # 依赖注入函数
     "get_lxns_provider",
     "get_all_score_providers",
+    "PlayerMaiInfo",
+    "PlayerMaiB50",
 ]

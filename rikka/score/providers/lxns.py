@@ -41,7 +41,7 @@ class LXNSScoreProvider(BaseScoreProvider):
 
     @staticmethod
     def _score_unpack(raw_score: dict) -> PlayerMaiScore:
-        raw_score["level_index"] = SongDifficulty(raw_score["level_index"])
+        raw_score["song_difficulty"] = SongDifficulty(raw_score["level_index"])
         raw_score["fc"] = ScoreFCType(raw_score["fc"]) if raw_score.get("fc") else None
         raw_score["fs"] = ScoreFSType(raw_score["fs"]) if raw_score.get("fs") else None
         raw_score["rate"] = ScoreRateType(raw_score["rate"])
@@ -49,6 +49,9 @@ class LXNSScoreProvider(BaseScoreProvider):
 
         valid_keys = {f.name for f in fields(PlayerMaiScore)}
         filtered = {k: v for k, v in raw_score.items() if k in valid_keys}
+        filtered["song_id"] = raw_score["id"]
+        filtered["song_type"] = raw_score["type"]
+        filtered["song_level"] = raw_score["level"]
 
         return PlayerMaiScore(**filtered)
 
@@ -77,7 +80,7 @@ class LXNSScoreProvider(BaseScoreProvider):
         return PlayerMaiInfo(**filtered)
 
     async def fetch_player_info(self, friend_code: str, auth_token: str) -> PlayerMaiInfo:
-        endpoint = f"player/{friend_code}"
+        endpoint = friend_code
 
         data = await self._get_resp(endpoint, auth_token)
         player_info = self._info_unpack(data["data"])
@@ -87,6 +90,13 @@ class LXNSScoreProvider(BaseScoreProvider):
         endpoint = ""
 
         data = await self._get_resp_by_user_token(endpoint, auth_token)
+        player_info = self._info_unpack(data["data"])
+        return player_info
+
+    async def fetch_player_info_by_qq(self, qq: str, auth_token: str) -> PlayerMaiInfo:
+        endpoint = f"qq/{qq}"
+
+        data = await self._get_resp(endpoint, auth_token)
         player_info = self._info_unpack(data["data"])
         return player_info
 
