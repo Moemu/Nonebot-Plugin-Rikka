@@ -1,0 +1,84 @@
+{% macro rating_frame_url(rating) %}
+  {%- if rating < 1000 -%}01
+  {%- elif rating < 2000 -%}02
+  {%- elif rating < 4000 -%}03
+  {%- elif rating < 7000 -%}04
+  {%- elif rating < 10000 -%}05
+  {%- elif rating < 12000 -%}06
+  {%- elif rating < 13000 -%}07
+  {%- elif rating < 14000 -%}08
+  {%- elif rating < 14500 -%}09
+  {%- elif rating < 15000 -%}10
+  {%- else -%}11
+  {%- endif -%}
+{% endmacro %}
+
+{% macro player_header(player) %}
+<header class="relative h-[116px] w-[720px] px-2 py-1">
+  {# 名牌背景 #}
+  <img
+    src="static/mai/pic/UI_Plate_300501.png"
+    alt="maimai name plate"
+    width="720"
+    height="116"
+    class="absolute inset-0 object-cover"
+  />
+
+  <div class="relative flex h-full items-center gap-2">
+    {# 头像 #}
+    <div class="relative mt-2 h-24 w-24">
+      <img
+        src="{{ player.avatar or 'static/mai/pic/UI_Icon_309503.png' }}"
+        alt="{{ player.name }} avatar"
+        class="w-full h-full rounded-2xl object-cover"
+      />
+    </div>
+
+    <div class="flex items-center gap-6">
+      <div class="space-y-[5px]">
+        {# Rating 和段位 #}
+        <div class="flex items-center gap-1">
+          <div class="relative h-[35px] w-[180px]">
+            <img
+              src="static/mai/pic/UI_CMN_DXRating_{{ rating_frame_url(player.rating) }}.png"
+              alt="DX rating frame"
+              height="35"
+              width="180"
+              class="object-contain"
+            />
+            <span class="absolute inset-0 flex flex-col items-center justify-center font-mono text-lg font-semibold text-white drop-shadow-[0_2px_6px_rgba(8,47,73,0.75)]">
+              <span class="absolute left-22 text-xm tracking-[0.21em]">{{ "%05d" | format(player.rating) }}</span>
+            </span>
+          </div>
+          <div class="relative h-[42px] w-[70px]">
+            <img
+              src="static/mai/pic/UI_FBR_Class_{{ "%02d" | format(player.class_rank) }}.png"
+              alt="Player Class Rank"
+              height="42"
+              width="70"
+              class="object-contain"
+            />
+          </div>
+        </div>
+
+        {# 玩家名和段位牌 #}
+        <div class="flex h-[36px] w-[259px] items-center justify-between rounded-md border-2 border-red-800 bg-white">
+          <span
+            class="relative left-4 text-left text-xl font-semibold tracking-[0.3em] text-slate-900 drop-shadow-[0_1px_2px_rgba(255,255,255,0.85)]"
+            style="transform: scaleX(1.1);"
+          >
+            {{ player.name }}
+          </span>
+          <img
+            src="static/mai/pic/UI_DNM_DaniPlate_{{ "%02d" | format(player.course_rank) }}.png"
+            alt="Player Course Rank"
+            height="30"
+            width="72"
+            class="relative right-1 object-contain"
+          />
+        </div>
+      </div>
+    </div>
+  </div>
+</header>
+{% endmacro %}
