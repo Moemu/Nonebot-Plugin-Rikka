@@ -5,6 +5,10 @@ from aiohttp import ClientSession
 
 _BASE_RESOURCE_URL = "https://assets2.lxns.net/maimai"
 
+USER_AGENT = (
+    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/58.0.3029.110 Safari/537.3"
+)
+
 
 async def download_resource(
     file_id: str, file_type: str, postfix: str = ".png", save_dir: str = "./static/mai/cover"
@@ -24,7 +28,7 @@ async def download_resource(
         return str(save_path.resolve())
 
     async with ClientSession() as session:
-        async with session.get(url) as resp:
+        async with session.get(url, headers={"User-Agent": USER_AGENT}) as resp:
             resp.raise_for_status()
             content = await resp.read()
             save_path.parent.mkdir(parents=True, exist_ok=True)

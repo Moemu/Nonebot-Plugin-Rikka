@@ -1,5 +1,3 @@
-import asyncio
-from functools import lru_cache
 from pathlib import Path
 from typing import Optional
 
@@ -9,7 +7,7 @@ from nonebot_plugin_htmlrender import template_to_pic
 from typing_extensions import TypedDict
 
 from .score import PlayerMaiB50, PlayerMaiInfo
-from .utils.update_resources import download_jacket
+from .utils.update_resources import download_icon, download_jacket
 
 
 class ViewportDict(TypedDict):
@@ -36,8 +34,7 @@ class PicRenderer:
 
         self.env = Environment(loader=FileSystemLoader(self.template_dir), cache_size=400, auto_reload=False)
 
-    @lru_cache(1024)
-    def _ensure_cover(self, song_id: int) -> str:
+    async def _ensure_cover(self, song_id: int) -> str:
         """
         确保封面资源存在
         """
@@ -52,12 +49,29 @@ class PicRenderer:
 
         logger.warning(f"乐曲 {song_id} 的封面不存在!尝试从服务器下载...")
         try:
-            asyncio.run(download_jacket(str(song_id)))
+            await download_jacket(str(song_id))
             return str(song_id)
         except Exception as e:
             logger.error(f"下载乐曲 {song_id} 封面失败: {e}")
 
-        return "0"
+        return "0"  # 返回默认封面
+
+    async def _ensure_avatar(self, avatar_id: int) -> bool:
+        """
+        确保头像资源存在
+        """
+        avatar = Path(self.static_dir / "mai" / "icon" / f"{avatar_id}.png")
+        if avatar.exists():
+            return True
+
+        logger.warning(f"头像资源 {avatar_id} 不存在!尝试从服务器下载...")
+        try:
+            await download_icon(str(avatar_id))
+        except Exception as e:
+            logger.error(f"下载头像资源 {avatar_id} 失败: {e}")
+            return False
+
+        return True
 
     def _render_html(self, template_name: str, data: dict) -> str:
         """
@@ -90,8 +104,13 @@ class PicRenderer:
         """
         渲染玩家 Best50 信息
         """
-        # if player_info.icon:
-        #     avatar_id = player_info.icon.id
+        if player_info.icon:
+            # await self._ensure_avatar(player_info.icon.id)
+            avatar_url = f"https://assets2.lxns.net/maimai/icon/{player_info.icon.id}.png"
+            # avatar = str(Path(self.static_dir / "mai" / "icon" / f"{player_info.icon.id}.png").absolute())
+            # avatar_url = f"file://{avatar}"
+        else:
+            avatar_url = None
 
         data = {
             "player": {
@@ -99,7 +118,7 @@ class PicRenderer:
                 "rating": player_info.rating,
                 "class_rank": player_info.class_rank,
                 "course_rank": player_info.course_rank,
-                "avatar": None,
+                "avatar": avatar_url,
             },
             "best35": [
                 {
@@ -115,7 +134,7 @@ class PicRenderer:
                     "chartType": score.song_type.value.upper(),
                     "fc": score.fc.value if score.fc else None,
                     "fs": score.fs.value if score.fs else None,
-                    "cover": self._ensure_cover(score.song_id),
+                    "cover": await self._ensure_cover(score.song_id),
                 }
                 for score in player_best50.standard
             ],
