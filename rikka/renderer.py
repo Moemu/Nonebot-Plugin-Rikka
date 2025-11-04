@@ -1,11 +1,13 @@
 from pathlib import Path
-from typing import Optional
+from typing import Literal, Optional
 
 from jinja2 import Environment, FileSystemLoader
 from nonebot import logger
 from nonebot_plugin_htmlrender import template_to_pic
+from nonebot_plugin_orm import get_scoped_session
 from typing_extensions import TypedDict
 
+from .database.crud import MaiSongORM
 from .score import PlayerMaiB50, PlayerMaiInfo
 from .utils.update_resources import download_icon, download_jacket
 
@@ -73,6 +75,24 @@ class PicRenderer:
 
         return True
 
+    async def _get_song_level_value(self, song_id: int, song_type: Literal["standard", "dx"], difficulty: int) -> float:
+        """
+        获取乐曲定数
+
+        :param song_id: 乐曲 ID
+        :param song_type: 铺面类型
+        :param difficulty: 铺面难度
+        """
+        session = get_scoped_session()
+        song_info = await MaiSongORM.get_song_info(session, song_id)
+
+        if song_type == "dx" and len(song_info.difficulties.dx) > difficulty:
+            return song_info.difficulties.dx[difficulty].level_value
+        elif song_type == "standard" and len(song_info.difficulties.standard) > difficulty:
+            return song_info.difficulties.standard[difficulty].level_value
+
+        raise ValueError(f"请求的乐曲 {song_id}({song_type}) 中的难度 {difficulty} 不存在")
+
     def _render_html(self, template_name: str, data: dict) -> str:
         """
         渲染 HTML
@@ -128,7 +148,9 @@ class PicRenderer:
                     "pc": 0,  # unsupported.
                     "difficulty": score.song_difficulty.name.lower(),
                     "level": score.song_level,
-                    "level_value": 11.4,  # pending
+                    "level_value": await self._get_song_level_value(
+                        score.song_id, score.song_type.value, score.song_difficulty.value  # type:ignore
+                    ),  # type:ignore
                     "dx_rating": score.dx_rating,
                     "dx_star": score.dx_star,
                     "chartType": score.song_type.value.upper(),
@@ -146,7 +168,9 @@ class PicRenderer:
                     "pc": 0,  # unsupported.
                     "difficulty": score.song_difficulty.name.lower(),
                     "level": score.song_level,
-                    "level_value": 11.4,  # pending
+                    "level_value": await self._get_song_level_value(
+                        score.song_id, score.song_type.value, score.song_difficulty.value  # type:ignore
+                    ),
                     "dx_rating": score.dx_rating,
                     "dx_star": score.dx_star,
                     "chartType": score.song_type.value.upper(),
