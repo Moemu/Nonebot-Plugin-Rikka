@@ -150,7 +150,7 @@ class PicRenderer:
                     "level": score.song_level,
                     "level_value": await self._get_song_level_value(
                         score.song_id, score.song_type.value, score.song_difficulty.value  # type:ignore
-                    ),  # type:ignore
+                    ),
                     "dx_rating": score.dx_rating,
                     "dx_star": score.dx_star,
                     "chartType": score.song_type.value.upper(),
