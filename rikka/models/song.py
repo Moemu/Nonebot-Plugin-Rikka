@@ -45,10 +45,6 @@ class SongDifficulty:
     level_fit: float = 0.0
     """拟合定数"""
 
-    def __post_init__(self):
-        if not self.level_fit:
-            self.level_fit = self.level_value
-
 
 @dataclass
 class SongDifficultyUtage:

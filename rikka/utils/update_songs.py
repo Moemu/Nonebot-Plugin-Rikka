@@ -12,6 +12,7 @@ from typing_extensions import TypedDict
 from ..models.song import MaiSong, SongDifficulties
 
 _BASE_SONG_QUERY_URL = "https://maimai.lxns.net/api/v0/maimai/song/{song_id}"
+_DIVING_FISH_CHART_STATS_URL = "https://www.diving-fish.com/api/maimaidxprober/chart_stats"
 USER_AGENT = (
     "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/58.0.3029.110 Safari/537.3"
 )
@@ -56,6 +57,22 @@ def get_song_fit_diff_from_local(song_id: int, difficulty: int) -> float:
     return chart_infos[difficulty]["fit_diff"]
 
 
+async def update_local_chart_file():
+    """
+    从水鱼更新 `music_chart.json` 文件
+    """
+    async with ClientSession() as session:
+        async with session.get(_DIVING_FISH_CHART_STATS_URL, headers={"User-Agent": USER_AGENT}) as resp:
+            resp.raise_for_status()
+            content = await resp.json()
+
+    _MUSIC_CHART_PATH.write_text(json.dumps(content, ensure_ascii=False, indent=4), encoding="utf-8")
+    logger.info("已更新本地 music_chart.json 文件")
+
+    global _MUSIC_CHART_DATA
+    _MUSIC_CHART_DATA = content
+
+
 async def fetch_song_info(song_id: int, interval: float = 0.3) -> MaiSong:
     """
     获取曲目信息
@@ -82,12 +99,16 @@ async def fetch_song_info(song_id: int, interval: float = 0.3) -> MaiSong:
         for index, difficulty in enumerate(song_info_dict["difficulties"].dx):
             difficulty.level_fit = get_song_fit_diff_from_local(song_id + 10000, index)
     except ValueError:
-        # TODO: 用另外的 API 拿拟合系数
-        logger.warning(f"曲目 {song_id} 不存在于静态资源文件中，将此曲目的拟合系数设为 0")
-        for index, difficulty in enumerate(song_info_dict["difficulties"].standard):
-            difficulty.level_fit = 0.0
-        for index, difficulty in enumerate(song_info_dict["difficulties"].dx):
-            difficulty.level_fit = 0.0
+        # 如果失败就先更新 `music_chart.json` 文件
+        logger.warning(f"曲目 {song_id} 的拟合定数获取失败，尝试更新本地 chart 文件")
+        await update_local_chart_file()
+        try:
+            for index, difficulty in enumerate(song_info_dict["difficulties"].standard):
+                difficulty.level_fit = get_song_fit_diff_from_local(song_id, index)
+            for index, difficulty in enumerate(song_info_dict["difficulties"].dx):
+                difficulty.level_fit = get_song_fit_diff_from_local(song_id + 10000, index)
+        except ValueError:
+            logger.error(f"曲目 {song_id} 的拟合定数获取失败，跳过该曲目拟合定数设置")
 
     song_info = MaiSong(**song_info_dict)
 
