@@ -46,6 +46,25 @@ class UserBindInfoORM:
             session.add(new_bind_info)
         await session.commit()
 
+    @staticmethod
+    async def set_diving_fish_import_token(
+        session: async_scoped_session, user_id: str, import_token: str, diving_fish_username: str
+    ) -> None:
+        """设置用户的水鱼查分器导入密钥"""
+        bind_info = await UserBindInfoORM.get_user_bind_info(session, user_id)
+        if bind_info:
+            await session.execute(
+                update(UserBindInfo)
+                .where(UserBindInfo.user_id == user_id)
+                .values(diving_fish_import_token=import_token, diving_fish_username=diving_fish_username)
+            )
+        else:
+            new_bind_info = UserBindInfo(
+                user_id=user_id, diving_fish_import_token=import_token, diving_fish_username=diving_fish_username
+            )
+            session.add(new_bind_info)
+        await session.commit()
+
 
 class MaiSongORM:
     @staticmethod

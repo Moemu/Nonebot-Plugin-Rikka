@@ -1,4 +1,4 @@
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from enum import Enum
 from typing import Optional
 
@@ -133,13 +133,9 @@ class PlayerMaiScore:
 class PlayerMaiB50:
     """玩家B50信息，也可用于AP50等类型"""
 
-    standard_total: int
-    """旧版本谱面 Best 35 总分"""
-    dx_total: int
-    """现版本谱面 Best 15 总分"""
-    standard: list[PlayerMaiScore]
+    standard: list[PlayerMaiScore] = field(default_factory=list)
     """旧版本谱面 Best 35 列表"""
-    dx: list[PlayerMaiScore]
+    dx: list[PlayerMaiScore] = field(default_factory=list)
     """现版本谱面 Best 15 列表"""
 
 
@@ -179,15 +175,15 @@ class PlayerMaiInfo:
 
     name: str
     """游戏内名称"""
-    rating: str
+    rating: int
     """玩家 DX Rating"""
-    friend_code: str
-    """好友码"""
     course_rank: int
     """段位 ID"""
     class_rank: int
     """阶级 ID"""
-    trophy: PlayerMaiTrophy
+    friend_code: Optional[str] = None
+    """好友码"""
+    trophy: Optional[PlayerMaiTrophy] = None
     """称号"""
     icon: Optional[PlayerMaiCollection] = None
     """头像"""

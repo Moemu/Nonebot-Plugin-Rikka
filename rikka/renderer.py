@@ -40,16 +40,21 @@ class PicRenderer:
         """
         确保封面资源存在
         """
+        if song_id > 10000:
+            song_id -= 10000
+
         cover = Path(self.static_dir / "mai" / "cover" / f"{song_id}.png")
         if cover.exists():
             return str(song_id)
 
-        song_id += 10000
-        dx_cover = Path(self.static_dir / "mai" / "cover" / f"{song_id}.png")
+        dx_song_id = song_id + 10000
+
+        dx_cover = Path(self.static_dir / "mai" / "cover" / f"{dx_song_id}.png")
         if dx_cover.exists():
-            return str(song_id)
+            return str(dx_song_id)
 
         logger.warning(f"乐曲 {song_id} 的封面不存在!尝试从服务器下载...")
+
         try:
             await download_jacket(str(song_id))
             return str(song_id)
@@ -84,6 +89,10 @@ class PicRenderer:
         :param difficulty: 铺面难度
         """
         session = get_scoped_session()
+
+        if song_id > 10000:
+            song_id -= 10000
+
         song_info = await MaiSongORM.get_song_info(session, song_id)
 
         if song_type == "dx" and len(song_info.difficulties.dx) > difficulty:

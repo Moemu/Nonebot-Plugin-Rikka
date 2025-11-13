@@ -12,10 +12,12 @@ from nonebot import get_driver
 
 from ._base import BaseScoreProvider
 from ._schema import PlayerMaiB50, PlayerMaiInfo
+from .providers.diving_fish import DivingFishScoreProvider
 from .providers.lxns import LXNSScoreProvider
 
 # --- 单例初始化（每个实现类仅初始化一次） ---
 _lxns_provider = LXNSScoreProvider()
+_divingfish_provider = DivingFishScoreProvider()
 
 
 # --- 依赖注入获取函数（用于 Depends(...)） ---
@@ -34,6 +36,21 @@ def get_lxns_provider() -> LXNSScoreProvider:
     return _lxns_provider
 
 
+def get_divingfish_provider() -> DivingFishScoreProvider:
+    """获取 水鱼 查分器的单例实例。
+
+    可用于 NoneBot 依赖注入：
+
+        from nonebot.params import Depends
+        from rikka.score import get_divingfish_provider
+
+        async def handler(provider: DivingFishScoreProvider = Depends(get_divingfish_provider)):
+            ...
+    """
+
+    return _divingfish_provider
+
+
 def get_all_score_providers() -> Dict[str, BaseScoreProvider]:
     """获取当前已注册的全部查分器实例。
 
@@ -43,7 +60,22 @@ def get_all_score_providers() -> Dict[str, BaseScoreProvider]:
 
     return {
         "lxns": _lxns_provider,
+        "divingfish": _divingfish_provider,
     }
+
+
+async def auto_get_score_provider(user_id: str) -> LXNSScoreProvider | DivingFishScoreProvider:
+    from nonebot_plugin_orm import get_scoped_session
+
+    from ..database.crud import UserBindInfoORM
+
+    session = get_scoped_session()
+    bind_info = await UserBindInfoORM.get_user_bind_info(session, user_id)
+
+    if bind_info and not bind_info.lxns_api_key and bind_info.diving_fish_import_token:
+        return _divingfish_provider
+
+    return _lxns_provider
 
 
 # --- 生命周期清理：在 NoneBot 关闭时释放网络会话 ---
@@ -59,8 +91,10 @@ async def _close_score_providers():
 __all__ = [
     "BaseScoreProvider",
     "LXNSScoreProvider",
+    "DivingFishScoreProvider",
     "get_lxns_provider",
     "get_all_score_providers",
+    "auto_get_score_provider",
     "PlayerMaiInfo",
     "PlayerMaiB50",
 ]
