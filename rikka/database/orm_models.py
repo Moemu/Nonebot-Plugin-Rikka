@@ -19,6 +19,8 @@ class UserBindInfo(Model):
     user_id: Mapped[str] = mapped_column(primary_key=True)
     friend_code: Mapped[str] = mapped_column(String, nullable=True, default="")
     lxns_api_key: Mapped[Optional[str]] = mapped_column(String, nullable=True, default="")
+    diving_fish_import_token: Mapped[Optional[str]] = mapped_column(String, nullable=True, default="")
+    diving_fish_username: Mapped[Optional[str]] = mapped_column(String, nullable=True, default="")
 
 
 class MaiSong(Model):
