@@ -1,5 +1,5 @@
 import json
-from typing import Optional
+from typing import TYPE_CHECKING, Optional
 
 from nonebot import logger
 from nonebot_plugin_orm import async_scoped_session
@@ -8,7 +8,10 @@ from sqlalchemy import select, update
 from ..models.song import MaiSong, SongDifficulties, SongDifficulty, SongDifficultyUtage
 from ..utils.update_songs import fetch_song_info
 from .orm_models import MaiSong as MaiSongORMModel
-from .orm_models import UserBindInfo
+from .orm_models import MaiSongAlias, UserBindInfo
+
+if TYPE_CHECKING:
+    from ..utils.update_songs import MusicAliasResponseItem
 
 
 class UserBindInfoORM:
@@ -128,3 +131,161 @@ class MaiSongORM:
         song_info = await fetch_song_info(song_id)
         await MaiSongORM.save_song_info(session, song_info)
         return song_info
+
+    @staticmethod
+    async def get_songs_info_by_ids(session: async_scoped_session, song_ids: list[int]) -> list[MaiSong]:
+        """
+        批量获取曲目信息：
+        - 先用 IN 查询一次性取回数据库中已有的记录；
+        - 对缺失的 ID 再调用远程接口获取并落库；
+        - 返回顺序与传入的 song_ids 一致，并去重。
+        """
+        if not song_ids:
+            return []
+
+        # 去重但保持原始顺序
+        ordered_unique_ids: list[int] = []
+        seen_ids: set[int] = set()
+        for sid in song_ids:
+            sid_int = int(sid)
+            if sid_int not in seen_ids:
+                seen_ids.add(sid_int)
+                ordered_unique_ids.append(sid_int)
+
+        result = await session.execute(select(MaiSongORMModel).where(MaiSongORMModel.id.in_(ordered_unique_ids)))
+        rows = result.scalars().all()
+
+        # 已有记录映射
+        id_to_song: dict[int, MaiSong] = {row.id: MaiSongORM._convert(row) for row in rows}
+
+        # 远程补齐缺失记录
+        missing_ids = [sid for sid in ordered_unique_ids if sid not in id_to_song]
+        for mid in missing_ids:
+            logger.warning(f"曲目 ID {mid} 不存在于数据库，正在从远程获取...")
+            fetched = await fetch_song_info(mid)
+            await MaiSongORM.save_song_info(session, fetched)
+            id_to_song[mid] = fetched
+
+        return [id_to_song[sid] for sid in ordered_unique_ids if sid in id_to_song]
+
+    @staticmethod
+    async def get_song_info_by_name_or_alias(session: async_scoped_session, name_or_alias: str) -> list[MaiSong]:
+        """
+        通过乐曲名称或别名获取曲目信息
+
+        :param name_or_alias: 乐曲名称或别名
+        :return: 曲目信息 或 None
+        """
+        # 先尝试通过乐曲名称查找
+        result = await session.execute(select(MaiSongORMModel).where(MaiSongORMModel.title == name_or_alias))
+        song_row = result.scalar_one_or_none()
+        if song_row:
+            return [MaiSongORM._convert(song_row)]
+
+        # 如果名称查找失败，则通过别名查找
+        song = await MaiSongAliasORM.find_song_by_alias(session, name_or_alias)
+        return song
+
+
+class MaiSongAliasORM:
+    @staticmethod
+    async def get_aliases(session: async_scoped_session, song_id: int) -> list[str]:
+        """
+        获取曲目的所有别名
+
+        :param song_id: 曲目 ID
+        """
+        result = await session.execute(
+            select(MaiSongAlias.alias, MaiSongAlias.custom_alias).where(MaiSongAlias.song_id == song_id)
+        )
+        alias_row = result.scalar_one_or_none()
+        if not alias_row:
+            return []
+        aliases = json.loads(alias_row[0]) if alias_row[0] else []
+        custom_aliases = json.loads(alias_row[1]) if alias_row[1] else []
+        return list(set(aliases + custom_aliases))
+
+    @staticmethod
+    async def update_aliases(
+        session: async_scoped_session, song_id: int, aliases: list[str], commit: bool = True
+    ) -> None:
+        """
+        更新曲目的别名列表
+
+        :param song_id: 曲目 ID
+        :param aliases: 新的别名列表
+        :param commit: 是否在更新后提交事务
+        """
+        await session.execute(
+            update(MaiSongAlias)
+            .where(MaiSongAlias.song_id == song_id)
+            .values(alias=json.dumps(aliases, ensure_ascii=False))
+        )
+
+        if commit:
+            await session.commit()
+
+    @staticmethod
+    async def add_custom_alias(session: async_scoped_session, song_id: int, custom_alias: str) -> None:
+        """
+        添加自定义别名到曲目
+
+        :param song_id: 曲目 ID
+        :param custom_alias: 自定义别名
+        """
+        result = await session.execute(select(MaiSongAlias).where(MaiSongAlias.song_id == song_id))
+        alias_entry = result.scalar_one_or_none()
+        if alias_entry:
+            current_custom_aliases = json.loads(alias_entry.custom_alias) if alias_entry.custom_alias else []
+            if custom_alias not in current_custom_aliases:
+                current_custom_aliases.append(custom_alias)
+                alias_entry.custom_alias = json.dumps(current_custom_aliases, ensure_ascii=False)
+                session.add(alias_entry)
+        else:
+            new_alias_entry = MaiSongAlias(
+                song_id=song_id, alias="[]", custom_alias=json.dumps([custom_alias], ensure_ascii=False)
+            )
+            session.add(new_alias_entry)
+        await session.commit()
+
+    @staticmethod
+    async def add_alias_batch(session: async_scoped_session, song_to_aliases: "list[MusicAliasResponseItem]") -> None:
+        """
+        批量添加曲目别名
+
+        :param song_to_aliases: 曲目 ID 到别名列表的映射
+        """
+        for item in song_to_aliases:
+            song_id = item["song_id"]
+            aliases = item["aliases"]
+            if not aliases:
+                continue
+
+            # 如果已有记录则更新别名列表
+            if (
+                await session.execute(select(MaiSongAlias).where(MaiSongAlias.song_id == song_id))
+            ).scalar_one_or_none():
+                await MaiSongAliasORM.update_aliases(session, song_id, aliases, commit=False)
+                continue
+
+            alias_entry = MaiSongAlias(song_id=song_id, alias=json.dumps(aliases, ensure_ascii=False))
+            session.add(alias_entry)
+
+        await session.commit()
+
+    @staticmethod
+    async def find_song_by_alias(session: async_scoped_session, alias: str) -> list[MaiSong]:
+        """
+        通过别名查找曲目信息
+
+        :param alias: 曲目别名
+        :return: 曲目信息 或 None
+        """
+        # 仅选择需要的列，避免在异步环境中触发 ORM 懒加载（MissingGreenlet）
+        result = await session.execute(select(MaiSongAlias.song_id).where(MaiSongAlias.alias.like(f"%{alias}%")))
+        song_ids = result.scalars().all()
+        if not song_ids:
+            return []
+
+        # 批量获取已存在的记录，并保持输入顺序
+        return await MaiSongORM.get_songs_info_by_ids(session, [int(sid) for sid in song_ids])

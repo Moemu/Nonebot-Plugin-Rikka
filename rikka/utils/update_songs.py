@@ -7,8 +7,10 @@ from pathlib import Path
 
 from aiohttp import ClientSession
 from nonebot import logger
+from nonebot_plugin_orm import async_scoped_session
 from typing_extensions import TypedDict
 
+from ..config import config
 from ..models.song import MaiSong, SongDifficulties
 
 _BASE_SONG_QUERY_URL = "https://maimai.lxns.net/api/v0/maimai/song/{song_id}"
@@ -17,7 +19,7 @@ USER_AGENT = (
     "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/58.0.3029.110 Safari/537.3"
 )
 
-_MUSIC_CHART_PATH = Path("./static/music_chart.json")
+_MUSIC_CHART_PATH = Path(config.static_resource_path) / "music_chart.json"
 _MUSIC_CHART_DATA: "MusicChart" = json.loads(_MUSIC_CHART_PATH.read_text(encoding="utf-8"))
 
 
@@ -39,6 +41,15 @@ class MusicChartInfo(TypedDict):
 class MusicChart(TypedDict):
     charts: dict[str, list[MusicChartInfo]]
     diff_data: dict[str, dict]
+
+
+class MusicAliasResponseItem(TypedDict):
+    song_id: int
+    aliases: list[str]
+
+
+class LXNSApiAliasResponse(TypedDict):
+    aliases: list[MusicAliasResponseItem]
 
 
 def get_song_fit_diff_from_local(song_id: int, difficulty: int) -> float:
@@ -113,3 +124,18 @@ async def fetch_song_info(song_id: int, interval: float = 0.3) -> MaiSong:
     song_info = MaiSong(**song_info_dict)
 
     return song_info
+
+
+async def update_song_alias_list(db_session: async_scoped_session):
+    """
+    通过落雪查分器更新别名表
+    """
+    _BASE_URL = "https://maimai.lxns.net/api/v0/maimai/alias/list"
+    async with ClientSession() as session:
+        async with session.get(_BASE_URL, headers={"User-Agent": USER_AGENT}) as resp:
+            resp.raise_for_status()
+            content: LXNSApiAliasResponse = await resp.json()
+
+    from ..database import MaiSongAliasORM
+
+    await MaiSongAliasORM.add_alias_batch(db_session, content["aliases"])

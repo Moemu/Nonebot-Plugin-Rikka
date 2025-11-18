@@ -29,15 +29,17 @@
 
 带有🚧标志的指令暂不可用或仍在开发中
 
-| 指令                    | 说明                                                   |
-| ----------------------- | ------------------------------------------------------ |
-| `.bind lxns|divingfish` | [查分器相关]绑定游戏账号/查分器                        |
-| `.b50`                  | [舞萌DX]生成玩家 Best50                                |
-| 🚧`.r50`                 | [舞萌DX]生成玩家 Recent 50（需绑定落雪查分器）         |
-| 🚧`.ap50`                | [舞萌DX]生成玩家 ALL PERFECT 50                        |
-| 🚧`.minfo <id|别名>`     | [舞萌DX]获取乐曲信息                                   |
-| 🚧`.score <id|别名>`     | [舞萌DX]获取玩家游玩该乐曲的成绩                       |
-| 🚧`.trend`               | [舞萌DX]获取玩家的 DX Rating 趋势 （需绑定落雪查分器） |
+| 指令                          | 说明                                                   |
+| ----------------------------- | ------------------------------------------------------ |
+| `.bind lxns|divingfish`       | [查分器相关]绑定游戏账号/查分器                        |
+| `.b50`                        | [舞萌DX]生成玩家 Best50                                |
+| `.minfo <id|别名>`            | [舞萌DX]获取乐曲信息                                   |
+| `.alias add <song_id> <别名>` | [舞萌DX]添加乐曲别名（不会被 update 操作覆盖）         |
+| `.alias update`               | [舞萌DX]从落雪查分器更新乐曲别名数据库                 |
+| 🚧`.r50`                       | [舞萌DX]生成玩家 Recent 50（需绑定落雪查分器）         |
+| 🚧`.ap50`                      | [舞萌DX]生成玩家 ALL PERFECT 50                        |
+| 🚧`.score <id|别名>`           | [舞萌DX]获取玩家游玩该乐曲的成绩                       |
+| 🚧`.trend`                     | [舞萌DX]获取玩家的 DX Rating 趋势 （需绑定落雪查分器） |
 
 ## 配置⚙️
 
@@ -58,9 +60,6 @@
 ## 关于🎗️
 
 本项目基于 [MIT License](https://github.com/Moemu/Nonebot-Plugin-Rikka/blob/main/LICENSE) 许可证提供，涉及到再分发时请保留许可文件的副本。
-
-本项目标识使用了 [nonebot/nonebot2](https://github.com/nonebot/nonebot2) 和 画师 [Nakkar](https://www.pixiv.net/users/28246124) [Pixiv作品](https://www.pixiv.net/artworks/101063891) 的资产或作品。如有侵权，请及时与我们联系
-
 
 本项目的产生离不开下列开发者的支持，感谢你们的贡献：
 

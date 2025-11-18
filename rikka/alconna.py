@@ -1,4 +1,5 @@
 import itertools
+from pathlib import Path
 from typing import cast
 
 from aiohttp.client_exceptions import ClientResponseError
@@ -6,6 +7,7 @@ from arclet.alconna import Alconna, Args
 from nonebot import logger
 from nonebot.adapters import Event
 from nonebot.params import Depends
+from nonebot.permission import SUPERUSER
 from nonebot_plugin_alconna import (
     AlconnaMatch,
     At,
@@ -18,7 +20,8 @@ from nonebot_plugin_alconna import (
 from nonebot_plugin_alconna.uniseg import Image as UniImage
 from nonebot_plugin_orm import async_scoped_session
 
-from .database import UserBindInfo, UserBindInfoORM
+from .config import config
+from .database import MaiSongORM, UserBindInfo, UserBindInfoORM
 from .renderer import PicRenderer
 from .score import (
     DivingFishScoreProvider,
@@ -28,10 +31,41 @@ from .score import (
     get_divingfish_provider,
     get_lxns_provider,
 )
+from .utils.update_songs import update_song_alias_list
 
 renderer = PicRenderer()
 
 COMMAND_PREFIXES = [".", "/"]
+
+_MAI_SONG_INFO_TEMPLATE = """[舞萌DX] 乐曲信息
+标题: {title}
+艺术家: {artist}
+分类: {genre}
+BPM: {bpm}
+版本: {version}
+"""
+
+_MAI_VERSION_MAP = {
+    100: "maimai",
+    110: "maimai PLUS",
+    120: "GreeN",
+    130: "GreeN PLUS",
+    140: "ORANGE",
+    150: "ORANGE PLUS",
+    160: "PiNK",
+    170: "PiNK PLUS",
+    180: "MURASAKi",
+    185: "MURASAKi PLUS",
+    190: "MiLK",
+    195: "MiLK PLUS",
+    199: "FiNALE",
+    200: "舞萌DX",
+    210: "舞萌DX 2021",
+    220: "舞萌DX 2022",
+    230: "舞萌DX 2023",
+    240: "舞萌DX 2024",
+    250: "舞萌DX 2025",
+}
 
 alconna_bind = on_alconna(
     Alconna(
@@ -53,6 +87,33 @@ alconna_b50 = on_alconna(
     Alconna(COMMAND_PREFIXES, "b50", meta=CommandMeta("[舞萌DX]生成玩家 B50")),
     priority=10,
     block=True,
+)
+
+alconna_minfo = on_alconna(
+    Alconna(
+        COMMAND_PREFIXES,
+        "minfo",
+        Args["name", str],
+        meta=CommandMeta("[舞萌DX]获取乐曲信息", usage=".minfo <id|别名>"),
+    ),
+    priority=10,
+    block=True,
+)
+
+alconna_alias = on_alconna(
+    Alconna(
+        COMMAND_PREFIXES,
+        "alias",
+        Subcommand("help"),
+        Subcommand(
+            "add", Args["song_id", int], Args["alias", str], help_text=".alias add <乐曲ID> <别名> 添加乐曲别名"
+        ),
+        Subcommand("update", help_text=".alias update 更新本地乐曲别名列表"),
+        meta=CommandMeta("[舞萌DX]乐曲别名管理"),
+    ),
+    priority=10,
+    block=True,
+    permission=SUPERUSER,
 )
 
 
@@ -212,3 +273,129 @@ async def handle_mai_b50(
     pic = await renderer.render_mai_player_best50(player_b50, player_info)
 
     await UniMessage([At(flag="user", target=user_id), UniImage(raw=pic)]).finish()
+
+
+@alconna_minfo.handle()
+async def handle_minfo(
+    event: Event,
+    db_session: async_scoped_session,
+    name: Match[str] = AlconnaMatch("name"),
+):
+    user_id = event.get_user_id()
+
+    if not name.available:
+        await UniMessage([At(flag="user", target=user_id), "请输入有效的乐曲ID/名称/别名！"]).finish()
+
+    raw_query = name.result
+    song_id = int(raw_query) if raw_query.isdigit() else None
+    song_name = raw_query if song_id is None else None
+
+    logger.info(f"[{user_id}] 查询乐曲信息, 查询内容: {raw_query}")
+    songs = []
+
+    if song_id is not None:
+        logger.debug(f"[{user_id}] 1/4 通过乐曲ID {song_id} 查询乐曲信息...")
+        song_id = song_id if song_id < 10000 or song_id > 100000 else song_id % 10000
+        songs = [await MaiSongORM.get_song_info(db_session, song_id)]
+    elif song_name is not None:
+        logger.debug(f"[{user_id}] 1/4 通过乐曲名称/别名 {song_name} 查询乐曲信息...")
+        songs = await MaiSongORM.get_song_info_by_name_or_alias(db_session, song_name)
+    else:
+        raise ValueError("Unreachable code reached in handle_minfo")
+
+    if not songs:
+        await UniMessage([At(flag="user", target=user_id), f"未找到与 '{raw_query}' 相关的乐曲信息！"]).finish()
+        return
+
+    if len(songs) > 1:
+        logger.debug(f"[{user_id}] 4/4 找到多条乐曲信息，提前返回向用户确定具体乐曲ID")
+        contents = [
+            At(flag="user", target=user_id),
+            f"找到多条与 '{raw_query}' 相关的乐曲信息，请指定你想查询的乐曲ID：",
+        ]
+        for song in songs:
+            contents.append(f"\nID: {song.id} 标题: {song.title} 艺术家: {song.artist}")
+        await UniMessage(contents).finish()
+        return
+
+    song = songs[0]
+
+    logger.debug(f"[{user_id}] 2/4 获取乐曲封面...")
+    song_cover = Path(config.static_resource_path) / "mai" / "cover" / f"{song.id}.png"
+
+    if not song_cover.exists():
+        dx_song_id = song.id + 10000  # DX 版封面
+        song_cover = Path(config.static_resource_path) / "mai" / "cover" / f"{dx_song_id}.png"
+        if not song_cover.exists():
+            logger.warning(f"未找到乐曲 {song.id} 的封面图片")
+            song_cover = Path(config.static_resource_path) / "mai" / "cover" / "0.png"
+
+    logger.debug(f"[{user_id}] 3/4 获取定数信息...")
+
+    response_difficulties_content = []
+
+    if song.difficulties.standard:
+        std_diffs = "/".join([str(diff.level_value) for diff in song.difficulties.standard])
+        response_difficulties_content.append(f"定数: {std_diffs}")
+
+        if song.difficulties.standard[0].level_fit is not None:
+            fit_diffs = "/".join(
+                [
+                    "{:.2f}".format(diff.level_fit) if diff.level_fit is not None else f"{diff.level}"
+                    for diff in song.difficulties.standard
+                ]
+            )
+            response_difficulties_content.append(f"拟合定数: {fit_diffs}")
+
+    if song.difficulties.dx:
+        dx_diffs = "/".join([str(diff.level_value) for diff in song.difficulties.dx])
+        response_difficulties_content.append(f"定数(DX): {dx_diffs}")
+
+        if song.difficulties.dx[0].level_fit is not None:
+            fit_diffs = "/".join(
+                [
+                    "{:.2f}".format(diff.level_fit) if diff.level_fit is not None else f"{diff.level}"
+                    for diff in song.difficulties.dx
+                ]
+            )
+            response_difficulties_content.append(f"拟合定数(DX): {fit_diffs}")
+
+    logger.debug(f"[{user_id}] 4/4 构建乐曲信息模板...")
+
+    response_content = UniMessage(
+        [
+            At(flag="user", target=user_id),
+            UniImage(path=song_cover),
+            _MAI_SONG_INFO_TEMPLATE.format(
+                title=song.title,
+                artist=song.artist,
+                genre=song.genre,
+                bpm=song.bpm,
+                version=_MAI_VERSION_MAP.get(song.version // 100, "未知版本"),
+            ),
+            "\n".join(response_difficulties_content),
+        ]
+    )
+
+    await response_content.finish()
+
+
+@alconna_alias.assign("update")
+async def handle_alias_update(
+    event: Event,
+    db_session: async_scoped_session,
+):
+    user_id = event.get_user_id()
+
+    logger.info(f"[{user_id}] 更新乐曲别名列表")
+
+    await update_song_alias_list(db_session)
+
+    logger.info(f"[{user_id}] 乐曲别名列表更新完成")
+
+    await UniMessage(
+        [
+            At(flag="user", target=user_id),
+            "乐曲别名列表已更新完成 ⭐",
+        ]
+    ).finish()

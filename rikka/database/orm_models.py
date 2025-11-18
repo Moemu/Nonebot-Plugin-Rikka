@@ -1,8 +1,8 @@
 from typing import Optional
 
 from nonebot_plugin_orm import Model
-from sqlalchemy import Integer, String
-from sqlalchemy.orm import Mapped, mapped_column
+from sqlalchemy import ForeignKey, Integer, String
+from sqlalchemy.orm import Mapped, mapped_column, relationship
 from typing_extensions import TypedDict
 
 
@@ -24,6 +24,8 @@ class UserBindInfo(Model):
 
 
 class MaiSong(Model):
+    __tablename__ = "rikka_maisong"  # nonebot_plugin_orm 的默认命名
+
     id: Mapped[int] = mapped_column(primary_key=True)
     title: Mapped[str] = mapped_column(String, nullable=False)
     artist: Mapped[str] = mapped_column(String, nullable=False)
@@ -34,3 +36,13 @@ class MaiSong(Model):
     locked: Mapped[bool] = mapped_column(nullable=True, default=False)
     disabled: Mapped[bool] = mapped_column(nullable=True, default=False)
     difficulties: Mapped[SongDifficulties] = mapped_column(String, nullable=False)
+
+    alias_entry: Mapped["MaiSongAlias"] = relationship("MaiSongAlias", back_populates="song", uselist=False)
+
+
+class MaiSongAlias(Model):
+    song_id: Mapped[int] = mapped_column(ForeignKey("rikka_maisong.id"), primary_key=True)
+    alias: Mapped[str] = mapped_column(String, nullable=True, default="[]")
+    custom_alias: Mapped[str] = mapped_column(String, nullable=True, default="[]")
+
+    song: Mapped["MaiSong"] = relationship("MaiSong", back_populates="alias_entry")
