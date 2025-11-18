@@ -13,24 +13,56 @@
 
 ## 介绍✨
 
-*None yet.*
+基于 [Nonebot2](https://nonebot.dev/) 的舞萌DX的查分插件
 
 ## 功能🪄
 
+✅ 支持游戏: 舞萌DX(Ver.CN 1.5x), ~~中二节奏(Not Plan yet.)~~
+
+✅ 支持数据源: [落雪咖啡屋(未绑定的首选)](https://maimai.lxns.net/), [水鱼查分器](https://www.diving-fish.com/maimaidx/prober/)
+
+✅ 支持功能: Best50 ~~好像就只有这个?~~
+
+## 指令列表🕹️
+
+带有🚧标志的指令暂不可用或仍在开发中
+
+| 指令                    | 说明                                                   |
+| ----------------------- | ------------------------------------------------------ |
+| `.bind lxns|divingfish` | [查分器相关]绑定游戏账号/查分器                        |
+| `.b50`                  | [舞萌DX]生成玩家 Best50                                |
+| 🚧`.r50`                 | [舞萌DX]生成玩家 Recent 50（需绑定落雪查分器）         |
+| 🚧`.ap50`                | [舞萌DX]生成玩家 ALL PERFECT 50                        |
+| 🚧`.minfo <id|别名>`     | [舞萌DX]获取乐曲信息                                   |
+| 🚧`.score <id|别名>`     | [舞萌DX]获取玩家游玩该乐曲的成绩                       |
+| 🚧`.trend`               | [舞萌DX]获取玩家的 DX Rating 趋势 （需绑定落雪查分器） |
+
 ## 配置⚙️
+
+### lxns_developer_api_key
+
+- 说明: 落雪开发者密钥
+
+- 类型: str
+
+### static_resource_path
+
+- 说明: 静态资源路径（类似于 [Yuri-YuzuChaN/maimaiDX](https://github.com/Yuri-YuzuChaN/maimaiDX) 的实现，你需要从 [此处](https://cloud.yuzuchan.moe/f/1bUn/Resource.7z) 获取游戏的资源文件，这将用于 Best 50 等的渲染）
+
+- 类型: str
+
+- 默认值: static
 
 ## 关于🎗️
 
-<!-- 本项目基于 [BSD 3](https://github.com/Moemu/nonebot-plugin-muice/blob/main/LICENSE) 许可证提供，涉及到再分发时请保留许可文件的副本。 -->
+本项目基于 [MIT License](https://github.com/Moemu/Nonebot-Plugin-Rikka/blob/main/LICENSE) 许可证提供，涉及到再分发时请保留许可文件的副本。
 
 本项目标识使用了 [nonebot/nonebot2](https://github.com/nonebot/nonebot2) 和 画师 [Nakkar](https://www.pixiv.net/users/28246124) [Pixiv作品](https://www.pixiv.net/artworks/101063891) 的资产或作品。如有侵权，请及时与我们联系
 
 
-<!-- 感谢各位开发者的协助，可以说没有你们就没有沐雪的今天：
+本项目的产生离不开下列开发者的支持，感谢你们的贡献：
 
-<a href="https://github.com/eryajf/Moemu/MuiceBot/contributors">
-  <img src="https://contrib.rocks/image?repo=Moemu/MuiceBot"  alt="图片加载中..."/>
-</a> -->
+![[Rikka 的贡献者们](https://github.com/eryajf/Moemu/Nonebot-Plugin-Rikka/contributors)](https://contrib.rocks/image?repo=Moemu/Nonebot-Plugin-Rikka)
 
 本项目同样是 MuikaAI 的一部分
 
