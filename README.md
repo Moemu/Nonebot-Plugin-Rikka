@@ -1,5 +1,5 @@
 <div align=center>
-  <img width=200 src="https://bot.snowy.moe/logo.png"  alt="image"/>
+  <img width=200 src="./assets/RikkaLogo.webp"  alt="image"/>
   <h1 align="center">Nonebot-Plugin-Rikka</h1>
   <p align="center">一个简单的 NoneBot2 舞萌查询成绩插件</p>
 </div>
@@ -14,6 +14,8 @@
 ## 介绍✨
 
 基于 [Nonebot2](https://nonebot.dev/) 的舞萌DX的查分插件
+
+看板娘: [Rikka](https://bot.snowy.moe/about/Rikka)
 
 ## 功能🪄
 
