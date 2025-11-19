@@ -1,6 +1,10 @@
 from dataclasses import fields
 from typing import Optional, TypedDict
 
+from nonebot import logger
+from nonebot_plugin_orm import get_scoped_session
+
+from ...database import MaiSongORM
 from .._base import BaseScoreProvider
 from .._schema import (
     PlayerMaiB50,
@@ -37,7 +41,7 @@ class DivingFishBest50Response(TypedDict):
 class DivingFishPlayerRecordsResponse(TypedDict):
     additional_rating: int
     """段位信息"""
-    records: DivingFishCharts
+    records: list[dict]
     nickname: str
     """用户的昵称"""
     plate: str
@@ -159,3 +163,43 @@ class DivingFishScoreProvider(BaseScoreProvider):
         data: DivingFishPlayerRecordsResponse = await self._get_resp(endpoint, import_token)
 
         return data
+
+    async def fetch_player_ap50(self, import_token: str) -> PlayerMaiB50:
+        """
+        获取玩家 AP 50
+        """
+        from ...alconna import _MAI_VERSION_MAP
+
+        _CURRENT_VERSION = list(_MAI_VERSION_MAP.keys())[-1]
+
+        logger.debug("通过水鱼查分器间接查询 AP 50...")
+        logger.debug("1/2 获取完整游玩记录")
+
+        datas = await self.fetch_player_records_by_import_token(import_token)
+        records = datas["records"]
+        ap_records = [record for record in records if record["fc"] in ["ap", "app"]]
+
+        logger.debug("2/2 划分版本信息")
+
+        session = get_scoped_session()
+        old_version_records = []
+        current_vesion_records = []
+
+        for record in ap_records:
+            song_id = record["song_id"] if record["type"].lower() != "dx" else record["song_id"] - 10000
+            song = await MaiSongORM.get_song_info(session, song_id)
+            is_current_version = song.version // 100 == _CURRENT_VERSION
+
+            if is_current_version:
+                current_vesion_records.append(record)
+            else:
+                old_version_records.append(record)
+
+        old_version_records.sort(key=lambda x: x["ra"], reverse=True)
+        current_vesion_records.sort(key=lambda x: x["ra"], reverse=True)
+
+        standard_scores = [self._score_unpack(record) for record in old_version_records[:35]]
+        dx_scores = [self._score_unpack(record) for record in current_vesion_records[:15]]
+
+        ap50 = PlayerMaiB50(standard=standard_scores, dx=dx_scores)
+        return ap50

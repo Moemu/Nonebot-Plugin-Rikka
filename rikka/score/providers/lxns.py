@@ -161,3 +161,29 @@ class LXNSScoreProvider(BaseScoreProvider):
     async def fetch_player_b50_by_qq(self, qq: str, auth_token: Optional[str] = _developer_api_key) -> PlayerMaiB50:
         # 保持兼容旧调用路径
         return await self.fetch_player_b50(qq=qq, auth_token=auth_token)
+
+    async def fetch_player_ap50(self, friend_code: str, auth_token: str = _developer_api_key) -> PlayerMaiB50:
+        """
+        获取玩家 ALL PERFECT 50
+        """
+        endpoint = f"{friend_code}/bests/ap"
+
+        response = await self._get_resp(endpoint, auth_token)
+        data: LXNSBest50Response = response.get("data", response)
+
+        standard_scores = []
+        dx_scores = []
+
+        for raw_score in data["standard"]:
+            score = self._score_unpack(raw_score)
+            standard_scores.append(score)
+
+        for raw_score in data["dx"]:
+            score = self._score_unpack(raw_score)
+            dx_scores.append(score)
+
+        b50 = PlayerMaiB50(
+            standard=standard_scores,
+            dx=dx_scores,
+        )
+        return b50
