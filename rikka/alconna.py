@@ -95,6 +95,12 @@ alconna_ap50 = on_alconna(
     block=True,
 )
 
+alconna_r50 = on_alconna(
+    Alconna(COMMAND_PREFIXES, "r50", meta=CommandMeta("[舞萌DX]生成玩家 Recent 50 (需绑定落雪查分器)")),
+    priority=10,
+    block=True,
+)
+
 alconna_minfo = on_alconna(
     Alconna(
         COMMAND_PREFIXES,
@@ -350,6 +356,58 @@ async def handle_mai_ap50(
 
     logger.debug(f"[{user_id}] 4/4 渲染玩家数据...")
     pic = await renderer.render_mai_player_best50(player_ap50, player_info)
+
+    await UniMessage([At(flag="user", target=user_id), UniImage(raw=pic)]).finish()
+
+
+@alconna_r50.handle()
+async def handle_mai_r50(
+    event: Event, db_session: async_scoped_session, score_provider: LXNSScoreProvider = Depends(get_lxns_provider)
+):
+    user_id = event.get_user_id()
+
+    logger.info(f"[{user_id}] 获取玩家 Recent 50, 查分器名称: {score_provider.provider}")
+    logger.debug(f"[{user_id}] 1/4 尝试从数据库中获取玩家绑定信息...")
+
+    user_bind_info = await UserBindInfoORM.get_user_bind_info(db_session, user_id)
+
+    new_player_friend_code = None
+    if user_bind_info is None:
+        logger.warning(f"[{user_id}] 未能获取玩家码，数据库中不存在绑定的玩家数据")
+        logger.debug(f"[{user_id}] 1/4 尝试通过 QQ 请求玩家数据")
+        try:
+            player_info = await score_provider.fetch_player_info_by_qq(user_id)
+            new_player_friend_code = player_info.friend_code
+        except ClientResponseError as e:
+            logger.warning(f"[{user_id}] 无法通过 QQ 号请求玩家数据: {e.code}: {e.message}")
+
+            await UniMessage(
+                [
+                    At(flag="user", target=user_id),
+                    "查询 Recent 50 的操作需要绑定落雪查分器喵，还请使用 /bind 指令进行绑定喵呜",
+                ]
+            ).finish()
+
+            return
+
+    friend_code = new_player_friend_code or user_bind_info.friend_code  # type:ignore
+    if not friend_code:
+        logger.warning(f"[{user_id}] 无法获取好友码，无法继续查询。")
+        await UniMessage(
+            [
+                At(flag="user", target=user_id),
+                "无法获取好友码，请确认已绑定或查分器可用。",
+            ]
+        ).finish()
+        return
+    logger.debug(f"[{user_id}] 2/4 发起 API 请求玩家信息...")
+    player_info = await score_provider.fetch_player_info(friend_code)
+
+    logger.debug(f"[{user_id}] 3/4 发起 API 请求玩家 Recent 50...")
+    player_r50 = await score_provider.fetch_player_r50(friend_code)
+
+    logger.debug(f"[{user_id}] 4/4 渲染玩家数据...")
+    pic = await renderer.render_mai_player_scores(player_r50, player_info, title="Recent 50")
 
     await UniMessage([At(flag="user", target=user_id), UniImage(raw=pic)]).finish()
 

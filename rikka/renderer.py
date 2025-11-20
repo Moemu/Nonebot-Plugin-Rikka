@@ -8,7 +8,7 @@ from nonebot_plugin_orm import get_scoped_session
 from typing_extensions import TypedDict
 
 from .database.crud import MaiSongORM
-from .score import PlayerMaiB50, PlayerMaiInfo
+from .score import PlayerMaiB50, PlayerMaiInfo, PlayerMaiScore
 from .utils.update_resources import download_icon, download_jacket
 
 
@@ -192,3 +192,50 @@ class PicRenderer:
         }
 
         return await self._render_pic_by_plugin("PlayerMaiBest50.jinja2", data)
+
+    async def render_mai_player_scores(
+        self, scores: list[PlayerMaiScore], player_info: PlayerMaiInfo, title: Optional[str] = None
+    ) -> bytes:
+        """
+        渲染玩家具体成绩图
+        """
+        if player_info.icon:
+            # await self._ensure_avatar(player_info.icon.id)
+            avatar_url = f"https://assets2.lxns.net/maimai/icon/{player_info.icon.id}.png"
+            # avatar = str(Path(self.static_dir / "mai" / "icon" / f"{player_info.icon.id}.png").absolute())
+            # avatar_url = f"file://{avatar}"
+        else:
+            avatar_url = None
+
+        data = {
+            "player": {
+                "name": player_info.name,
+                "rating": player_info.rating,
+                "class_rank": player_info.class_rank,
+                "course_rank": player_info.course_rank,
+                "avatar": avatar_url,
+            },
+            "scores": [
+                {
+                    "title": score.song_name,
+                    "achievement": score.achievements,
+                    "rank": score.rate.value,
+                    "pc": 0,  # unsupported.
+                    "difficulty": score.song_difficulty.name.lower(),
+                    "level": score.song_level,
+                    "level_value": await self._get_song_level_value(
+                        score.song_id, score.song_type.value, score.song_difficulty.value  # type:ignore
+                    ),
+                    "dx_rating": score.dx_rating,
+                    "dx_star": score.dx_star,
+                    "chartType": score.song_type.value.upper(),
+                    "fc": score.fc.value if score.fc else None,
+                    "fs": score.fs.value if score.fs else None,
+                    "cover": await self._ensure_cover(score.song_id),
+                }
+                for score in scores
+            ],
+            "title": title,
+        }
+
+        return await self._render_pic_by_plugin("PlayerMaiScoresList.jinja2", data)

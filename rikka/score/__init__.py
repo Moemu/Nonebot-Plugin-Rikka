@@ -11,7 +11,7 @@ from typing import Dict
 from nonebot import get_driver
 
 from ._base import BaseScoreProvider
-from ._schema import PlayerMaiB50, PlayerMaiInfo
+from ._schema import PlayerMaiB50, PlayerMaiInfo, PlayerMaiScore
 from .providers.diving_fish import DivingFishScoreProvider
 from .providers.lxns import LXNSScoreProvider
 
@@ -97,4 +97,5 @@ __all__ = [
     "auto_get_score_provider",
     "PlayerMaiInfo",
     "PlayerMaiB50",
+    "PlayerMaiScore",
 ]

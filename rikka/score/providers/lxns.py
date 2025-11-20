@@ -182,8 +182,25 @@ class LXNSScoreProvider(BaseScoreProvider):
             score = self._score_unpack(raw_score)
             dx_scores.append(score)
 
-        b50 = PlayerMaiB50(
+        ap50 = PlayerMaiB50(
             standard=standard_scores,
             dx=dx_scores,
         )
-        return b50
+        return ap50
+
+    async def fetch_player_r50(self, friend_code: str, auth_token: str = _developer_api_key) -> list[PlayerMaiScore]:
+        """
+        获取玩家 Recent 50
+        """
+        endpoint = f"{friend_code}/recents"
+
+        response = await self._get_resp(endpoint, auth_token)
+        data: list[dict] = response.get("data", response)
+
+        scores = []
+
+        for raw_score in data:
+            score = self._score_unpack(raw_score)
+            scores.append(score)
+
+        return scores
