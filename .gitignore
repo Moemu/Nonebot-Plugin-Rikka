@@ -1,4 +1,3 @@
-
 # Created by https://www.toptal.com/developers/gitignore/api/python
 # Edit at https://www.toptal.com/developers/gitignore?templates=python
 
@@ -146,3 +145,8 @@ dmypy.json
 # template
 pages/
 static/
+
+# Node.js
+node_modules/
+npm-debug.log
+yarn-error.log

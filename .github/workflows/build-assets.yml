@@ -1,0 +1,42 @@
+name: Build Assets
+
+on:
+  push:
+    branches:
+      - main
+      - master
+    paths:
+      - "rikka/templates/**"
+      - "assets/css/**"
+      - "package.json"
+      - "package-lock.json"
+  workflow_dispatch:
+
+jobs:
+  build-css:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: "npm"
+
+      - name: Install dependencies
+        run: npm install
+
+      - name: Build CSS
+        run: npm run build:css
+
+      - name: Commit changes
+        uses: stefanzweifel/git-auto-commit-action@v5
+        with:
+          commit_message: "style: auto build output.css"
+          file_pattern: "static/output.css"
+          branch: ${{ github.head_ref }}

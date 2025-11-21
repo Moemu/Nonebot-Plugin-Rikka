@@ -7,6 +7,7 @@ from nonebot_plugin_htmlrender import template_to_pic
 from nonebot_plugin_orm import get_scoped_session
 from typing_extensions import TypedDict
 
+from .config import config
 from .database.crud import MaiSongORM
 from .score import PlayerMaiB50, PlayerMaiInfo, PlayerMaiScore
 from .utils.update_resources import download_icon, download_jacket
@@ -115,11 +116,10 @@ class PicRenderer:
         """
         通过 `nonebot_plugin_htmlrender` 渲染模板
         """
-        # 设定 base_url 到 pages 目录，使模板中以 "/static/..." 引用的资源能够解析到 pages/static 下
-        repo_root = Path(__file__).resolve().parents[1]
+        # 设定 base_url 到 static 目录，
+        repo_root = Path(config.static_resource_path).parent.absolute()
         base_url = f"file://{repo_root.as_posix()}"
         pages = {"viewport": viewport or self.default_viewport, "base_url": base_url}
-        # 将 base_href 提供给模板，用于 <base href>，让相对路径 static/... 指向 pages/static
         data_with_base = {**data, "base_href": base_url.rstrip("/") + "/"}
         return await template_to_pic(
             self.template_dir,
