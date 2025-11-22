@@ -7,6 +7,8 @@ from pydantic import BaseModel, field_validator
 class Config(BaseModel):
     log_level: str = "debug"
     """日志等级"""
+    add_alias_need_admin: bool = True
+    """添加别名需要管理员权限"""
     static_resource_path: str = "static"
     """静态资源路径"""
 

@@ -4,10 +4,9 @@ from typing import cast
 
 from aiohttp.client_exceptions import ClientResponseError
 from arclet.alconna import Alconna, Args
-from nonebot import logger
+from nonebot import get_driver, logger
 from nonebot.adapters import Event
 from nonebot.params import Depends
-from nonebot.permission import SUPERUSER
 from nonebot_plugin_alconna import (
     AlconnaMatch,
     At,
@@ -21,7 +20,7 @@ from nonebot_plugin_alconna.uniseg import Image as UniImage
 from nonebot_plugin_orm import async_scoped_session
 
 from .config import config
-from .database import MaiSongORM, UserBindInfo, UserBindInfoORM
+from .database import MaiSongAliasORM, MaiSongORM, UserBindInfo, UserBindInfoORM
 from .renderer import PicRenderer
 from .score import (
     DivingFishScoreProvider,
@@ -121,11 +120,11 @@ alconna_alias = on_alconna(
             "add", Args["song_id", int], Args["alias", str], help_text=".alias add <乐曲ID> <别名> 添加乐曲别名"
         ),
         Subcommand("update", help_text=".alias update 更新本地乐曲别名列表"),
+        Subcommand("query", Args["name", str], help_text=".alias query <id|别名> 查询该歌曲有什么别名"),
         meta=CommandMeta("[舞萌DX]乐曲别名管理"),
     ),
     priority=10,
     block=True,
-    permission=SUPERUSER,
 )
 
 
@@ -523,6 +522,10 @@ async def handle_alias_update(
     db_session: async_scoped_session,
 ):
     user_id = event.get_user_id()
+    nb_config = get_driver().config
+
+    if user_id not in nb_config.superusers:
+        await UniMessage("更新乐曲别名需要管理员权限哦").finish()
 
     logger.info(f"[{user_id}] 更新乐曲别名列表")
 
@@ -534,5 +537,100 @@ async def handle_alias_update(
         [
             At(flag="user", target=user_id),
             "乐曲别名列表已更新完成 ⭐",
+        ]
+    ).finish()
+
+
+@alconna_alias.assign("add")
+async def handle_alias_add(
+    event: Event,
+    db_session: async_scoped_session,
+    name: Match[str] = AlconnaMatch("alias"),
+    song_id: Match[int] = AlconnaMatch("song_id"),
+):
+    user_id = event.get_user_id()
+
+    if config.add_alias_need_admin:
+        nb_config = get_driver().config
+
+        if user_id not in nb_config.superusers:
+            await UniMessage("更新乐曲别名需要管理员权限哦").finish()
+
+    logger.info(f"[{user_id}] 添加乐曲别名, 乐曲ID: {song_id.result}, 别名: {name.result}")
+
+    await MaiSongAliasORM.add_custom_alias(db_session, song_id.result, name.result)
+
+    await UniMessage(
+        [
+            At(flag="user", target=user_id),
+            f"已为乐曲 ID {song_id.result} 添加别名: {name.result} ⭐",
+        ]
+    ).finish()
+
+
+@alconna_alias.assign("query")
+async def handle_alias_query(
+    event: Event,
+    db_session: async_scoped_session,
+    name: Match[str] = AlconnaMatch("name"),
+):
+    user_id = event.get_user_id()
+
+    if not name.available:
+        await UniMessage([At(flag="user", target=user_id), "请输入有效的乐曲ID/名称/别名！"]).finish()
+
+    raw_query = name.result
+    song_id = int(raw_query) if raw_query.isdigit() else None
+    song_name = raw_query if song_id is None else None
+
+    logger.info(f"[{user_id}] 查询乐曲别名, 查询内容: {raw_query}")
+    songs = []
+
+    if song_id is not None:
+        logger.debug(f"[{user_id}] 1/4 通过乐曲ID {song_id} 查询乐曲别名...")
+        song_id = song_id if song_id < 10000 or song_id > 100000 else song_id % 10000
+        songs = [await MaiSongORM.get_song_info(db_session, song_id)]
+    elif song_name is not None:
+        logger.debug(f"[{user_id}] 1/4 通过乐曲名称/别名 {song_name} 查询乐曲别名...")
+        songs = await MaiSongORM.get_song_info_by_name_or_alias(db_session, song_name)
+    else:
+        raise ValueError("Unreachable code reached in handle_alias_query")
+
+    if not songs:
+        await UniMessage([At(flag="user", target=user_id), f"未找到与 '{raw_query}' 相关的乐曲信息！"]).finish()
+        return
+
+    if len(songs) > 1:
+        logger.debug(f"[{user_id}] 4/4 找到多条乐曲信息，提前返回向用户确定具体乐曲ID")
+        contents = [
+            At(flag="user", target=user_id),
+            f"找到多条与 '{raw_query}' 相关的乐曲信息，请指定你想查询的乐曲ID：",
+        ]
+        for song in songs:
+            contents.append(f"\nID: {song.id} 标题: {song.title} 艺术家: {song.artist}")
+        await UniMessage(contents).finish()
+        return
+
+    song = songs[0]
+
+    logger.debug(f"[{user_id}] 2/4 获取乐曲别名列表...")
+    aliases = await MaiSongAliasORM.get_aliases(db_session, song.id)
+
+    logger.debug(f"[{user_id}] 3/4 构建乐曲别名模板...")
+
+    if not aliases:
+        await UniMessage(
+            [
+                At(flag="user", target=user_id),
+                f"乐曲 ID {song.id} ('{song.title}') 暂无别名记录！",
+            ]
+        ).finish()
+        return
+
+    alias_list_content = ", ".join(aliases)
+    await UniMessage(
+        [
+            At(flag="user", target=user_id),
+            f"乐曲 ID {song.id} ('{song.title}') 的别名列表如下：\n{alias_list_content}",
         ]
     ).finish()
