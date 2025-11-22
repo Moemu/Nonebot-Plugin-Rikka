@@ -198,7 +198,7 @@ class MaiSongAliasORM:
         result = await session.execute(
             select(MaiSongAlias.alias, MaiSongAlias.custom_alias).where(MaiSongAlias.song_id == song_id)
         )
-        alias_row = result.scalar_one_or_none()
+        alias_row = result.one_or_none()
         if not alias_row:
             return []
         aliases = json.loads(alias_row[0]) if alias_row[0] else []
