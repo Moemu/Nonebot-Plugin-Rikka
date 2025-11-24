@@ -1,4 +1,5 @@
 from pathlib import Path
+from typing import Optional
 
 from nonebot import get_plugin_config
 from pydantic import BaseModel, field_validator
@@ -14,7 +15,7 @@ class Config(BaseModel):
 
     lxns_developer_api_key: str
     """落雪咖啡屋开发者密钥"""
-    divingfish_developer_api_key: str
+    divingfish_developer_api_key: Optional[str] = None
     """水鱼查分器开发者密钥"""
 
     @field_validator("static_resource_path")

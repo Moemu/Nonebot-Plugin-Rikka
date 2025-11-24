@@ -3,7 +3,7 @@ from typing import Optional
 from nonebot_plugin_orm import Model
 from sqlalchemy import ForeignKey, Integer, String
 from sqlalchemy.orm import Mapped, mapped_column, relationship
-from typing_extensions import TypedDict
+from typing_extensions import Literal, TypedDict
 
 
 class SongDifficulties(TypedDict):
@@ -17,6 +17,7 @@ class SongDifficulties(TypedDict):
 
 class UserBindInfo(Model):
     user_id: Mapped[str] = mapped_column(primary_key=True)
+    default_provider: Mapped[Literal["lxns", "divingfish"]] = mapped_column(String, nullable=True, default="lxns")
     friend_code: Mapped[str] = mapped_column(String, nullable=True, default="")
     lxns_api_key: Mapped[Optional[str]] = mapped_column(String, nullable=True, default="")
     diving_fish_import_token: Mapped[Optional[str]] = mapped_column(String, nullable=True, default="")

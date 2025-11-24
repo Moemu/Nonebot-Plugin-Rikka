@@ -1,5 +1,5 @@
 import json
-from typing import TYPE_CHECKING, Optional
+from typing import TYPE_CHECKING, Literal, Optional
 
 from nonebot import logger
 from nonebot_plugin_orm import async_scoped_session
@@ -66,6 +66,27 @@ class UserBindInfoORM:
                 user_id=user_id, diving_fish_import_token=import_token, diving_fish_username=diving_fish_username
             )
             session.add(new_bind_info)
+        await session.commit()
+
+    @staticmethod
+    async def set_default_provider(
+        session: async_scoped_session, user_id: str, provider: Literal["lxns", "divingfish"]
+    ) -> None:
+        """
+        设置默认查分器
+
+        :raise ValueError: 如果用户未绑定对应查分器账号则抛出该异常
+        """
+        bind_info = await UserBindInfoORM.get_user_bind_info(session, user_id)
+        if not bind_info:
+            raise ValueError("用户未绑定任何查分器账号，无法设置默认查分器")
+        elif provider == "lxns" and not bind_info.lxns_api_key:
+            raise ValueError("用户未设置落雪咖啡屋 API 密钥，无法设置为默认查分器")
+        elif provider == "divingfish" and not bind_info.diving_fish_import_token:
+            raise ValueError("用户未设置水鱼查分器导入密钥，无法设置为默认查分器")
+        await session.execute(
+            update(UserBindInfo).where(UserBindInfo.user_id == user_id).values(default_provider=provider)
+        )
         await session.commit()
 
 

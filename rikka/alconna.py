@@ -61,6 +61,17 @@ alconna_bind = on_alconna(
     skip_for_unmatch=False,
 )
 
+alconna_source = on_alconna(
+    Alconna(
+        COMMAND_PREFIXES,
+        "source",
+        Args["provider", str],
+        meta=CommandMeta("[查分器相关]设置默认查分器", usage=".source <lxns|divingfish>"),
+    ),
+    priority=10,
+    block=True,
+)
+
 alconna_b50 = on_alconna(
     Alconna(COMMAND_PREFIXES, "b50", meta=CommandMeta("[舞萌DX]生成玩家 Best 50")),
     priority=10,
@@ -190,6 +201,42 @@ async def handle_bind_divingfish(
         [
             At(flag="user", target=user_id),
             f"已绑定至水鱼账号: {player_info['username']} ⭐",
+        ]
+    ).finish()
+
+
+@alconna_source.handle()
+async def handle_source(
+    event: Event,
+    db_session: async_scoped_session,
+    provider: Match[str] = AlconnaMatch("provider"),
+):
+    user_id = event.get_user_id()
+
+    if not provider.available or provider.result not in ["lxns", "divingfish"]:
+        await UniMessage(
+            [
+                At(flag="user", target=user_id),
+                "请输入有效的查分器名称: lxns 或 divingfish",
+            ]
+        ).finish()
+        return
+
+    try:
+        await UserBindInfoORM.set_default_provider(db_session, user_id, provider.result)  # type:ignore
+    except ValueError as e:
+        await UniMessage(
+            [
+                At(flag="user", target=user_id),
+                str(e),
+            ]
+        ).finish()
+        return
+
+    await UniMessage(
+        [
+            At(flag="user", target=user_id),
+            f"已将默认查分器设置为: {provider.result} ⭐",
         ]
     ).finish()
 

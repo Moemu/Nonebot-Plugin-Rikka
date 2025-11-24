@@ -96,7 +96,10 @@ class MaimaiPyScoreProvider(BaseScoreProvider[MaimaiPyParams]):
         """
         bind_info = await UserBindInfoORM.get_user_bind_info(session, user_id)
 
-        if bind_info and not bind_info.lxns_api_key and bind_info.diving_fish_import_token:
+        if not bind_info or bind_info.default_provider == "lxns":
+            return _lxns_provider
+
+        elif bind_info.default_provider == "divingfish":
             return _divingfish_provider
 
         return _lxns_provider
@@ -156,7 +159,9 @@ class MaimaiPyScoreProvider(BaseScoreProvider[MaimaiPyParams]):
             user_bind_info = cast(UserBindInfo, user_bind_info)
             diving_fish_username = user_bind_info.diving_fish_username
             assert diving_fish_username
-            identifier = PlayerIdentifier(username=diving_fish_username)
+            identifier = PlayerIdentifier(
+                username=diving_fish_username, credentials=user_bind_info.diving_fish_import_token
+            )
 
         return identifier
 

@@ -76,6 +76,7 @@ def get_all_score_providers() -> Dict[str, BaseScoreProvider]:
     return {
         "lxns": _lxns_provider,
         "divingfish": _divingfish_provider,
+        "maimaipy": _maimaipy_provider,
     }
 
 
