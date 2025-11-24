@@ -41,8 +41,10 @@ class PicRenderer:
         """
         确保封面资源存在
         """
-        if song_id > 10000:
+        if 10000 < song_id < 100000:
             song_id -= 10000
+        elif song_id > 100000:
+            song_id -= 100000
 
         cover = Path(self.static_dir / "mai" / "cover" / f"{song_id}.png")
         if cover.exists():
@@ -81,7 +83,9 @@ class PicRenderer:
 
         return True
 
-    async def _get_song_level_value(self, song_id: int, song_type: Literal["standard", "dx"], difficulty: int) -> float:
+    async def _get_song_level_value(
+        self, song_id: int, song_type: Literal["standard", "dx", "utage"], difficulty: int
+    ) -> float:
         """
         获取乐曲定数
 
@@ -91,7 +95,8 @@ class PicRenderer:
         """
         session = get_scoped_session()
 
-        if song_id > 10000:
+        # DX 铺面
+        if 10000 < song_id < 100000:
             song_id -= 10000
 
         song_info = await MaiSongORM.get_song_info(session, song_id)
@@ -100,6 +105,8 @@ class PicRenderer:
             return song_info.difficulties.dx[difficulty].level_value
         elif song_type == "standard" and len(song_info.difficulties.standard) > difficulty:
             return song_info.difficulties.standard[difficulty].level_value
+        elif song_type == "utage":
+            return 0
 
         raise ValueError(f"请求的乐曲 {song_id}({song_type}) 中的难度 {difficulty} 不存在")
 

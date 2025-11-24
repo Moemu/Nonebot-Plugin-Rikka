@@ -5,6 +5,7 @@ from httpx import HTTPStatusError
 from maimai_py import (
     DivingFishPlayer,
     DivingFishProvider,
+    FCType,
     LXNSPlayer,
     LXNSProvider,
     MaimaiClient,
@@ -55,7 +56,7 @@ class MaimaiPyScoreProvider(BaseScoreProvider[MaimaiPyParams]):
             song_name=score.title,
             song_type=SongType(score.type.value),
             song_level=score.level,
-            song_difficulty=SongDifficulty(score.type.value),
+            song_difficulty=SongDifficulty(score.level_index.value),
             achievements=score.achievements,  # type:ignore
             dx_score=score.dx_score or 0,
             dx_star=0,  # unsupported.
@@ -173,11 +174,16 @@ class MaimaiPyScoreProvider(BaseScoreProvider[MaimaiPyParams]):
         return PlayerMaiB50(best35, best15)
 
     async def fetch_player_ap50(self, params: MaimaiPyParams) -> PlayerMaiB50:
+        """
+        获得玩家 AP 50
+
+        注: 落雪查分器需要使用个人 token 进行鉴权
+        """
         logger.debug("1/2 获取完整游玩记录")
 
         scores = await maimai_client.scores(params.identifier, params.score_provider)
 
-        ap_records = scores.filter(fc=0) + scores.filter(fc=1)
+        ap_records = scores.filter(fc=FCType.AP) + scores.filter(fc=FCType.APP)
 
         logger.debug("2/2 划分版本信息")
 

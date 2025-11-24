@@ -2,6 +2,7 @@ from pathlib import Path
 
 from aiohttp.client_exceptions import ClientResponseError
 from arclet.alconna import Alconna, Args
+from maimai_py import LXNSProvider
 from nonebot import get_driver, logger
 from nonebot.adapters import Event
 from nonebot.params import Depends
@@ -239,6 +240,15 @@ async def handle_mai_ap50(
     player_info = await score_provider.fetch_player_info(params)
 
     logger.debug(f"[{user_id}] 3/4 发起 API 请求玩家 AP 50...")
+    if isinstance(provider, LXNSProvider):
+        user_bind_info = await UserBindInfoORM.get_user_bind_info(db_session, user_id)
+        if user_bind_info is None or user_bind_info.lxns_api_key is None:
+            await UniMessage("你还没有绑定任何查分器喵，请先用 /bind 绑定一个查分器谢谢喵").finish()
+            return  # Avoid TypeError.
+
+        identifier.credentials = user_bind_info.lxns_api_key
+        params = score_provider.ParamsType(provider, identifier)
+
     player_ap50 = await score_provider.fetch_player_ap50(params)
 
     logger.debug(f"[{user_id}] 4/4 渲染玩家数据...")
