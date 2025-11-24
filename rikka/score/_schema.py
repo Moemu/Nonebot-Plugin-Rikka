@@ -2,6 +2,8 @@ from dataclasses import dataclass, field
 from enum import Enum
 from typing import Optional
 
+from maimai_py import PlayerFrame, PlayerIcon, PlayerNamePlate, PlayerTrophy
+
 
 class SongDifficulty(int, Enum):
     """铺面难度"""
@@ -177,19 +179,19 @@ class PlayerMaiInfo:
     """游戏内名称"""
     rating: int
     """玩家 DX Rating"""
-    course_rank: int
+    course_rank: int = 0
     """段位 ID"""
-    class_rank: int
+    class_rank: int = 0
     """阶级 ID"""
     friend_code: Optional[str] = None
     """好友码"""
-    trophy: Optional[PlayerMaiTrophy] = None
+    trophy: Optional[PlayerTrophy] = None
     """称号"""
-    icon: Optional[PlayerMaiCollection] = None
+    icon: Optional[PlayerIcon] = None
     """头像"""
-    name_plate: Optional[PlayerMaiCollection] = None
+    name_plate: Optional[PlayerNamePlate] = None
     """姓名框"""
-    frame: Optional[PlayerMaiCollection] = None
+    frame: Optional[PlayerFrame] = None
     """背景"""
     upload_time: Optional[str] = None
     """成绩上传时间"""

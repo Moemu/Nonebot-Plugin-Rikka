@@ -1,17 +1,21 @@
 from abc import ABC, abstractmethod
-from typing import Any, Optional
+from typing import Any, ClassVar, Generic, Optional, Type, TypeVar
 
 from aiohttp import ClientResponseError, ClientSession
 
 from ._schema import PlayerMaiB50, PlayerMaiInfo
 
+P = TypeVar("P")
 
-class BaseScoreProvider(ABC):
+
+class BaseScoreProvider(ABC, Generic[P]):
     provider: str
     """查分器名称"""
 
     base_url: str
     """查分器的 API 接口"""
+
+    ParamsType: ClassVar[Type[Any]]
 
     def __init__(self) -> None:
         self._session: Optional[ClientSession] = None
@@ -69,30 +73,13 @@ class BaseScoreProvider(ABC):
             await self._session.close()
 
     @abstractmethod
-    async def fetch_player_info(
-        self,
-        friend_code: Optional[str] = None,
-        username: Optional[str] = None,
-        qq: Optional[str] = None,
-        auth_token: Optional[str] = None,
-    ) -> PlayerMaiInfo:
-        """获得玩家游玩信息（按 friend_code / username / qq 任一方式查询）"""
+    async def fetch_player_info(self, params: P) -> PlayerMaiInfo:
         raise NotImplementedError
 
     @abstractmethod
-    async def fetch_player_b50(
-        self,
-        friend_code: Optional[str] = None,
-        username: Optional[str] = None,
-        qq: Optional[str] = None,
-        auth_token: Optional[str] = None,
-    ) -> PlayerMaiB50:
-        """获得玩家 Best50 信息（按 friend_code / username / qq 任一方式查询）"""
+    async def fetch_player_b50(self, params: P) -> PlayerMaiB50:
         raise NotImplementedError
 
     @abstractmethod
-    async def fetch_player_b50_by_qq(self, qq: str, auth_token: Optional[str] = None) -> PlayerMaiB50:
-        """
-        通过 QQ 号获取玩家 Best50 信息
-        """
+    async def fetch_player_ap50(self, params: P) -> PlayerMaiB50:
         raise NotImplementedError

@@ -1,9 +1,10 @@
-from dataclasses import fields
+from dataclasses import dataclass, fields
 from typing import Optional, TypedDict
 
 from nonebot import logger
 from nonebot_plugin_orm import get_scoped_session
 
+from ...constants import _MAI_VERSION_MAP
 from ...database import MaiSongORM
 from .._base import BaseScoreProvider
 from .._schema import (
@@ -51,9 +52,17 @@ class DivingFishPlayerRecordsResponse(TypedDict):
     """水鱼用户名"""
 
 
-class DivingFishScoreProvider(BaseScoreProvider):
+@dataclass
+class DivingFishParams:
+    username: Optional[str] = None
+    import_token: Optional[str] = None
+    qq: Optional[str] = None
+
+
+class DivingFishScoreProvider(BaseScoreProvider[DivingFishParams]):
     provider = "diving-fish"
     base_url = "https://www.diving-fish.com/api/maimaidxprober/"
+    ParamsType = DivingFishParams
 
     def _build_headers(self, auth_token: Optional[str]) -> dict:
         # diving-fish 使用 Import-Token 作为鉴权头
@@ -77,64 +86,36 @@ class DivingFishScoreProvider(BaseScoreProvider):
 
         return PlayerMaiScore(**filtered)
 
-    async def fetch_player_info(
-        self,
-        friend_code: Optional[str] = None,
-        username: Optional[str] = None,
-        qq: Optional[str] = None,
-        auth_token: Optional[str] = None,
-    ) -> PlayerMaiInfo:
+    async def fetch_player_info(self, params: DivingFishParams) -> PlayerMaiInfo:
         """
-        通过 QQ 获取玩家信息(水鱼不支持获取收藏品信息)
+        获取玩家信息(水鱼不支持获取收藏品信息)
         """
-        if username:
+        if params.username:
             endpoint = "query/player"
-            params = {"username": username, "b50": 1}
-        elif qq:
+            req_params = {"username": params.username, "b50": 1}
+        elif params.qq:
             endpoint = "query/player"
-            params = {"qq": qq, "b50": 1}
-        elif friend_code:
-            # diving-fish 不支持 friend_code 直接查询
-            raise ValueError("DivingFishScoreProvider 不支持通过 friend_code 查询玩家信息")
+            req_params = {"qq": params.qq, "b50": 1}
         else:
             raise ValueError("必须提供 username 或 qq")
 
-        data: DivingFishBest50Response = await self._post_resp(endpoint, params)
+        data: DivingFishBest50Response = await self._post_resp(endpoint, req_params)
         return PlayerMaiInfo(data["nickname"], data["rating"], 0, 0)
 
-    async def fetch_player_info_by_qq(self, qq: str, auth_token: Optional[str] = None) -> PlayerMaiInfo:
-        """
-        通过 QQ 获取玩家信息(水鱼不支持获取收藏品信息)
-        """
-        endpoint = "query/player"
-        params = {"qq": qq, "b50": 1}
-
-        data: DivingFishBest50Response = await self._post_resp(endpoint, params)
-
-        return PlayerMaiInfo(data["nickname"], data["rating"], 0, 0)
-
-    async def fetch_player_b50(
-        self,
-        friend_code: Optional[str] = None,
-        username: Optional[str] = None,
-        qq: Optional[str] = None,
-        auth_token: Optional[str] = None,
-    ) -> PlayerMaiB50:
+    async def fetch_player_b50(self, params: DivingFishParams) -> PlayerMaiB50:
         """
         获得玩家 Best50 信息
         """
-        if username:
+        if params.username:
             endpoint = "query/player"
-            params = {"username": username, "b50": 1}
-        elif qq:
+            req_params = {"username": params.username, "b50": 1}
+        elif params.qq:
             endpoint = "query/player"
-            params = {"qq": qq, "b50": 1}
-        elif friend_code:
-            raise ValueError("DivingFishScoreProvider 不支持通过 friend_code 查询 Best50")
+            req_params = {"qq": params.qq, "b50": 1}
         else:
             raise ValueError("必须提供 username 或 qq 用于查询 Best50")
 
-        data: DivingFishBest50Response = await self._post_resp(endpoint, params)
+        data: DivingFishBest50Response = await self._post_resp(endpoint, req_params)
 
         standard_scores = []
         dx_scores = []
@@ -150,10 +131,6 @@ class DivingFishScoreProvider(BaseScoreProvider):
         b50 = PlayerMaiB50(standard=standard_scores, dx=dx_scores)
         return b50
 
-    async def fetch_player_b50_by_qq(self, qq: str, auth_token: Optional[str] = None) -> PlayerMaiB50:
-        # 兼容旧 API：委托到统一签名
-        return await self.fetch_player_b50(qq=qq, auth_token=auth_token)
-
     async def fetch_player_records_by_import_token(self, import_token: str) -> DivingFishPlayerRecordsResponse:
         """
         通过 import-token 获取玩家游玩记录
@@ -164,18 +141,21 @@ class DivingFishScoreProvider(BaseScoreProvider):
 
         return data
 
-    async def fetch_player_ap50(self, import_token: str) -> PlayerMaiB50:
+    async def fetch_player_ap50(self, params: DivingFishParams) -> PlayerMaiB50:
         """
         获取玩家 AP 50
+
+        需要: import_token
         """
-        from ...alconna import _MAI_VERSION_MAP
+        if params.import_token is None:
+            raise ValueError("必须提供 import_token")
 
         _CURRENT_VERSION = list(_MAI_VERSION_MAP.keys())[-1]
 
         logger.debug("通过水鱼查分器间接查询 AP 50...")
         logger.debug("1/2 获取完整游玩记录")
 
-        datas = await self.fetch_player_records_by_import_token(import_token)
+        datas = await self.fetch_player_records_by_import_token(params.import_token)
         records = datas["records"]
         ap_records = [record for record in records if record["fc"] in ["ap", "app"]]
 

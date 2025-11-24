@@ -1,4 +1,4 @@
-from dataclasses import fields
+from dataclasses import dataclass, fields
 from typing import Any, Optional, TypedDict
 
 from ...config import config
@@ -17,8 +17,6 @@ from .._schema import (
     TrophyColor,
 )
 
-_developer_api_key = config.lxns_developer_api_key
-
 
 class LXNSBest50Response(TypedDict):
     standard_total: int
@@ -27,10 +25,19 @@ class LXNSBest50Response(TypedDict):
     dx: list[dict]
 
 
-class LXNSScoreProvider(BaseScoreProvider):
+@dataclass
+class LXNSParams:
+    friend_code: Optional[str] = None
+    qq: Optional[str] = None
+
+
+class LXNSScoreProvider(BaseScoreProvider[LXNSParams]):
     provider = "lxns"
     base_url = "https://maimai.lxns.net/api/v0/maimai/player"
     user_base_url = "https://maimai.lxns.net/api/v0/user/maimai/player"
+    _developer_api_key = config.lxns_developer_api_key
+
+    ParamsType = LXNSParams
 
     async def _get_resp_by_user_token(self, endpoint: str, user_token: str) -> Any:
         """
@@ -83,25 +90,32 @@ class LXNSScoreProvider(BaseScoreProvider):
 
         return PlayerMaiInfo(**filtered)
 
-    async def fetch_player_info(
-        self,
-        friend_code: Optional[str] = None,
-        username: Optional[str] = None,
-        qq: Optional[str] = None,
-        auth_token: Optional[str] = _developer_api_key,
-    ) -> PlayerMaiInfo:
-        assert auth_token, "落雪查分器必须使用 developer_token 鉴权"
+    async def _get_friend_code(self, params: LXNSParams) -> str:
+        """
+        自动推断好友码
+        """
+        friend_code: Optional[str] = None
+
+        if params.friend_code:
+            friend_code = params.friend_code
+        elif params.qq:
+            params = self.ParamsType(qq=params.qq)
+            info = await self.fetch_player_info(params)
+            friend_code = info.friend_code
+
         if friend_code:
-            endpoint = friend_code
-        elif qq:
-            endpoint = f"qq/{qq}"
-        elif username:
-            # LXNS 不支持 username 直接查, 给出明确异常
-            raise ValueError("LXNSScoreProvider 不支持通过 username 查询玩家信息")
+            return friend_code
+        raise ValueError("无法自动获取 friend_code，请先绑定落雪查分器")
+
+    async def fetch_player_info(self, params: LXNSParams) -> PlayerMaiInfo:
+        if params.friend_code:
+            endpoint = params.friend_code
+        elif params.qq:
+            endpoint = f"qq/{params.qq}"
         else:
             raise ValueError("必须提供 friend_code 或 qq")
 
-        data = await self._get_resp(endpoint, auth_token)
+        data = await self._get_resp(endpoint, self._developer_api_key)
         player_info = self._info_unpack(data["data"])
         return player_info
 
@@ -112,33 +126,18 @@ class LXNSScoreProvider(BaseScoreProvider):
         player_info = self._info_unpack(data["data"])
         return player_info
 
-    async def fetch_player_info_by_qq(self, qq: str, auth_token: Optional[str] = _developer_api_key) -> PlayerMaiInfo:
+    async def fetch_player_info_by_qq(self, qq: str) -> PlayerMaiInfo:
         endpoint = f"qq/{qq}"
 
-        data = await self._get_resp(endpoint, auth_token)
+        data = await self._get_resp(endpoint, self._developer_api_key)
         player_info = self._info_unpack(data["data"])
         return player_info
 
-    async def fetch_player_b50(
-        self,
-        friend_code: Optional[str] = None,
-        username: Optional[str] = None,
-        qq: Optional[str] = None,
-        auth_token: Optional[str] = _developer_api_key,
-    ) -> PlayerMaiB50:
-        assert auth_token, "落雪查分器必须使用 developer_token 鉴权"
-        if friend_code:
-            endpoint = f"{friend_code}/bests"
-        elif qq:
-            # 先查 info 拿 friend_code 再取 best
-            info = await self.fetch_player_info(qq=qq, auth_token=auth_token)
-            endpoint = f"{info.friend_code}/bests"  # type: ignore
-        elif username:
-            raise ValueError("LXNSScoreProvider 不支持通过 username 查询 Best50")
-        else:
-            raise ValueError("必须提供 friend_code 或 qq 用于查询 Best50")
+    async def fetch_player_b50(self, params: LXNSParams) -> PlayerMaiB50:
+        friend_code = await self._get_friend_code(params)
+        endpoint = f"{friend_code}/bests"
 
-        response = await self._get_resp(endpoint, auth_token)
+        response = await self._get_resp(endpoint, self._developer_api_key)
         data: LXNSBest50Response = response.get("data", response)
 
         standard_scores = []
@@ -158,17 +157,14 @@ class LXNSScoreProvider(BaseScoreProvider):
         )
         return b50
 
-    async def fetch_player_b50_by_qq(self, qq: str, auth_token: Optional[str] = _developer_api_key) -> PlayerMaiB50:
-        # 保持兼容旧调用路径
-        return await self.fetch_player_b50(qq=qq, auth_token=auth_token)
-
-    async def fetch_player_ap50(self, friend_code: str, auth_token: str = _developer_api_key) -> PlayerMaiB50:
+    async def fetch_player_ap50(self, params: LXNSParams) -> PlayerMaiB50:
         """
         获取玩家 ALL PERFECT 50
         """
+        friend_code = await self._get_friend_code(params)
         endpoint = f"{friend_code}/bests/ap"
 
-        response = await self._get_resp(endpoint, auth_token)
+        response = await self._get_resp(endpoint, self._developer_api_key)
         data: LXNSBest50Response = response.get("data", response)
 
         standard_scores = []
@@ -188,13 +184,13 @@ class LXNSScoreProvider(BaseScoreProvider):
         )
         return ap50
 
-    async def fetch_player_r50(self, friend_code: str, auth_token: str = _developer_api_key) -> list[PlayerMaiScore]:
+    async def fetch_player_r50(self, friend_code: str) -> list[PlayerMaiScore]:
         """
         获取玩家 Recent 50
         """
         endpoint = f"{friend_code}/recents"
 
-        response = await self._get_resp(endpoint, auth_token)
+        response = await self._get_resp(endpoint, self._developer_api_key)
         data: list[dict] = response.get("data", response)
 
         scores = []

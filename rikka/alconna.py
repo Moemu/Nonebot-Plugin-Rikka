@@ -1,6 +1,4 @@
-import itertools
 from pathlib import Path
-from typing import cast
 
 from aiohttp.client_exceptions import ClientResponseError
 from arclet.alconna import Alconna, Args
@@ -20,19 +18,21 @@ from nonebot_plugin_alconna.uniseg import Image as UniImage
 from nonebot_plugin_orm import async_scoped_session
 
 from .config import config
-from .database import MaiSongAliasORM, MaiSongORM, UserBindInfo, UserBindInfoORM
+from .constants import _MAI_VERSION_MAP
+from .database import MaiSongAliasORM, MaiSongORM, UserBindInfoORM
 from .renderer import PicRenderer
 from .score import (
     DivingFishScoreProvider,
     LXNSScoreProvider,
-    PlayerMaiInfo,
-    auto_get_score_provider,
+    MaimaiPyScoreProvider,
     get_divingfish_provider,
     get_lxns_provider,
+    get_maimaipy_provider,
 )
 from .utils.update_songs import update_song_alias_list
 
 renderer = PicRenderer()
+
 
 COMMAND_PREFIXES = [".", "/"]
 
@@ -43,28 +43,6 @@ _MAI_SONG_INFO_TEMPLATE = """[舞萌DX] 乐曲信息
 BPM: {bpm}
 版本: {version}
 """
-
-_MAI_VERSION_MAP = {
-    100: "maimai",
-    110: "maimai PLUS",
-    120: "GreeN",
-    130: "GreeN PLUS",
-    140: "ORANGE",
-    150: "ORANGE PLUS",
-    160: "PiNK",
-    170: "PiNK PLUS",
-    180: "MURASAKi",
-    185: "MURASAKi PLUS",
-    190: "MiLK",
-    195: "MiLK PLUS",
-    199: "FiNALE",
-    200: "舞萌DX",
-    210: "舞萌DX 2021",
-    220: "舞萌DX 2022",
-    230: "舞萌DX 2023",
-    240: "舞萌DX 2024",
-    250: "舞萌DX 2025",
-}
 
 alconna_bind = on_alconna(
     Alconna(
@@ -219,67 +197,22 @@ async def handle_bind_divingfish(
 async def handle_mai_b50(
     event: Event,
     db_session: async_scoped_session,
+    score_provider: MaimaiPyScoreProvider = Depends(get_maimaipy_provider),
 ):
     user_id = event.get_user_id()
-    score_provider = await auto_get_score_provider(user_id)
+    provider = await MaimaiPyScoreProvider.auto_get_score_provider(db_session, user_id)
 
-    logger.info(f"[{user_id}] 获取玩家 Best50, 查分器名称: {score_provider.provider}")
-    logger.debug(f"[{user_id}] 1/4 尝试从数据库中获取玩家绑定信息...")
+    logger.info(f"[{user_id}] 获取玩家 Best50, 查分器类型: {type(provider)}")
+    logger.debug(f"[{user_id}] 1/4 获得用户鉴权凭证...")
 
-    user_bind_info = await UserBindInfoORM.get_user_bind_info(db_session, user_id)
+    identifier = await MaimaiPyScoreProvider.auto_get_player_identifier(db_session, user_id, provider)
+    params = score_provider.ParamsType(provider, identifier)
 
-    # 落雪查分器
-    if isinstance(score_provider, LXNSScoreProvider):
-        new_player_friend_code = None
-        # When user_bind_info is None, score_provider is LXNSScoreProvider.
-        if user_bind_info is None:
-            logger.warning(f"[{user_id}] 未能获取玩家码，数据库中不存在绑定的玩家数据")
-            logger.debug(f"[{user_id}] 1/4 尝试通过 QQ 请求玩家数据")
-            try:
-                player_info = await score_provider.fetch_player_info_by_qq(user_id)
-                new_player_friend_code = player_info.friend_code
-            except ClientResponseError as e:
-                logger.warning(f"[{user_id}] 无法通过 QQ 号请求玩家数据: {e.code}: {e.message}")
+    logger.debug(f"[{user_id}] 2/4 发起 API 请求玩家信息...")
+    player_info = await score_provider.fetch_player_info(params)
 
-                await UniMessage(
-                    [
-                        At(flag="user", target=user_id),
-                        "你还未绑定查分器，请使用 /bind 指令进行绑定！",
-                    ]
-                ).finish()
-
-                return
-
-        friend_code = new_player_friend_code or user_bind_info.friend_code  # type:ignore
-        if not friend_code:
-            logger.warning(f"[{user_id}] 无法获取好友码，无法继续查询。")
-            await UniMessage(
-                [
-                    At(flag="user", target=user_id),
-                    "无法获取好友码，请确认已绑定或查分器可用。",
-                ]
-            ).finish()
-            return
-        logger.debug(f"[{user_id}] 2/4 发起 API 请求玩家信息...")
-        player_info = await score_provider.fetch_player_info(friend_code)
-
-        logger.debug(f"[{user_id}] 3/4 发起 API 请求玩家 Best50...")
-        player_b50 = await score_provider.fetch_player_b50(friend_code)
-
-    # 水鱼查分器
-    # elif isinstance(score_provider, DivingFishScoreProvider):
-    else:
-        # When score_provider is DivingFish, user_bind_info and diving_fish_username is not None.
-        user_bind_info = cast(UserBindInfo, user_bind_info)
-        diving_fish_username = user_bind_info.diving_fish_username
-        assert diving_fish_username
-
-        logger.debug(f"[{user_id}] 2/4 发起 API 请求玩家 Best50...")
-        player_b50 = await score_provider.fetch_player_b50(diving_fish_username)
-
-        logger.debug(f"[{user_id}] 3/4 构建玩家数据...")
-        rating = sum(score.dx_rating for score in itertools.chain(player_b50.dx, player_b50.standard))
-        player_info = PlayerMaiInfo(diving_fish_username, int(rating), 0, 0)
+    logger.debug(f"[{user_id}] 3/4 发起 API 请求玩家 Best50...")
+    player_b50 = await score_provider.fetch_player_b50(params)
 
     logger.debug(f"[{user_id}] 4/4 渲染玩家数据...")
     pic = await renderer.render_mai_player_best50(player_b50, player_info)
@@ -291,67 +224,22 @@ async def handle_mai_b50(
 async def handle_mai_ap50(
     event: Event,
     db_session: async_scoped_session,
+    score_provider: MaimaiPyScoreProvider = Depends(get_maimaipy_provider),
 ):
     user_id = event.get_user_id()
-    score_provider = await auto_get_score_provider(user_id)
+    provider = await MaimaiPyScoreProvider.auto_get_score_provider(db_session, user_id)
 
-    logger.info(f"[{user_id}] 获取玩家 AP 50, 查分器名称: {score_provider.provider}")
-    logger.debug(f"[{user_id}] 1/4 尝试从数据库中获取玩家绑定信息...")
+    logger.info(f"[{user_id}] 获取玩家 AP50, 查分器类型: {type(score_provider)}")
+    logger.debug(f"[{user_id}] 1/4 获得用户鉴权凭证...")
 
-    user_bind_info = await UserBindInfoORM.get_user_bind_info(db_session, user_id)
+    identifier = await MaimaiPyScoreProvider.auto_get_player_identifier(db_session, user_id, provider)
+    params = score_provider.ParamsType(provider, identifier)
 
-    # 落雪查分器
-    if isinstance(score_provider, LXNSScoreProvider):
-        new_player_friend_code = None
-        if user_bind_info is None:
-            logger.warning(f"[{user_id}] 未能获取玩家码，数据库中不存在绑定的玩家数据")
-            logger.debug(f"[{user_id}] 1/4 尝试通过 QQ 请求玩家数据")
-            try:
-                player_info = await score_provider.fetch_player_info_by_qq(user_id)
-                new_player_friend_code = player_info.friend_code
-            except ClientResponseError as e:
-                logger.warning(f"[{user_id}] 无法通过 QQ 号请求玩家数据: {e.code}: {e.message}")
+    logger.debug(f"[{user_id}] 2/4 发起 API 请求玩家信息...")
+    player_info = await score_provider.fetch_player_info(params)
 
-                await UniMessage(
-                    [
-                        At(flag="user", target=user_id),
-                        "你还未绑定查分器，请使用 /bind 指令进行绑定！",
-                    ]
-                ).finish()
-
-                return
-
-        friend_code = new_player_friend_code or user_bind_info.friend_code  # type:ignore
-        if not friend_code:
-            logger.warning(f"[{user_id}] 无法获取好友码，无法继续查询。")
-            await UniMessage(
-                [
-                    At(flag="user", target=user_id),
-                    "无法获取好友码，请确认已绑定或查分器可用。",
-                ]
-            ).finish()
-            return
-        logger.debug(f"[{user_id}] 2/4 发起 API 请求玩家信息...")
-        player_info = await score_provider.fetch_player_info(friend_code)
-
-        logger.debug(f"[{user_id}] 3/4 发起 API 请求玩家 AP50...")
-        player_ap50 = await score_provider.fetch_player_ap50(friend_code)
-
-    # elif isinstance(score_provider, DivingFishScoreProvider):
-    else:
-        # When score_provider is DivingFish, user_bind_info and diving_fish_import_token is not None.
-        user_bind_info = cast(UserBindInfo, user_bind_info)
-        diving_fish_import_token = user_bind_info.diving_fish_import_token
-        diving_fish_username = user_bind_info.diving_fish_username
-        assert diving_fish_import_token
-        assert diving_fish_username
-
-        logger.debug(f"[{user_id}] 2/4 发起 API 请求玩家 AP 50...")
-        player_ap50 = await score_provider.fetch_player_ap50(diving_fish_import_token)
-
-        logger.debug(f"[{user_id}] 3/4 构建玩家数据...")
-        rating = sum(score.dx_rating for score in itertools.chain(player_ap50.dx, player_ap50.standard))
-        player_info = PlayerMaiInfo(diving_fish_username, int(rating), 0, 0)
+    logger.debug(f"[{user_id}] 3/4 发起 API 请求玩家 AP 50...")
+    player_ap50 = await score_provider.fetch_player_ap50(params)
 
     logger.debug(f"[{user_id}] 4/4 渲染玩家数据...")
     pic = await renderer.render_mai_player_best50(player_ap50, player_info)
@@ -400,7 +288,8 @@ async def handle_mai_r50(
         ).finish()
         return
     logger.debug(f"[{user_id}] 2/4 发起 API 请求玩家信息...")
-    player_info = await score_provider.fetch_player_info(friend_code)
+    params = score_provider.ParamsType(friend_code=friend_code)
+    player_info = await score_provider.fetch_player_info(params)
 
     logger.debug(f"[{user_id}] 3/4 发起 API 请求玩家 Recent 50...")
     player_r50 = await score_provider.fetch_player_r50(friend_code)

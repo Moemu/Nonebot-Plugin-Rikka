@@ -14,6 +14,8 @@ class Config(BaseModel):
 
     lxns_developer_api_key: str
     """落雪咖啡屋开发者密钥"""
+    divingfish_developer_api_key: str
+    """水鱼查分器开发者密钥"""
 
     @field_validator("static_resource_path")
     def validate_static_resource_path(cls, v: str) -> str:

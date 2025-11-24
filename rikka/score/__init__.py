@@ -14,13 +14,14 @@ from ._base import BaseScoreProvider
 from ._schema import PlayerMaiB50, PlayerMaiInfo, PlayerMaiScore
 from .providers.diving_fish import DivingFishScoreProvider
 from .providers.lxns import LXNSScoreProvider
+from .providers.maimai import MaimaiPyScoreProvider
 
 # --- 单例初始化（每个实现类仅初始化一次） ---
 _lxns_provider = LXNSScoreProvider()
 _divingfish_provider = DivingFishScoreProvider()
+_maimaipy_provider = MaimaiPyScoreProvider()
 
 
-# --- 依赖注入获取函数（用于 Depends(...)） ---
 def get_lxns_provider() -> LXNSScoreProvider:
     """获取 落雪咖啡屋 查分器的单例实例。
 
@@ -49,6 +50,20 @@ def get_divingfish_provider() -> DivingFishScoreProvider:
     """
 
     return _divingfish_provider
+
+
+def get_maimaipy_provider() -> MaimaiPyScoreProvider:
+    """获取 maimai_py 的单例实例。
+
+    可用于 NoneBot 依赖注入：
+
+        from nonebot.params import Depends
+        from rikka.score import get_maimaipy_provider
+
+        async def handler(provider: MaimaiPyScoreProvider = Depends(get_maimaipy_provider)):
+            ...
+    """
+    return _maimaipy_provider
 
 
 def get_all_score_providers() -> Dict[str, BaseScoreProvider]:

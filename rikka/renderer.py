@@ -185,7 +185,7 @@ class PicRenderer:
                     "chartType": score.song_type.value.upper(),
                     "fc": score.fc.value if score.fc else None,
                     "fs": score.fs.value if score.fs else None,
-                    "cover": self._ensure_cover(score.song_id),
+                    "cover": await self._ensure_cover(score.song_id),
                 }
                 for score in player_best50.dx
             ],
