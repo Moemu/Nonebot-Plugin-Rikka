@@ -812,6 +812,9 @@
   .font-\[TorusSemiBold\] {
     font-family: TorusSemiBold;
   }
+  .font-\[Torus_SemiBold\] {
+    font-family: Torus SemiBold;
+  }
   .font-mono {
     font-family: var(--font-mono);
   }

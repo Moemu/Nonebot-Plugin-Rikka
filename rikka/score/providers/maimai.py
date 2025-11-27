@@ -1,5 +1,5 @@
 from dataclasses import dataclass
-from typing import TypeAlias, cast
+from typing import Literal, TypeAlias, cast
 
 from httpx import HTTPStatusError
 from maimai_py import (
@@ -198,3 +198,28 @@ class MaimaiPyScoreProvider(BaseScoreProvider[MaimaiPyParams]):
         best15 = [self._score_unpack(score) for score in ap50.scores_b15]
 
         return PlayerMaiB50(best35, best15)
+
+    async def fetch_player_minfo(
+        self, params: MaimaiPyParams, song_id: int, song_type: Literal["standard", "dx"]
+    ) -> list[PlayerMaiScore]:
+        """
+        fetch_player_minfo 的 Docstring
+
+        :param params: 鉴权参数对象
+        :type params: MaimaiPyParams
+        :param name: 曲目的 ID（标准曲目ID）
+        :type name: str
+        :param song_type: 铺面类型
+        :type song_type: Literal["standard", "dx"]
+        :return: 成绩列表
+        :rtype: list[PlayerMaiScore]
+        """
+
+        player_song = await maimai_client.minfo(song_id, params.identifier, params.score_provider)
+
+        if not player_song:
+            return []
+
+        scores = player_song.scores
+
+        return [self._score_unpack(score) for score in scores if score.type.value == song_type]

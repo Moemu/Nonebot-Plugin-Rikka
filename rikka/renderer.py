@@ -9,6 +9,7 @@ from typing_extensions import TypedDict
 
 from .config import config
 from .database.crud import MaiSongORM
+from .models.song import MaiSong
 from .score import PlayerMaiB50, PlayerMaiInfo, PlayerMaiScore
 from .utils.update_resources import download_icon, download_jacket
 
@@ -136,6 +137,64 @@ class PicRenderer:
             wait=2,
         )
 
+    def _build_difficulties_list(self, song: MaiSong, scores: list[PlayerMaiScore]) -> list[dict]:
+        """
+        构建单曲成绩列表
+        """
+        if not scores:
+            return []
+
+        score_list = []
+        song_type = scores[0].song_type.value
+
+        if song_type == "dx":
+            song_difficulties = song.difficulties.dx
+        else:
+            song_difficulties = song.difficulties.standard
+
+        diff_categories = ["Basic", "Advanced", "Expert", "Master", "ReMaster"]
+
+        for index, diff in enumerate(song_difficulties):
+            target_score = None
+            for score in scores:
+                if score.song_difficulty.value == index:
+                    target_score = score
+                    break
+
+            if not target_score:
+                score_list.append(
+                    {
+                        "difficulty": diff_categories[index].lower(),
+                        "level": diff.level_value,
+                        "played": False,
+                        "is_missing": False,
+                        "max_dx_score": diff.notes.total * 3,
+                    }
+                )
+                continue
+
+            score_list.append(
+                {
+                    "difficulty": diff_categories[index].lower(),
+                    "level": diff.level_value,
+                    "played": True,
+                    "is_missing": False,
+                    "score": score.achievements,
+                    "rate": score.rate.value,
+                    "rating": score.dx_rating,
+                    "dx_score": score.dx_score,
+                    "max_dx_score": diff.notes.total * 3,
+                    "dx_star": score.dx_star,
+                    "fc": score.fc.value if score.fc else "",
+                    "fs": score.fs.value if score.fs else "",
+                }
+            )
+
+        if len(score_list) == 4:
+            score_list.append({"is_missing": True})
+
+        return score_list
+
     async def render_mai_player_best50(self, player_best50: PlayerMaiB50, player_info: PlayerMaiInfo) -> bytes:
         """
         渲染玩家 Best50 信息
@@ -246,3 +305,33 @@ class PicRenderer:
         }
 
         return await self._render_pic_by_plugin("PlayerMaiScoresList.jinja2", data)
+
+    async def render_mai_player_song_info(self, song: MaiSong, scores: list[PlayerMaiScore]) -> bytes:
+        """
+        渲染单曲成绩详情图
+
+        :param song: 乐曲对象
+        :param scores: 该乐曲各难度成绩的列表
+        """
+
+        cover_id = await self._ensure_cover(song.id)
+
+        song_type = scores[0].song_type.value if scores else "dx"
+        genre = song.genre
+        version = song.version
+
+        data = {
+            "song": {
+                "id": song.id,
+                "title": song.title,
+                "artist": song.artist,
+                "bpm": song.bpm,
+                "genre": genre,
+                "version": version,
+                "cover": f"static/mai/cover/{cover_id}.png",
+                "type": song_type,
+                "difficulties": self._build_difficulties_list(song, scores),
+            },
+        }
+
+        return await self._render_pic_by_plugin("PlayerMaiScore.jinja2", data, viewport={"width": 1400, "height": 1000})

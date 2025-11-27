@@ -5,8 +5,11 @@ from importlib.metadata import PackageNotFoundError, version
 
 from nonebot import logger
 from nonebot.log import default_filter, logger_id
+from nonebot_plugin_orm import async_scoped_session
 
 from ..config import config
+from ..database import MaiSongORM
+from ..models.song import MaiSong
 
 
 def init_logger():
@@ -76,3 +79,46 @@ def get_version() -> str:
 
     except (FileNotFoundError, KeyError, ModuleNotFoundError):
         return "Unknown"
+
+
+async def get_song_by_id_or_alias(session: async_scoped_session, name: str) -> MaiSong:
+    """
+    通过乐曲 ID/别名 获取乐曲对象
+
+    :param session: 数据库会话对象
+    :type session: async_scoped_session
+    :param name: 乐曲 ID/名称/别名
+    :type name: str
+    :return: 乐曲对象
+    :rtype: MaiSong
+
+    :raise ValueError: 未找到相关乐曲信息/找到多条乐曲信息
+    """
+    song_id = int(name) if name.isdigit() else None
+    song_name = name if song_id is None else None
+
+    if song_id is not None:
+        logger.debug(f"1/2 通过乐曲ID {song_id} 查询乐曲信息...")
+        song_id = song_id if song_id < 10000 or song_id > 100000 else song_id % 10000
+        songs = [await MaiSongORM.get_song_info(session, song_id)]
+    elif song_name is not None:
+        logger.debug(f"1/2 通过乐曲名称/别名 {song_name} 查询乐曲信息...")
+        songs = await MaiSongORM.get_song_info_by_name_or_alias(session, song_name)
+    else:
+        raise ValueError("Unreachable code reached in handle_minfo")
+
+    if not songs:
+        raise ValueError(f"未找到与 '{name}' 相关的乐曲信息！")
+
+    if len(songs) > 1:
+        logger.debug("2/2 找到多条乐曲信息，提前返回向用户确定具体乐曲ID")
+        contents = [
+            f"找到多条与 '{name}' 相关的乐曲信息，请指定你想查询的乐曲ID：",
+        ]
+        for song in songs:
+            contents.append(f"\nID: {song.id} 标题: {song.title} 艺术家: {song.artist}")
+
+        raise ValueError("\n".join(contents))
+
+    logger.debug(f"2/2 乐曲信息查询完毕，{name} -> ID {songs[0].id}")
+    return songs[0]

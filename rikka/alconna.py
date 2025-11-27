@@ -20,7 +20,7 @@ from nonebot_plugin_orm import async_scoped_session
 
 from .config import config
 from .constants import _MAI_VERSION_MAP
-from .database import MaiSongAliasORM, MaiSongORM, UserBindInfoORM
+from .database import MaiSongAliasORM, UserBindInfoORM
 from .renderer import PicRenderer
 from .score import (
     DivingFishScoreProvider,
@@ -31,6 +31,7 @@ from .score import (
     get_maimaipy_provider,
 )
 from .utils.update_songs import update_song_alias_list
+from .utils.utils import get_song_by_id_or_alias
 
 renderer = PicRenderer()
 
@@ -115,6 +116,15 @@ alconna_alias = on_alconna(
     ),
     priority=10,
     block=True,
+)
+
+alconna_score = on_alconna(
+    Alconna(
+        COMMAND_PREFIXES,
+        "score",
+        Args["name", str],
+        meta=CommandMeta("[舞萌DX]获取单曲游玩情况", usage=".score <id|别名>"),
+    )
 )
 
 
@@ -369,38 +379,14 @@ async def handle_minfo(
         await UniMessage([At(flag="user", target=user_id), "请输入有效的乐曲ID/名称/别名！"]).finish()
 
     raw_query = name.result
-    song_id = int(raw_query) if raw_query.isdigit() else None
-    song_name = raw_query if song_id is None else None
-
     logger.info(f"[{user_id}] 查询乐曲信息, 查询内容: {raw_query}")
-    songs = []
 
-    if song_id is not None:
-        logger.debug(f"[{user_id}] 1/4 通过乐曲ID {song_id} 查询乐曲信息...")
-        song_id = song_id if song_id < 10000 or song_id > 100000 else song_id % 10000
-        songs = [await MaiSongORM.get_song_info(db_session, song_id)]
-    elif song_name is not None:
-        logger.debug(f"[{user_id}] 1/4 通过乐曲名称/别名 {song_name} 查询乐曲信息...")
-        songs = await MaiSongORM.get_song_info_by_name_or_alias(db_session, song_name)
-    else:
-        raise ValueError("Unreachable code reached in handle_minfo")
-
-    if not songs:
-        await UniMessage([At(flag="user", target=user_id), f"未找到与 '{raw_query}' 相关的乐曲信息！"]).finish()
+    logger.debug(f"[{user_id}] 1/4 通过乐曲ID/别名查询乐曲信息...")
+    try:
+        song = await get_song_by_id_or_alias(db_session, raw_query)
+    except ValueError as e:
+        await UniMessage([At(flag="user", target=user_id), str(e)]).finish()
         return
-
-    if len(songs) > 1:
-        logger.debug(f"[{user_id}] 4/4 找到多条乐曲信息，提前返回向用户确定具体乐曲ID")
-        contents = [
-            At(flag="user", target=user_id),
-            f"找到多条与 '{raw_query}' 相关的乐曲信息，请指定你想查询的乐曲ID：",
-        ]
-        for song in songs:
-            contents.append(f"\nID: {song.id} 标题: {song.title} 艺术家: {song.artist}")
-        await UniMessage(contents).finish()
-        return
-
-    song = songs[0]
 
     logger.debug(f"[{user_id}] 2/4 获取乐曲封面...")
     song_cover = Path(config.static_resource_path) / "mai" / "cover" / f"{song.id}.png"
@@ -526,38 +512,15 @@ async def handle_alias_query(
         await UniMessage([At(flag="user", target=user_id), "请输入有效的乐曲ID/名称/别名！"]).finish()
 
     raw_query = name.result
-    song_id = int(raw_query) if raw_query.isdigit() else None
-    song_name = raw_query if song_id is None else None
 
     logger.info(f"[{user_id}] 查询乐曲别名, 查询内容: {raw_query}")
-    songs = []
 
-    if song_id is not None:
-        logger.debug(f"[{user_id}] 1/4 通过乐曲ID {song_id} 查询乐曲别名...")
-        song_id = song_id if song_id < 10000 or song_id > 100000 else song_id % 10000
-        songs = [await MaiSongORM.get_song_info(db_session, song_id)]
-    elif song_name is not None:
-        logger.debug(f"[{user_id}] 1/4 通过乐曲名称/别名 {song_name} 查询乐曲别名...")
-        songs = await MaiSongORM.get_song_info_by_name_or_alias(db_session, song_name)
-    else:
-        raise ValueError("Unreachable code reached in handle_alias_query")
-
-    if not songs:
-        await UniMessage([At(flag="user", target=user_id), f"未找到与 '{raw_query}' 相关的乐曲信息！"]).finish()
+    logger.debug(f"[{user_id}] 1/4 通过乐曲ID/别名查询乐曲信息...")
+    try:
+        song = await get_song_by_id_or_alias(db_session, raw_query)
+    except ValueError as e:
+        await UniMessage([At(flag="user", target=user_id), str(e)]).finish()
         return
-
-    if len(songs) > 1:
-        logger.debug(f"[{user_id}] 4/4 找到多条乐曲信息，提前返回向用户确定具体乐曲ID")
-        contents = [
-            At(flag="user", target=user_id),
-            f"找到多条与 '{raw_query}' 相关的乐曲信息，请指定你想查询的乐曲ID：",
-        ]
-        for song in songs:
-            contents.append(f"\nID: {song.id} 标题: {song.title} 艺术家: {song.artist}")
-        await UniMessage(contents).finish()
-        return
-
-    song = songs[0]
 
     logger.debug(f"[{user_id}] 2/4 获取乐曲别名列表...")
     aliases = await MaiSongAliasORM.get_aliases(db_session, song.id)
@@ -580,3 +543,58 @@ async def handle_alias_query(
             f"乐曲 ID {song.id} ('{song.title}') 的别名列表如下：\n{alias_list_content}",
         ]
     ).finish()
+
+
+@alconna_score.handle()
+async def handle_score(
+    event: Event,
+    db_session: async_scoped_session,
+    name: Match[str] = AlconnaMatch("name"),
+    score_provider: MaimaiPyScoreProvider = Depends(get_maimaipy_provider),
+):
+    user_id = event.get_user_id()
+
+    if not name.available:
+        await UniMessage([At(flag="user", target=user_id), "请输入有效的乐曲ID/名称/别名！"]).finish()
+
+    raw_query = name.result
+    logger.info(f"[{user_id}] 查询单曲游玩情况, 查询内容: {raw_query}")
+
+    logger.debug(f"[{user_id}] 1/5 通过乐曲ID/别名查询乐曲信息...")
+    try:
+        song = await get_song_by_id_or_alias(db_session, raw_query)
+    except ValueError as e:
+        await UniMessage([At(flag="user", target=user_id), str(e)]).finish()
+        return
+
+    logger.debug(f"[{user_id}] 2/5 推断获取的是 DX 铺面还是标准铺面")
+    if raw_query.isdigit():
+        if int(raw_query) > 10000 or not song.difficulties.standard:
+            is_dx = True
+        else:
+            is_dx = False
+    else:
+        is_dx = len(song.difficulties.dx) > 0
+    logger.debug(f"[{user_id}] 2/5 推断为 {'DX' if is_dx else '标准'} 铺面")
+
+    logger.debug(f"[{user_id}] 3/5 获得用户鉴权凭证...")
+    provider = await MaimaiPyScoreProvider.auto_get_score_provider(db_session, user_id)
+    identifier = await MaimaiPyScoreProvider.auto_get_player_identifier(db_session, user_id, provider)
+    params = score_provider.ParamsType(provider, identifier)
+
+    logger.debug(f"[{user_id}] 4/5 发起 API 请求玩家信息...")
+    scores = await score_provider.fetch_player_minfo(params, song.id, "dx" if is_dx else "standard")
+
+    if not scores:
+        await UniMessage(
+            [
+                At(flag="user", target=user_id),
+                f"未找到乐曲 '{song.title}' 的游玩记喵~不如先去挑战一下吧~",
+            ]
+        ).finish()
+        return
+
+    logger.debug(f"[{user_id}] 5/5 渲染玩家数据...")
+    pic = await renderer.render_mai_player_song_info(song, scores)
+
+    await UniMessage([At(flag="user", target=user_id), UniImage(raw=pic)]).finish()

@@ -1,0 +1,304 @@
+{% set badge_class_map = {
+  "basic": "bg-green-400",
+  "advanced": "bg-yellow-400",
+  "expert": "bg-red-400",
+  "master": "bg-purple-400",
+  "remaster": "bg-purple-300"
+} %}
+
+{% set rate_icon_map = {
+  "d": "UI_TTR_Rank_D.png",
+  "c": "UI_TTR_Rank_C.png",
+  "b": "UI_TTR_Rank_B.png",
+  "bb": "UI_TTR_Rank_BB.png",
+  "bbb": "UI_TTR_Rank_BBB.png",
+  "a": "UI_TTR_Rank_A.png",
+  "aa": "UI_TTR_Rank_AA.png",
+  "aaa": "UI_TTR_Rank_AAA.png",
+  "s": "UI_TTR_Rank_S.png",
+  "sp": "UI_TTR_Rank_Sp.png",
+  "ss": "UI_TTR_Rank_SS.png",
+  "ssp": "UI_TTR_Rank_SSp.png",
+  "sss": "UI_TTR_Rank_SSS.png",
+  "sssp": "UI_TTR_Rank_SSSp.png"
+} %}
+
+{% set fc_icon_map = {
+  "fc": "UI_MSS_MBase_Icon_FC.png",
+  "fcp": "UI_MSS_MBase_Icon_FCp.png",
+  "ap": "UI_MSS_MBase_Icon_AP.png",
+  "app": "UI_MSS_MBase_Icon_APP.png"
+} %}
+
+{% set fs_icon_map = {
+  "sync": "UI_MSS_MBase_Icon_Sync.png",
+  "fs": "UI_MSS_MBase_Icon_FS.png",
+  "fsp": "UI_MSS_MBase_Icon_FSp.png",
+  "fsd": "UI_MSS_MBase_Icon_FSD.png",
+  "fsdp": "UI_MSS_MBase_Icon_FSDp.png"
+} %}
+
+{% set dx_star_icon_map = {
+  1: "UI_GAM_Gauge_DXScoreIcon_01.png",
+  2: "UI_GAM_Gauge_DXScoreIcon_02.png",
+  3: "UI_GAM_Gauge_DXScoreIcon_03.png",
+  4: "UI_GAM_Gauge_DXScoreIcon_04.png",
+  5: "UI_GAM_Gauge_DXScoreIcon_05.png"
+} %}
+
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Maimai Song Info</title>
+  <link href="./css/output.css" rel="stylesheet">
+  <base href="{{ base_href }}">
+  <style>
+    @font-face {
+      font-family: ResourceHanRoundedCN;
+      font-style: normal;
+      font-weight: 700;
+      font-display: swap;
+      src: url("./static/ResourceHanRoundedCN-Bold.ttf") format("truetype");
+    }
+    @font-face {
+      font-family: TorusSemiBold;
+      font-style: normal;
+      font-weight: 600;
+      font-display: swap;
+      src: url("./static/Torus SemiBold.otf") format("opentype");
+    }
+  </style>
+</head>
+<body class="bg-slate-100">
+  {# --- 映射表：全部使用 Python 传入的原始字段，在模板侧决定资源 --- #}
+  {% set genre_image_map = {
+    "niconico & VOCALOID": "info-niconico.png",
+    "POPS & ANIME": "info-anime.png",
+    "maimai": "info-maimai.png",
+    "GAME & VARIETY": "info-game.png",
+    "ONGEKI & CHUNITHM": "info-ongeki.png",
+    "Touhou Project": "info-touhou.png"
+  } %}
+
+  {% set type_icon = "DX.png" if song.type == "dx" else "SD.png" %}
+  {% set genre_image = genre_image_map.get(song.genre, "info-maimai.png") %}
+
+  <section class="min-h-screen w-full flex items-center justify-center">
+    <div class="relative w-[1400px] h-[1000px] overflow-hidden rounded-[2rem] border border-white/50 shadow-[0_45px_120px_-40px_rgba(14,165,233,0.35)]">
+
+      {# 背景图 #}
+      <img
+        src="static/mai/pic/info_bg.png"
+        alt="Background"
+        class="absolute inset-0 w-full h-full object-cover"
+      />
+
+      <div class="relative h-full">
+        {# 右上角色 #}
+        <div class="absolute top-[-20px] right-[40px] z-10 w-[350px] h-[350px]">
+          <img
+            src="static/mai/pic/chara.png"
+            alt="Character"
+            class="w-full h-full object-contain drop-shadow-xl"
+          />
+        </div>
+
+        {# 左侧：封面 + 基本信息 #}
+        <div class="absolute top-[280px] left-[100px] w-[400px] flex flex-col items-center z-10">
+
+          {# 封面 + 右侧框 + 版本 + Type #}
+          <div class="relative w-[320px] h-[320px] mb-4">
+            {# 封面 #}
+            <div class="absolute inset-0 rounded-lg overflow-hidden">
+              <img
+                src="{{ song.cover }}"
+                alt="{{ song.title }}"
+                class="w-full h-full object-cover"
+              />
+            </div>
+
+            {# Genre Frame （右侧蓝条）#}
+            <div class="absolute top-[-2px] right-[-21px] w-[340px] h-[340px]">
+              <img
+                src="static/mai/pic/{{ genre_image }}"
+                alt="Genre"
+                class="w-full h-full object-contain"
+              />
+            </div>
+
+            {# 版本 Logo #}
+            {% if song.version_image %}
+            <div class="absolute -top-10 -right-20 z-20 w-[166px] h-[80px]">
+              <img
+                src="static/mai/pic/{{ song.version_image }}"
+                alt="Version"
+                class="w-full h-full object-contain"
+              />
+            </div>
+            {% endif %}
+
+            {# Type Label (Standard / DX) #}
+            <div class="absolute bottom-0 right-0 z-20 translate-y-1/2 translate-x-1/4">
+              <img
+                src="static/mai/pic/{{ type_icon }}"
+                alt="{{ song.type }}"
+                width="80"
+                height="30"
+                class="object-contain"
+              />
+            </div>
+          </div>
+
+          {# 歌曲标题 & 艺术家 #}
+          <div class="text-center w-full mt-6 space-y-2">
+            <p class="text-sm text-pink-500 font-bold truncate">{{ song.artist }}</p>
+            <h2 class="text-3xl font-black text-pink-500 truncate px-2 drop-shadow-sm">
+              {{ song.title }}
+            </h2>
+          </div>
+
+          {# ID & BPM 数字（背景的文字由 BG 提供，这里只填数字）#}
+          <div class="flex justify-between w-full mt-26">
+            <div class="text-center w-20 ml-11.5">
+              <div class="text-xl font-black text-blue-800">
+                {{ song.id }}
+              </div>
+            </div>
+            <div class="text-center w-20 mr-4">
+              <div class="text-xl font-black text-blue-800">
+                {{ song.bpm }}
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {# 右侧：各难度成绩行 #}
+        <div class="absolute top-[250px] right-[115px] w-[700px] flex flex-col gap-[7px] py-2 z-10">
+          {% for diff in song.difficulties %}
+          {% set badge_class = badge_class_map.get(diff.difficulty, "bg-purple-400") %}
+          {% set rate_icon = rate_icon_map.get(diff.rate) %}
+          {% set fc_icon = fc_icon_map.get(diff.fc) %}
+          {% set fs_icon = fs_icon_map.get(diff.fs) %}
+          {% set dx_star_icon = dx_star_icon_map.get(diff.dx_star) %}
+          <div class="relative h-[110px] flex items-center">
+            {# 左侧等级胶囊 #}
+            <div class="absolute left-[180px] top-[-5px]">
+              {% if diff.level %}
+              <div class="px-2 py-1 pb-1.5 rounded-[10px] text-white font-black text-xl min-w-[60px] flex items-center justify-center leading-none {{ badge_class }}">
+                {{ diff.level }}
+              </div>
+              {% endif %}
+            </div>
+
+            {# 右侧整行内容 #}
+            <div class="w-full flex justify-center items-center">
+              {% if diff.is_missing %}
+                <span class="relative text-4xl font-bold text-slate-400/80 mr-12">
+                  没有该难度
+                </span>
+              {% elif not diff.played %}
+                <span class="relative text-4xl font-bold text-slate-400/80 mr-12">
+                  未游玩
+                </span>
+              {% else %}
+                <div class="flex items-center justify-center space-x-6">
+                  {# ScoreBlock #}
+                  <div class="flex flex-col items-end mr-4 relative top-[5px] min-w-[225px]">
+                    <span class="text-5xl font-[TorusSemiBold] text-blue-800 drop-shadow-sm">
+                      {{ "%.4f"|format(diff.score) }}%
+                    </span>
+                  </div>
+
+                  {# ComboSyncBlock：FC / FS 徽章 + 背板 #}
+                  <div class="relative flex space-x-1">
+                    <div class="absolute w-[135px] h-[64.5px] bottom-[10px] z-[-1]">
+                      <img
+                        src="static/mai/pic/fcfs_score.png"
+                        alt="FC/FS Background"
+                        class="w-full h-full object-contain"
+                      />
+                    </div>
+
+                    <div class="relative w-[75px] h-[75px] top-[-8px] right-[1px]">
+                      {% if fc_icon %}
+                      <img
+                        src="static/mai/pic/{{ fc_icon }}"
+                        alt="{{ diff.fc }}"
+                        class="w-full h-full object-contain"
+                      />
+                      {% endif %}
+                    </div>
+
+                    <div class="relative w-[75px] h-[75px] top-[-8px] right-[16px]">
+                      {% if fs_icon %}
+                      <img
+                        src="static/mai/pic/{{ fs_icon }}"
+                        alt="{{ diff.fs }}"
+                        class="w-full h-full object-contain"
+                      />
+                      {% endif %}
+                    </div>
+                  </div>
+
+                  {# RatingBlock：Ra + DX 分数 + 背板 + 星标 #}
+                  <div class="relative text-blue-900 px-2 py-1 flex flex-col items-center">
+                    <div class="absolute w-[153px] h-[66px] z-[-1] top-[-3px]">
+                      <img
+                        src="static/mai/pic/ra-dx.png"
+                        alt="Rating Background"
+                        class="w-full h-full object-contain"
+                      />
+                    </div>
+
+                    {% if dx_star_icon %}
+                    <div class="absolute right-[77px] top-[32px] w-[50px] h-[50px]">
+                      <img
+                        src="static/mai/pic/{{ dx_star_icon }}"
+                        alt="DX Star {{ diff.dx_star }}"
+                        class="w-full h-full object-contain"
+                      />
+                    </div>
+                    {% endif %}
+
+                    <span class="relative bottom-[7px] left-[22px] text-2xl font-[TorusSemiBold]">
+                      {{ diff.rating }}
+                    </span>
+                    <span class="relative left-[22px] text-md font-[TorusSemiBold] min-w-[87.5px] text-center">
+                      {{ diff.dx_score }} / {{ diff.max_dx_score }}
+                    </span>
+                  </div>
+
+                  {# RankBlock：评级图标 #}
+                  <div class="w-[150px] h-[70px] flex justify-center">
+                    <div class="relative w-full h-full left-[10px]">
+                      {% if rate_icon %}
+                      <img
+                        src="static/mai/pic/{{ rate_icon }}"
+                        alt="{{ diff.rate }} rank"
+                        class="w-full h-full object-contain"
+                      />
+                      {% endif %}
+                    </div>
+                  </div>
+                </div>
+              {% endif %}
+            </div>
+          </div>
+          {% endfor %}
+        </div>
+
+        {# Footer #}
+        <footer class="absolute bottom-10 left-1/2 -translate-x-1/2 w-[80%] z-20">
+          <div class="py-1 flex justify-center text-xl text-sky-700 font-bold">
+            <span>
+              Original Designed by Yuri-YuzuChaN &amp; BlueDeer233 &amp; TomeChen. Generated by Nonebot-Plugin-Rikka
+            </span>
+          </div>
+        </footer>
+      </div>
+    </div>
+  </section>
+</body>
+</html>

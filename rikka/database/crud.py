@@ -5,7 +5,13 @@ from nonebot import logger
 from nonebot_plugin_orm import async_scoped_session
 from sqlalchemy import select, update
 
-from ..models.song import MaiSong, SongDifficulties, SongDifficulty, SongDifficultyUtage
+from ..models.song import (
+    MaiSong,
+    SongDifficulties,
+    SongDifficulty,
+    SongDifficultyUtage,
+    SongNotes,
+)
 from ..utils.update_songs import fetch_song_info
 from .orm_models import MaiSong as MaiSongORMModel
 from .orm_models import MaiSongAlias, UserBindInfo
@@ -96,10 +102,23 @@ class MaiSongORM:
         """
         反序列化 MaiSongORMModel 为 MaiSong
         """
+
+        def convert_difficulty(diffs_data: dict) -> SongDifficulty:
+            diff_note = diffs_data.get("notes", {})
+            diffs_data["notes"] = SongNotes(
+                total=diff_note.get("total", 0),
+                tap=diff_note.get("tap", 0),
+                touch=diff_note.get("touch", 0),
+                hold=diff_note.get("hold", 0),
+                slide=diff_note.get("slide", 0),
+                break_=diff_note.get("break", 0),
+            )
+            return SongDifficulty(**diffs_data)
+
         # 数据库存储为字符串列，需要反序列化为字典
         diffs = row.difficulties if isinstance(row.difficulties, dict) else json.loads(row.difficulties)
-        standard_difficulties = [SongDifficulty(**d) for d in diffs.get("standard", [])]
-        dx_difficulties = [SongDifficulty(**d) for d in diffs.get("dx", [])]
+        standard_difficulties = [convert_difficulty(d) for d in diffs.get("standard", [])]
+        dx_difficulties = [convert_difficulty(d) for d in diffs.get("dx", [])]
         utage_difficulties = [SongDifficultyUtage(**d) for d in diffs.get("utage", [])] if diffs.get("utage") else None
         return MaiSong(
             id=row.id,
