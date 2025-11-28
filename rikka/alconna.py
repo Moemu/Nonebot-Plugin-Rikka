@@ -46,6 +46,14 @@ BPM: {bpm}
 版本: {version}
 """
 
+alconna_help = on_alconna(
+    Alconna(
+        COMMAND_PREFIXES,
+        "help",
+        meta=CommandMeta("显示帮助信息", usage=".help"),
+    ),
+)
+
 alconna_bind = on_alconna(
     Alconna(
         COMMAND_PREFIXES,
@@ -126,6 +134,30 @@ alconna_score = on_alconna(
         meta=CommandMeta("[舞萌DX]获取单曲游玩情况", usage=".score <id|别名>"),
     )
 )
+
+
+@alconna_help.handle()
+async def handle_help(event: Event):
+    user_id = event.get_user_id()
+
+    help_text = (
+        "Rikka 查分器帮助:\n"
+        ".bind <查分器名称> <API密钥> 绑定查分器账号\n"
+        ".source <查分器名称> 设置默认查分器\n"
+        ".b50 获取玩家 Best 50\n"
+        ".ap50 获取玩家 ALL PERFECT 50\n"
+        ".r50 获取玩家 Recent 50 (需绑定落雪查分器)\n"
+        ".minfo <乐曲ID/别名> 获取乐曲信息\n"
+        ".alias 管理乐曲别名（添加、查询、更新）\n"
+        ".score <乐曲ID/别名> 获取单曲游玩情况\n"
+    )
+
+    await UniMessage(
+        [
+            At(flag="user", target=user_id),
+            help_text,
+        ]
+    ).finish()
 
 
 @alconna_bind.assign("lxns")
@@ -213,6 +245,29 @@ async def handle_bind_divingfish(
             f"已绑定至水鱼账号: {player_info['username']} ⭐",
         ]
     ).finish()
+
+
+@alconna_bind.assign("help")
+async def handle_bind_help(event: Event):
+    user_id = event.get_user_id()
+
+    help_text = (
+        "查分器绑定帮助:\n"
+        ".bind lxns <落雪咖啡屋的个人 API 密钥> 绑定落雪咖啡屋查分器\n"
+        ".bind divingfish <水鱼查分器的成绩导入密钥> 绑定水鱼查分器\n"
+    )
+
+    await UniMessage(
+        [
+            At(flag="user", target=user_id),
+            help_text,
+        ]
+    ).finish()
+
+
+@alconna_bind.assign("$main")
+async def handle_bind_main(event: Event):
+    return await handle_bind_help(event)
 
 
 @alconna_source.handle()
@@ -543,6 +598,30 @@ async def handle_alias_query(
             f"乐曲 ID {song.id} ('{song.title}') 的别名列表如下：\n{alias_list_content}",
         ]
     ).finish()
+
+
+@alconna_alias.assign("help")
+async def handle_alias_help(event: Event):
+    user_id = event.get_user_id()
+
+    help_text = (
+        "乐曲别名管理帮助:\n"
+        ".alias add <乐曲ID> <别名> 添加乐曲别名\n"
+        ".alias update 更新本地乐曲别名列表\n"
+        ".alias query <id|别名> 查询该歌曲有什么别名\n"
+    )
+
+    await UniMessage(
+        [
+            At(flag="user", target=user_id),
+            help_text,
+        ]
+    ).finish()
+
+
+@alconna_alias.assign("$main")
+async def handle_alias_main(event: Event):
+    return await handle_alias_help(event)
 
 
 @alconna_score.handle()
