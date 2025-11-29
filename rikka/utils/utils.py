@@ -81,6 +81,14 @@ def get_version() -> str:
         return "Unknown"
 
 
+def is_float(s: str) -> bool:
+    try:
+        float(s)
+        return True
+    except ValueError:
+        return False
+
+
 async def get_song_by_id_or_alias(session: async_scoped_session, name: str) -> MaiSong:
     """
     通过乐曲 ID/别名 获取乐曲对象

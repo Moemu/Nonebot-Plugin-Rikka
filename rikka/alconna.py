@@ -31,7 +31,7 @@ from .score import (
     get_maimaipy_provider,
 )
 from .utils.update_songs import update_song_alias_list
-from .utils.utils import get_song_by_id_or_alias
+from .utils.utils import get_song_by_id_or_alias, is_float
 
 renderer = PicRenderer()
 
@@ -135,6 +135,17 @@ alconna_score = on_alconna(
     )
 )
 
+alconna_scoreslist = on_alconna(
+    Alconna(
+        COMMAND_PREFIXES,
+        "scoreslist",
+        Args["arg", str],
+        meta=CommandMeta(
+            "[舞萌DX]获取指定条件的成绩列表", usage=".scoreslist <level|ach>", example=".scoreslist ach100.4"
+        ),
+    )
+)
+
 
 @alconna_help.handle()
 async def handle_help(event: Event):
@@ -150,6 +161,7 @@ async def handle_help(event: Event):
         ".minfo <乐曲ID/别名> 获取乐曲信息\n"
         ".alias 管理乐曲别名（添加、查询、更新）\n"
         ".score <乐曲ID/别名> 获取单曲游玩情况\n"
+        ".scoreslist <level|ach> 获取指定条件的成绩列表\n"
     )
 
     await UniMessage(
@@ -675,5 +687,72 @@ async def handle_score(
 
     logger.debug(f"[{user_id}] 5/5 渲染玩家数据...")
     pic = await renderer.render_mai_player_song_info(song, scores)
+
+    await UniMessage([At(flag="user", target=user_id), UniImage(raw=pic)]).finish()
+
+
+@alconna_scoreslist.handle()
+async def handle_scoreslist(
+    event: Event,
+    db_session: async_scoped_session,
+    arg: Match[str] = AlconnaMatch("arg"),
+    score_provider: MaimaiPyScoreProvider = Depends(get_maimaipy_provider),
+):
+    user_id = event.get_user_id()
+
+    if not arg.available or not arg.result:
+        await UniMessage(
+            [
+                At(flag="user", target=user_id),
+                (
+                    ".scoreslist 使用帮助\n"
+                    ".scoreslist level 获取指定等级的成绩列表\n"
+                    ".scoreslist ach 获取指定达成率的成绩列表\n"
+                    "eg.\n"
+                    ".scoreslist 12+\n"
+                    ".scoreslist ach100.8"
+                ),
+            ]
+        ).finish()
+
+    raw_query = arg.result
+    logger.info(f"[{user_id}] 查询指定条件的成绩列表, 查询内容: {raw_query}")
+    level = None
+    ach = None
+    if raw_query.isdigit() or (raw_query.endswith("+") and raw_query[:-1].isdigit()):
+        level = raw_query
+        title = f"{level} 成绩列表"
+    elif raw_query.startswith("ach") and is_float(raw_query[3:]):
+        ach = float(raw_query[3:])
+        title = f"达成率 {ach} 成绩列表"
+    else:
+        await UniMessage([At(flag="user", target=user_id), "命令格式错误，请检查后重新输入！"]).finish()
+        return
+
+    logger.debug(f"[{user_id}] 1/4 获得用户鉴权凭证...")
+    provider = await MaimaiPyScoreProvider.auto_get_score_provider(db_session, user_id)
+    identifier = await MaimaiPyScoreProvider.auto_get_player_identifier(
+        db_session, user_id, provider, use_personal_api=True
+    )
+    params = score_provider.ParamsType(provider, identifier)
+    logger.debug(f"[{user_id}] 1/4 鉴权参数: {params}")
+
+    logger.debug(f"[{user_id}] 2/4 发起 API 请求玩家信息...")
+    player_info = await score_provider.fetch_player_info(params)
+
+    logger.debug(f"[{user_id}] 3/4 发起 API 请求玩家全部成绩...")
+    scores = await score_provider.fetch_player_scoreslist(params, level, ach)
+
+    if not scores:
+        await UniMessage(
+            [
+                At(flag="user", target=user_id),
+                "呜呜，未找到符合条件的游玩记录喵",
+            ]
+        ).finish()
+        return
+
+    logger.debug(f"[{user_id}] 4/4 渲染玩家数据...")
+    pic = await renderer.render_mai_player_scores(scores[:50], player_info, title)
 
     await UniMessage([At(flag="user", target=user_id), UniImage(raw=pic)]).finish()

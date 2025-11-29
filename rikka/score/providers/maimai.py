@@ -1,5 +1,6 @@
 from dataclasses import dataclass
-from typing import Literal, TypeAlias, cast
+from decimal import ROUND_DOWN, Decimal
+from typing import Literal, Optional, TypeAlias, cast
 
 from httpx import HTTPStatusError
 from maimai_py import (
@@ -106,21 +107,31 @@ class MaimaiPyScoreProvider(BaseScoreProvider[MaimaiPyParams]):
 
     @staticmethod
     async def auto_get_player_identifier(
-        session: async_scoped_session, user_id: str, score_provider: _SUPPORT_PROVIDER
+        session: async_scoped_session,
+        user_id: str,
+        score_provider: _SUPPORT_PROVIDER,
+        *,
+        use_personal_api: bool = False,
     ) -> PlayerIdentifier:
         """
         根据用户绑定情况自动选择鉴权方式
         """
-        logger.debug(f"[{user_id}] 1/4 尝试从数据库中获取玩家绑定信息...")
+        logger.debug(f"[{user_id}] 尝试从数据库中获取玩家绑定信息...")
         user_bind_info = await UserBindInfoORM.get_user_bind_info(session, user_id)
 
         # 落雪查分器
+        # When user_bind_info is None, score_provider is LXNSScoreProvider.
         if isinstance(score_provider, LXNSProvider):
             new_player_friend_code = None
-            # When user_bind_info is None, score_provider is LXNSScoreProvider.
+            if use_personal_api:
+                if user_bind_info:
+                    return PlayerIdentifier(credentials=user_bind_info.lxns_api_key)
+                else:
+                    raise ValueError("无法通过个人 API 获得用户鉴权凭证：用户未绑定落雪查分器")
+
             if user_bind_info is None:
                 logger.warning(f"[{user_id}] 未能获取玩家码，数据库中不存在绑定的玩家数据")
-                logger.debug(f"[{user_id}] 1/4 尝试通过 QQ 请求玩家数据")
+                logger.debug(f"[{user_id}] 尝试通过 QQ 请求玩家数据")
                 try:
                     identifier = PlayerIdentifier(qq=int(user_id))
                     player_obj = await score_provider.get_player(identifier, client=maimai_client)
@@ -203,7 +214,7 @@ class MaimaiPyScoreProvider(BaseScoreProvider[MaimaiPyParams]):
         self, params: MaimaiPyParams, song_id: int, song_type: Literal["standard", "dx"]
     ) -> list[PlayerMaiScore]:
         """
-        fetch_player_minfo 的 Docstring
+        获取玩家单曲游玩情况
 
         :param params: 鉴权参数对象
         :type params: MaimaiPyParams
@@ -223,3 +234,36 @@ class MaimaiPyScoreProvider(BaseScoreProvider[MaimaiPyParams]):
         scores = player_song.scores
 
         return [self._score_unpack(score) for score in scores if score.type.value == song_type]
+
+    async def fetch_player_scoreslist(
+        self, params: MaimaiPyParams, level: Optional[str] = None, ach: Optional[float] = None
+    ) -> list[PlayerMaiScore]:
+        """
+        获得玩家指定条件的成绩列表
+
+        :param params: 鉴权参数对象
+        :type params: MaimaiPyParams
+        :param level: 曲目等级，如 `11`, `12+`
+        :type level: str
+        :param ach: 达成率，精确一位小数
+        :type ach: float
+        :return: 成绩列表
+        :rtype: list[PlayerMaiScore]
+        """
+
+        def trunc_1(x):
+            return Decimal(str(x)).quantize(Decimal("0.0"), rounding=ROUND_DOWN)
+
+        scores = await maimai_client.scores(params.identifier, params.score_provider)
+        matched_scores: list[ScoreExtend] = []
+
+        if level:
+            matched_scores = cast(list[ScoreExtend], scores.filter(level=level))
+        elif ach:
+            for score in scores.scores:
+                if score.achievements and trunc_1(score.achievements) == trunc_1(ach):
+                    matched_scores.append(score)
+
+        matched_scores.sort(key=lambda x: x.achievements or 0.0, reverse=True)
+
+        return [self._score_unpack(score) for score in matched_scores]
