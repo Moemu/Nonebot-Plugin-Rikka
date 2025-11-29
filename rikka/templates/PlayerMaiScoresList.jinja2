@@ -58,7 +58,7 @@
         />
         <div class="absolute inset-0 flex items-center justify-center top-[-10px]">
           <h1
-            class="select-none font-[TorusSemiBold] text-5xl font-extrabold tracking-wide text-sky-400 drop-shadow-[0_2px_2px_#ffffff]"
+            class="select-none font-[TorusSemiBold] text-4xl font-extrabold tracking-wide text-sky-400 drop-shadow-[0_2px_2px_#ffffff]"
             style="text-shadow: 2px 0 0 #FFF, 0 0 2px #FFF, 0 2px 0 #FFF, -2px 0 0 #FFF, 0 -2px 0 #FFF;"
           >
             {{ title }}
@@ -72,6 +72,10 @@
         <div class="grid grid-cols-5 gap-2">
           {% for score in scores %}
             {{ score_card(score) }}
+          {% endfor %}
+          {# 填充空白卡片以保持布局稳定 #}
+          {% for i in range(50 - scores|length) %}
+            <div class="h-[109px]"></div>
           {% endfor %}
         </div>
       </div>
