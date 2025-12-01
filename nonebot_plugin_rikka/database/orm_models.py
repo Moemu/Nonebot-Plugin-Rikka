@@ -25,7 +25,7 @@ class UserBindInfo(Model):
 
 
 class MaiSong(Model):
-    __tablename__ = "rikka_maisong"  # nonebot_plugin_orm 的默认命名
+    __tablename__ = "nonebot_plugin_rikka_maisong"  # nonebot_plugin_orm 的默认命名
 
     id: Mapped[int] = mapped_column(primary_key=True)
     title: Mapped[str] = mapped_column(String, nullable=False)
@@ -42,7 +42,7 @@ class MaiSong(Model):
 
 
 class MaiSongAlias(Model):
-    song_id: Mapped[int] = mapped_column(ForeignKey("rikka_maisong.id"), primary_key=True)
+    song_id: Mapped[int] = mapped_column(ForeignKey("nonebot_plugin_rikka_maisong.id"), primary_key=True)
     alias: Mapped[str] = mapped_column(String, nullable=True, default="[]")
     custom_alias: Mapped[str] = mapped_column(String, nullable=True, default="[]")
 
