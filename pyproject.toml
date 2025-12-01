@@ -27,7 +27,7 @@ dev = [
 adapters = [
     { name = "OneBot V11", module_name = "nonebot.adapters.onebot.v11" }
 ]
-plugins = ["rikka"]
+plugins = ["nonebot_plugin_rikka"]
 builtin_plugins = []
 
 [tool.black]

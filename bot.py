@@ -27,6 +27,6 @@ enable_adapters: list[str] = driver.config.model_dump().get("enable_adapters", [
 for adapter in enable_adapters:
     load_specified_adapter(driver, adapter)
 
-nonebot.load_plugin("rikka")
+nonebot.load_plugin("nonebot_plugin_rikka")
 
 nonebot.run()
