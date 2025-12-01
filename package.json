@@ -3,8 +3,8 @@
   "version": "1.0.0",
   "private": true,
   "scripts": {
-    "build:css": "tailwindcss -i assets/css/globals.css -o ./rikka/templates/css/output.css --content \"./rikka/templates/**/*.jinja2\" --minify",
-    "watch:css": "tailwindcss -i assets/css/globals.css -o ./rikka/templates/css/output.css --content \"./rikka/templates/**/*.jinja2\" --watch"
+    "build:css": "tailwindcss -i assets/css/globals.css -o ./nonebot_plugin_rikka/templates/css/output.css --content \"./nonebot_plugin_rikka/templates/**/*.jinja2\" --minify",
+    "watch:css": "tailwindcss -i assets/css/globals.css -o ./nonebot_plugin_rikka/templates/css/output.css --content \"./nonebot_plugin_rikka/templates/**/*.jinja2\" --watch"
   },
   "devDependencies": {
     "@tailwindcss/cli": "^4.0.0",

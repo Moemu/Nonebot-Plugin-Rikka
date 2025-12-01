@@ -6,7 +6,7 @@ on:
       - main
       - master
     paths:
-      - "rikka/templates/**"
+      - "nonebot_plugin_rikka/templates/**"
       - "assets/css/**"
       - "package.json"
       - "package-lock.json"
