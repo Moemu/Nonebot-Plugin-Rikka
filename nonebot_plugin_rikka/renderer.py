@@ -22,7 +22,7 @@ class ViewportDict(TypedDict):
 class PicRenderer:
     def __init__(
         self,
-        template_dir: str = "./rikka/templates",
+        template_dir: Path = Path(__file__).parent / "templates",
         static_dir: str = "./static",
         default_width: int = 1400,
         default_height: int = 1600,
@@ -32,7 +32,7 @@ class PicRenderer:
         :param static_dir: Mai 静态文件路径
         """
         # 使用绝对路径，避免 Playwright 访问 file:// 相对目录时报错（ERR_FILE_NOT_FOUND）
-        self.template_dir = str(Path(template_dir).resolve())
+        self.template_dir = str(template_dir.resolve())
         self.static_dir = Path(static_dir)
         self.default_viewport = {"width": default_width, "height": default_height}
 

@@ -28,7 +28,7 @@ def get_lxns_provider() -> LXNSScoreProvider:
     可用于 NoneBot 依赖注入：
 
         from nonebot.params import Depends
-        from rikka.score import get_lxns_provider
+        from .score import get_lxns_provider
 
         async def handler(provider: LXNSScoreProvider = Depends(get_lxns_provider)):
             ...
@@ -43,7 +43,7 @@ def get_divingfish_provider() -> DivingFishScoreProvider:
     可用于 NoneBot 依赖注入：
 
         from nonebot.params import Depends
-        from rikka.score import get_divingfish_provider
+        from .score import get_divingfish_provider
 
         async def handler(provider: DivingFishScoreProvider = Depends(get_divingfish_provider)):
             ...
@@ -58,7 +58,7 @@ def get_maimaipy_provider() -> MaimaiPyScoreProvider:
     可用于 NoneBot 依赖注入：
 
         from nonebot.params import Depends
-        from rikka.score import get_maimaipy_provider
+        from .score import get_maimaipy_provider
 
         async def handler(provider: MaimaiPyScoreProvider = Depends(get_maimaipy_provider)):
             ...
