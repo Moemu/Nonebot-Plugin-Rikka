@@ -151,7 +151,7 @@ alconna_update = on_alconna(
         COMMAND_PREFIXES,
         "update",
         Subcommand("songs", help_text=".update songs 更新乐曲信息数据库"),
-        Subcommand("aliases", help_text=".update aliases 更新乐曲别名列表"),
+        Subcommand("alias", help_text=".update alias 更新乐曲别名列表"),
         meta=CommandMeta("[舞萌DX]更新乐曲信息或别名列表"),
     ),
     priority=10,
@@ -174,6 +174,8 @@ async def handle_help(event: Event):
         ".alias 管理乐曲别名（添加、查询、更新）\n"
         ".score <乐曲ID/别名> 获取单曲游玩情况\n"
         ".scoreslist <level|ach> 获取指定条件的成绩列表\n"
+        ".update songs 更新乐曲信息数据库\n"
+        ".update alias 更新乐曲别名列表\n"
     )
 
     await UniMessage(
@@ -797,7 +799,7 @@ async def handle_update_songs(
     ).finish()
 
 
-@alconna_update.assign("aliases")
+@alconna_update.assign("alias")
 async def handle_update_aliases(
     event: Event,
     db_session: async_scoped_session,
