@@ -146,6 +146,18 @@ alconna_scoreslist = on_alconna(
     )
 )
 
+alconna_update = on_alconna(
+    Alconna(
+        COMMAND_PREFIXES,
+        "update",
+        Subcommand("songs", help_text=".update songs 更新乐曲信息数据库"),
+        Subcommand("aliases", help_text=".update aliases 更新乐曲别名列表"),
+        meta=CommandMeta("[舞萌DX]更新乐曲信息或别名列表"),
+    ),
+    priority=10,
+    block=True,
+)
+
 
 @alconna_help.handle()
 async def handle_help(event: Event):
@@ -680,7 +692,7 @@ async def handle_score(
         await UniMessage(
             [
                 At(flag="user", target=user_id),
-                f"未找到乐曲 '{song.title}' 的游玩记喵~不如先去挑战一下吧~",
+                f"未找到乐曲 '{song.title}' 的游玩记录喵~不如先去挑战一下吧~",
             ]
         ).finish()
         return
@@ -756,3 +768,38 @@ async def handle_scoreslist(
     pic = await renderer.render_mai_player_scores(scores[:50], player_info, title)
 
     await UniMessage([At(flag="user", target=user_id), UniImage(raw=pic)]).finish()
+
+
+@alconna_update.assign("songs")
+async def handle_update_songs(
+    event: Event,
+    db_session: async_scoped_session,
+):
+    user_id = event.get_user_id()
+    nb_config = get_driver().config
+
+    if user_id not in nb_config.superusers:
+        await UniMessage("更新乐曲信息需要管理员权限哦").finish()
+
+    logger.info(f"[{user_id}] 更新乐曲信息数据库")
+
+    from .utils.update_songs import update_song_database
+
+    updated_count = await update_song_database(db_session)
+
+    logger.info(f"[{user_id}] 乐曲信息数据库更新完成，共更新 {updated_count} 首乐曲")
+
+    await UniMessage(
+        [
+            At(flag="user", target=user_id),
+            f"乐曲信息数据库已更新完成，共更新 {updated_count} 首乐曲 ⭐",
+        ]
+    ).finish()
+
+
+@alconna_update.assign("aliases")
+async def handle_update_aliases(
+    event: Event,
+    db_session: async_scoped_session,
+):
+    await handle_alias_update(event, db_session)

@@ -1,4 +1,5 @@
 import json
+from dataclasses import asdict
 from typing import TYPE_CHECKING, Literal, Optional
 
 from nonebot import logger
@@ -12,7 +13,6 @@ from ..models.song import (
     SongDifficultyUtage,
     SongNotes,
 )
-from ..utils.update_songs import fetch_song_info
 from .orm_models import MaiSong as MaiSongORMModel
 from .orm_models import MaiSongAlias, UserBindInfo
 
@@ -137,9 +137,9 @@ class MaiSongORM:
         保存曲目信息到数据库
         """
         difficulties_dict = {
-            "standard": [d.__dict__ for d in song.difficulties.standard],
-            "dx": [d.__dict__ for d in song.difficulties.dx],
-            "utage": [d.__dict__ for d in song.difficulties.utage] if song.difficulties.utage else [],
+            "standard": [asdict(d) for d in song.difficulties.standard],
+            "dx": [asdict(d) for d in song.difficulties.dx],
+            "utage": [asdict(d) for d in song.difficulties.utage] if song.difficulties.utage else [],
         }
         song_obj = MaiSongORMModel(
             id=song.id,
@@ -156,6 +156,54 @@ class MaiSongORM:
         await session.commit()
 
     @staticmethod
+    async def save_song_info_batch(session: async_scoped_session, songs: list[MaiSong]) -> None:
+        """
+        批量保存曲目信息到数据库，如果存在则更新
+        """
+        if not songs:
+            return
+
+        # 查询已存在的记录
+        song_ids = [song.id for song in songs]
+        result = await session.execute(select(MaiSongORMModel).where(MaiSongORMModel.id.in_(song_ids)))
+        existing_map = {s.id: s for s in result.scalars().all()}
+
+        for song in songs:
+            difficulties_dict = {
+                "standard": [asdict(d) for d in song.difficulties.standard],
+                "dx": [asdict(d) for d in song.difficulties.dx],
+                "utage": [asdict(d) for d in song.difficulties.utage] if song.difficulties.utage else [],
+            }
+            difficulties_json = json.dumps(difficulties_dict, ensure_ascii=False)
+
+            if song.id in existing_map:
+                # 更新现有记录
+                existing_obj = existing_map[song.id]
+                existing_obj.title = song.title
+                existing_obj.artist = song.artist
+                existing_obj.genre = song.genre
+                existing_obj.bpm = song.bpm
+                existing_obj.map = song.map
+                existing_obj.version = song.version
+                existing_obj.difficulties = difficulties_json  # type: ignore
+            else:
+                # 插入新记录
+                song_obj = MaiSongORMModel(
+                    id=song.id,
+                    title=song.title,
+                    artist=song.artist,
+                    genre=song.genre,
+                    bpm=song.bpm,
+                    map=song.map,
+                    version=song.version,
+                    # ORM 列为 String，这里序列化为 JSON 字符串
+                    difficulties=difficulties_json,
+                )
+                session.add(song_obj)
+
+        await session.commit()
+
+    @staticmethod
     async def get_song_info(session: async_scoped_session, song_id: int) -> MaiSong:
         """
         获取曲目信息，如果数据库中不存在则从远程获取并保存
@@ -168,6 +216,8 @@ class MaiSongORM:
             return MaiSongORM._convert(song_row)
 
         logger.warning(f"曲目 ID {song_id} 不存在于数据库，正在从远程获取...")
+        from ..utils.update_songs import fetch_song_info
+
         song_info = await fetch_song_info(song_id)
         await MaiSongORM.save_song_info(session, song_info)
         return song_info
@@ -202,6 +252,8 @@ class MaiSongORM:
         missing_ids = [sid for sid in ordered_unique_ids if sid not in id_to_song]
         for mid in missing_ids:
             logger.warning(f"曲目 ID {mid} 不存在于数据库，正在从远程获取...")
+            from ..utils.update_songs import fetch_song_info
+
             fetched = await fetch_song_info(mid)
             await MaiSongORM.save_song_info(session, fetched)
             id_to_song[mid] = fetched

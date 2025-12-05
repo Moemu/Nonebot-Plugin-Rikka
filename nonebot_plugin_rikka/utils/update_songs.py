@@ -11,6 +11,7 @@ from nonebot_plugin_orm import async_scoped_session
 from typing_extensions import TypedDict
 
 from ..config import config
+from ..database import MaiSongORM
 from ..models.song import MaiSong, SongDifficulties
 
 _BASE_SONG_QUERY_URL = "https://maimai.lxns.net/api/v0/maimai/song/{song_id}"
@@ -84,6 +85,31 @@ async def update_local_chart_file():
     _MUSIC_CHART_DATA = content
 
 
+async def _update_song_fit_diff(difficulties: SongDifficulties, song_id: int):
+    """
+    更新曲目的拟合定数
+
+    :param difficulties: 曲目的难度信息
+    :param song_id: 曲目 ID
+    """
+    try:
+        for index, difficulty in enumerate(difficulties.standard):
+            difficulty.level_fit = get_song_fit_diff_from_local(song_id, index)
+        for index, difficulty in enumerate(difficulties.dx):
+            difficulty.level_fit = get_song_fit_diff_from_local(song_id + 10000, index)
+    except ValueError:
+        logger.warning(f"曲目 {song_id} 的拟合定数获取失败，尝试更新本地 chart 文件")
+        await update_local_chart_file()
+        await sleep(0.1)  # 避免重复请求过快
+        try:
+            for index, difficulty in enumerate(difficulties.standard):
+                difficulty.level_fit = get_song_fit_diff_from_local(song_id, index)
+            for index, difficulty in enumerate(difficulties.dx):
+                difficulty.level_fit = get_song_fit_diff_from_local(song_id + 10000, index)
+        except ValueError:
+            logger.error(f"曲目 {song_id} 的拟合定数获取失败，跳过该曲目拟合定数设置")
+
+
 async def fetch_song_info(song_id: int, interval: float = 0.3) -> MaiSong:
     """
     获取曲目信息
@@ -103,23 +129,7 @@ async def fetch_song_info(song_id: int, interval: float = 0.3) -> MaiSong:
     song_info_dict = {k: v for k, v in content.items() if k in song_info_fields}
     song_info_dict["difficulties"] = SongDifficulties.init_from_dict(content.get("difficulties", {}))
 
-    # 从本地获取拟合定数
-    try:
-        for index, difficulty in enumerate(song_info_dict["difficulties"].standard):
-            difficulty.level_fit = get_song_fit_diff_from_local(song_id, index)
-        for index, difficulty in enumerate(song_info_dict["difficulties"].dx):
-            difficulty.level_fit = get_song_fit_diff_from_local(song_id + 10000, index)
-    except ValueError:
-        # 如果失败就先更新 `music_chart.json` 文件
-        logger.warning(f"曲目 {song_id} 的拟合定数获取失败，尝试更新本地 chart 文件")
-        await update_local_chart_file()
-        try:
-            for index, difficulty in enumerate(song_info_dict["difficulties"].standard):
-                difficulty.level_fit = get_song_fit_diff_from_local(song_id, index)
-            for index, difficulty in enumerate(song_info_dict["difficulties"].dx):
-                difficulty.level_fit = get_song_fit_diff_from_local(song_id + 10000, index)
-        except ValueError:
-            logger.error(f"曲目 {song_id} 的拟合定数获取失败，跳过该曲目拟合定数设置")
+    await _update_song_fit_diff(song_info_dict["difficulties"], song_id)
 
     song_info = MaiSong(**song_info_dict)
 
@@ -139,3 +149,39 @@ async def update_song_alias_list(db_session: async_scoped_session):
     from ..database import MaiSongAliasORM
 
     await MaiSongAliasORM.add_alias_batch(db_session, content["aliases"])
+
+
+async def update_song_database(db_session: async_scoped_session) -> int:
+    """
+    通关落雪查分器更新曲目数据库
+
+    :param db_session: 数据库会话对象
+    :type db_session: async_scoped_session
+
+    :return: 更新的曲目数量
+    :rtype: int
+    """
+    _BASE_URL = "https://maimai.lxns.net/api/v0/maimai/song/list?notes=true"
+
+    async with ClientSession() as session:
+        async with session.get(_BASE_URL, headers={"User-Agent": USER_AGENT}) as resp:
+            resp.raise_for_status()
+            content = await resp.json()
+
+    songs = content["songs"]
+    songs_obj = []
+    song_info_fields = {f.name for f in fields(MaiSong)}
+
+    for song in songs:
+        song_info_dict = {k: v for k, v in song.items() if k in song_info_fields}
+        song_info_dict["difficulties"] = SongDifficulties.init_from_dict(song.get("difficulties", {}))
+
+        # 获取拟合定数
+        await _update_song_fit_diff(song_info_dict["difficulties"], song_info_dict["id"])
+
+        song_info = MaiSong(**song_info_dict)
+        songs_obj.append(song_info)
+
+    await MaiSongORM.save_song_info_batch(db_session, songs_obj)
+
+    return len(songs_obj)

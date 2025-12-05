@@ -17,6 +17,20 @@ class SongNotes:
     break_: int
     """BREAK 物量"""
 
+    @staticmethod
+    def from_dict(data: dict[str, int]) -> "SongNotes":
+        """
+        Initialize SongNotes from a dictionary.
+        """
+        return SongNotes(
+            total=data.get("total", 0),
+            tap=data.get("tap", 0),
+            hold=data.get("hold", 0),
+            slide=data.get("slide", 0),
+            touch=data.get("touch", 0),
+            break_=data.get("break", 0),
+        )
+
 
 @dataclass
 class BuddyNotes:
@@ -72,13 +86,19 @@ class SongDifficulties:
         dx_fields = standard_fields
         utage_fields = {f.name for f in fields(SongDifficultyUtage)}
 
-        standard_difficulties = [
-            SongDifficulty(**{k: v for k, v in item.items() if k in standard_fields})
-            for item in data.get("standard", [])
-        ]
-        dx_difficulties = [
-            SongDifficulty(**{k: v for k, v in item.items() if k in dx_fields}) for item in data.get("dx", [])
-        ]
+        standard_difficulties = []
+        dx_difficulties = []
+
+        for item in data.get("standard", []):
+            notes = item.get("notes", {})
+            item["notes"] = SongNotes.from_dict(notes) if notes else {}
+            standard_difficulties.append(SongDifficulty(**{k: v for k, v in item.items() if k in standard_fields}))
+
+        for item in data.get("dx", []):
+            notes = item.get("notes", {})
+            item["notes"] = SongNotes.from_dict(notes) if notes else {}
+            dx_difficulties.append(SongDifficulty(**{k: v for k, v in item.items() if k in dx_fields}))
+
         if data.get("utage"):
             utage_difficulties = [
                 SongDifficultyUtage(**{k: v for k, v in item.items() if k in utage_fields})
