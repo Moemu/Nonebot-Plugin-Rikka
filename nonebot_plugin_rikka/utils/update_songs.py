@@ -21,6 +21,29 @@ USER_AGENT = (
 )
 
 _MUSIC_CHART_PATH = Path(config.static_resource_path) / "music_chart.json"
+
+
+async def update_local_chart_file():
+    """
+    从水鱼更新 `music_chart.json` 文件
+    """
+    async with ClientSession() as session:
+        async with session.get(_DIVING_FISH_CHART_STATS_URL, headers={"User-Agent": USER_AGENT}) as resp:
+            resp.raise_for_status()
+            content = await resp.json()
+
+    _MUSIC_CHART_PATH.write_text(json.dumps(content, ensure_ascii=False, indent=4), encoding="utf-8")
+    logger.info("已更新本地 music_chart.json 文件")
+
+    global _MUSIC_CHART_DATA
+    _MUSIC_CHART_DATA = content
+
+
+if not _MUSIC_CHART_PATH.exists():
+    import asyncio
+
+    asyncio.run(update_local_chart_file())
+
 _MUSIC_CHART_DATA: "MusicChart" = json.loads(_MUSIC_CHART_PATH.read_text(encoding="utf-8"))
 
 
@@ -67,22 +90,6 @@ def get_song_fit_diff_from_local(song_id: int, difficulty: int) -> float:
         raise ValueError(f"难度 {difficulty} 在铺面 {song_id} 中不存在")
 
     return chart_infos[difficulty]["fit_diff"]
-
-
-async def update_local_chart_file():
-    """
-    从水鱼更新 `music_chart.json` 文件
-    """
-    async with ClientSession() as session:
-        async with session.get(_DIVING_FISH_CHART_STATS_URL, headers={"User-Agent": USER_AGENT}) as resp:
-            resp.raise_for_status()
-            content = await resp.json()
-
-    _MUSIC_CHART_PATH.write_text(json.dumps(content, ensure_ascii=False, indent=4), encoding="utf-8")
-    logger.info("已更新本地 music_chart.json 文件")
-
-    global _MUSIC_CHART_DATA
-    _MUSIC_CHART_DATA = content
 
 
 async def _update_song_fit_diff(difficulties: SongDifficulties, song_id: int):
