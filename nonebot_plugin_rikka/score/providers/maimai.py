@@ -100,7 +100,7 @@ class MaimaiPyScoreProvider(BaseScoreProvider[MaimaiPyParams]):
         if not bind_info or bind_info.default_provider == "lxns":
             return _lxns_provider
 
-        elif bind_info.default_provider == "divingfish":
+        elif bind_info.default_provider == "divingfish" or bind_info.diving_fish_import_token:
             return _divingfish_provider
 
         return _lxns_provider
