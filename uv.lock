@@ -1805,7 +1805,7 @@ requires-dist = [
     { name = "mypy", marker = "extra == 'dev'", specifier = ">=1.15.0" },
     { name = "nonebot-adapter-onebot", specifier = ">=2.4.6" },
     { name = "nonebot-plugin-alconna", specifier = ">=0.59.4" },
-    { name = "nonebot-plugin-htmlrender", specifier = ">=0.6.8" },
+    { name = "nonebot-plugin-htmlrender", specifier = ">=0.6.7" },
     { name = "nonebot-plugin-orm", extras = ["sqlite"], specifier = ">=0.8.2" },
     { name = "nonebot2", specifier = ">=2.4.1" },
     { name = "nonebot2", extras = ["fastapi", "httpx", "websockets"], specifier = ">=2.4.3" },
