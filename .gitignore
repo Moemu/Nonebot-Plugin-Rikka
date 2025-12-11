@@ -145,6 +145,7 @@ dmypy.json
 # template
 pages/
 static/
+!static/mai/pic/fcfs_score.png
 
 # Node.js
 node_modules/
