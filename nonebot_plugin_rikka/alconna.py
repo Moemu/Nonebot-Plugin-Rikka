@@ -152,6 +152,7 @@ alconna_update = on_alconna(
         "update",
         Subcommand("songs", help_text=".update songs 更新乐曲信息数据库"),
         Subcommand("alias", help_text=".update alias 更新乐曲别名列表"),
+        Subcommand("chart", help_text=".update chart 更新 music_chart.json 文件"),
         meta=CommandMeta("[舞萌DX]更新乐曲信息或别名列表"),
     ),
     priority=10,
@@ -805,3 +806,17 @@ async def handle_update_aliases(
     db_session: async_scoped_session,
 ):
     await handle_alias_update(event, db_session)
+
+
+@alconna_update.assign("chart")
+async def handle_update_chart(event: Event):
+    from .utils.update_songs import update_local_chart_file
+
+    await update_local_chart_file()
+
+    await UniMessage(
+        [
+            At(flag="user", target=event.get_user_id()),
+            "music_chart.json 文件已更新完成⭐",
+        ]
+    ).finish()
