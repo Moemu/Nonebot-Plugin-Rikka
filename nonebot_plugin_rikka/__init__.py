@@ -3,7 +3,6 @@ from nonebot import require
 require("nonebot_plugin_alconna")
 require("nonebot_plugin_localstore")
 require("nonebot_plugin_orm")
-require("nonebot_plugin_htmlrender")
 
 from nonebot.plugin import PluginMetadata, inherit_supported_adapters  # noqa: E402
 

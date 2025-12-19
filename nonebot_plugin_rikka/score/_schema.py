@@ -129,6 +129,8 @@ class PlayerMaiScore:
     """FC 情况"""
     fs: Optional[ScoreFSType] = None
     """同步游玩情况"""
+    song_level_value: Optional[float] = None
+    """乐曲定数"""
 
 
 @dataclass
