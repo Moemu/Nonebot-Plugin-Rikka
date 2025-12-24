@@ -19,7 +19,7 @@ from .utils import DrawText, change_column_width, coloum_width, dx_score
 
 def draw_music_info(song: MaiSong, scores: List[PlayerMaiScore]) -> Image.Image:
     """
-    绘制单曲详情及成绩 (参考 maimaidx draw_music_play_data)
+    绘制单曲详情及成绩
 
     :param song: 乐曲信息
     :param scores: 玩家在该乐曲上的成绩列表

@@ -7,7 +7,7 @@ from typing_extensions import TypedDict
 
 from .database.crud import MaiSongORM
 from .models.song import MaiSong
-from .painters import DrawBest, draw_music_info, draw_score_list, image_to_bytes
+from .painters import DrawBest, DrawScores, draw_music_info, image_to_bytes
 from .score import PlayerMaiB50, PlayerMaiInfo, PlayerMaiScore
 from .utils.update_resources import download_icon, download_jacket
 
@@ -33,6 +33,9 @@ class PicRenderer:
         self.template_dir = str(template_dir.resolve())
         self.static_dir = Path(static_dir)
         self.default_viewport = {"width": default_width, "height": default_height}
+
+        self.draw_best = DrawBest()
+        self.draw_score = DrawScores()
 
     async def _ensure_cover(self, song_id: int) -> str:
         """
@@ -141,7 +144,7 @@ class PicRenderer:
                 score.song_id, score.song_type.value, score.song_difficulty.value  # type:ignore
             )
 
-        img = draw_score_list(player_info, scores, title or "Player Scores")
+        img = self.draw_score.draw_scorelist(player_info, scores, title or "Player Scores")
         return image_to_bytes(img)
 
     async def render_mai_player_song_info(self, song: MaiSong, scores: list[PlayerMaiScore]) -> bytes:

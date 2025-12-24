@@ -7,7 +7,7 @@ from ._base import ScoreBaseImage
 from ._config import PIC_DIR
 
 
-class DrawScore(ScoreBaseImage):
+class DrawScores(ScoreBaseImage):
     """
     绘制成绩列表图
     """
@@ -32,45 +32,28 @@ class DrawScore(ScoreBaseImage):
         for h in range((self._im.size[1] // 358) + 1):
             self._im.alpha_composite(self.pattern_bg, (0, (358 + 7) * h))
 
-    def draw_scorelist(self, rating: str, data: List[PlayerMaiScore], page: int = 1, end_page: int = 1) -> Image.Image:
+    def draw_scorelist(
+        self, player_info: PlayerMaiInfo, scores: List[PlayerMaiScore], title: str, page: int = 1, page_size: int = 50
+    ) -> Image.Image:
         """
         绘制分页成绩列表
 
-        :param rating: 评分/定数描述
-        :param data: 成绩列表
+        :param player_info: 玩家信息
+        :param scores: 成绩列表
+        :param title: 标题
         :param page: 当前页码
-        :param end_page: 总页码
+        :param page_size: 每个页码展示的成绩长度
         :return: 绘制后的图片
         """
-        self._im.alpha_composite(self.title_lengthen_bg, (475, 30))
-        self._sy.draw(700, 77, 28, rating, self.text_color, "mm")
+        self.draw_profile(player_info)
 
-        self.whiledraw(data)
+        # Draw title
+        self._im.alpha_composite(self.title_lengthen_bg, (475, 200))
+        self._sy.draw(700, 245, 28, title, self.text_color, "mm")
 
-        self._im.alpha_composite(self.design_bg, (200, self._im.size[1] - 113))
-        self._sy.draw(700, self._im.size[1] - 70, 25, f"第 {page} / {end_page} 页", self.text_color, "mm")
+        scores = scores[(page - 1) * page_size : page * page_size]
+        self.whiledraw(scores, 320)
+
+        self.draw_footer()
 
         return self._im
-
-
-def draw_score_list(player_info: PlayerMaiInfo, scores: List[PlayerMaiScore], title: str) -> Image.Image:
-    """
-    绘制成绩列表
-
-    :param scores: 成绩列表
-    :param title: 标题
-    :return: 绘制后的图片
-    """
-    draw_score = DrawScore()
-
-    draw_score.draw_profile(player_info)
-
-    # Draw title
-    draw_score._im.alpha_composite(draw_score.title_lengthen_bg, (475, 200))
-    draw_score._sy.draw(700, 245, 28, title, draw_score.text_color, "mm")
-
-    draw_score.whiledraw(scores, 320)
-
-    draw_score.draw_footer()
-
-    return draw_score._im
