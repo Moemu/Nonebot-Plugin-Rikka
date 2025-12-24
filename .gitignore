@@ -151,3 +151,7 @@ static/
 node_modules/
 npm-debug.log
 yarn-error.log
+
+# Nonebot
+
+bot.py
