@@ -1,4 +1,5 @@
 from pathlib import Path
+from typing import Literal
 
 from aiohttp.client_exceptions import ClientResponseError
 from arclet.alconna import Alconna, AllParam, Args
@@ -68,6 +69,17 @@ alconna_bind = on_alconna(
     priority=10,
     block=True,
     skip_for_unmatch=False,
+)
+
+alconna_unbind = on_alconna(
+    Alconna(
+        COMMAND_PREFIXES,
+        "unbind",
+        Args["provider", Literal["all", "lxns", "divingfish"]],
+        meta=CommandMeta("[查分器相关]解绑查分器账号", usage=".unbind <all|lxns|divingfish>"),
+    ),
+    priority=10,
+    block=True,
 )
 
 alconna_source = on_alconna(
@@ -295,6 +307,44 @@ async def handle_bind_help(event: Event):
 @alconna_bind.assign("$main")
 async def handle_bind_main(event: Event):
     return await handle_bind_help(event)
+
+
+@alconna_unbind.handle()
+async def handle_unbind(
+    event: Event,
+    db_session: async_scoped_session,
+    provider: Match[Literal["all", "lxns", "divingfish"]] = AlconnaMatch("provider"),
+):
+    user_id = event.get_user_id()
+
+    if not provider.available or provider.result not in ["all", "lxns", "divingfish"]:
+        await UniMessage(
+            [
+                At(flag="user", target=user_id),
+                "请输入有效的查分器名称: all, lxns 或 divingfish",
+            ]
+        ).finish()
+        return
+
+    provider_name = provider.result if provider.result != "all" else None
+
+    try:
+        await UserBindInfoORM.unset_user_bind_info(db_session, user_id, provider_name)
+    except ValueError as e:
+        await UniMessage(
+            [
+                At(flag="user", target=user_id),
+                str(e),
+            ]
+        ).finish()
+        return
+
+    await UniMessage(
+        [
+            At(flag="user", target=user_id),
+            f"已解绑查分器: {provider.result}",
+        ]
+    ).finish()
 
 
 @alconna_source.handle()

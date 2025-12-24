@@ -95,6 +95,36 @@ class UserBindInfoORM:
         )
         await session.commit()
 
+    @staticmethod
+    async def unset_user_bind_info(
+        session: async_scoped_session, user_id: str, provider: Optional[Literal["lxns", "divingfish"]] = None
+    ) -> None:
+        """
+        解绑用户查分器账号
+
+        :param provider: 指定解绑的查分器，若为 None 则解绑所有查分器
+        """
+        bind_info = await UserBindInfoORM.get_user_bind_info(session, user_id)
+        if not bind_info:
+            return
+
+        if provider is None:
+            await session.delete(bind_info)
+        elif provider == "lxns":
+            await session.execute(
+                update(UserBindInfo)
+                .where(UserBindInfo.user_id == user_id)
+                .values(lxns_api_key=None, default_provider="divingfish")
+            )
+        elif provider == "divingfish":
+            await session.execute(
+                update(UserBindInfo)
+                .where(UserBindInfo.user_id == user_id)
+                .values(diving_fish_import_token=None, diving_fish_username=None, default_provider="lxns")
+            )
+
+        await session.commit()
+
 
 class MaiSongORM:
     @staticmethod
