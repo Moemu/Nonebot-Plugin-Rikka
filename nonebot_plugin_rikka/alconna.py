@@ -1,7 +1,7 @@
 from pathlib import Path
 
 from aiohttp.client_exceptions import ClientResponseError
-from arclet.alconna import Alconna, Args
+from arclet.alconna import Alconna, AllParam, Args
 from maimai_py import LXNSProvider
 from nonebot import get_driver, logger
 from nonebot.adapters import Event
@@ -103,7 +103,7 @@ alconna_minfo = on_alconna(
     Alconna(
         COMMAND_PREFIXES,
         "minfo",
-        Args["name", str],
+        Args["name", AllParam(str)],
         meta=CommandMeta("[舞萌DX]获取乐曲信息", usage=".minfo <id|别名>"),
     ),
     priority=10,
@@ -119,7 +119,7 @@ alconna_alias = on_alconna(
             "add", Args["song_id", int], Args["alias", str], help_text=".alias add <乐曲ID> <别名> 添加乐曲别名"
         ),
         Subcommand("update", help_text=".alias update 更新本地乐曲别名列表"),
-        Subcommand("query", Args["name", str], help_text=".alias query <id|别名> 查询该歌曲有什么别名"),
+        Subcommand("query", Args["name", AllParam(str)], help_text=".alias query <id|别名> 查询该歌曲有什么别名"),
         meta=CommandMeta("[舞萌DX]乐曲别名管理"),
     ),
     priority=10,
@@ -130,7 +130,7 @@ alconna_score = on_alconna(
     Alconna(
         COMMAND_PREFIXES,
         "score",
-        Args["name", str],
+        Args["name", AllParam(str)],
         meta=CommandMeta("[舞萌DX]获取单曲游玩情况", usage=".score <id|别名>"),
     )
 )
@@ -453,14 +453,14 @@ async def handle_mai_r50(
 async def handle_minfo(
     event: Event,
     db_session: async_scoped_session,
-    name: Match[str] = AlconnaMatch("name"),
+    name: Match[UniMessage] = AlconnaMatch("name"),
 ):
     user_id = event.get_user_id()
 
     if not name.available:
         await UniMessage([At(flag="user", target=user_id), "请输入有效的乐曲ID/名称/别名！"]).finish()
 
-    raw_query = name.result
+    raw_query = name.result.extract_plain_text()
     logger.info(f"[{user_id}] 查询乐曲信息, 查询内容: {raw_query}")
 
     logger.debug(f"[{user_id}] 1/4 通过乐曲ID/别名查询乐曲信息...")
@@ -586,14 +586,14 @@ async def handle_alias_add(
 async def handle_alias_query(
     event: Event,
     db_session: async_scoped_session,
-    name: Match[str] = AlconnaMatch("name"),
+    name: Match[UniMessage] = AlconnaMatch("name"),
 ):
     user_id = event.get_user_id()
 
     if not name.available:
         await UniMessage([At(flag="user", target=user_id), "请输入有效的乐曲ID/名称/别名！"]).finish()
 
-    raw_query = name.result
+    raw_query = name.result.extract_plain_text()
 
     logger.info(f"[{user_id}] 查询乐曲别名, 查询内容: {raw_query}")
 
@@ -655,7 +655,7 @@ async def handle_alias_main(event: Event):
 async def handle_score(
     event: Event,
     db_session: async_scoped_session,
-    name: Match[str] = AlconnaMatch("name"),
+    name: Match[UniMessage] = AlconnaMatch("name"),
     score_provider: MaimaiPyScoreProvider = Depends(get_maimaipy_provider),
 ):
     user_id = event.get_user_id()
@@ -663,7 +663,7 @@ async def handle_score(
     if not name.available:
         await UniMessage([At(flag="user", target=user_id), "请输入有效的乐曲ID/名称/别名！"]).finish()
 
-    raw_query = name.result
+    raw_query = name.result.extract_plain_text()
     logger.info(f"[{user_id}] 查询单曲游玩情况, 查询内容: {raw_query}")
 
     logger.debug(f"[{user_id}] 1/5 通过乐曲ID/别名查询乐曲信息...")

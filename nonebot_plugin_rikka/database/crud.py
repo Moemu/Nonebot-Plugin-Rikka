@@ -269,10 +269,10 @@ class MaiSongORM:
         :return: 曲目信息 或 None
         """
         # 先尝试通过乐曲名称查找
-        result = await session.execute(select(MaiSongORMModel).where(MaiSongORMModel.title == name_or_alias))
-        song_row = result.scalar_one_or_none()
-        if song_row:
-            return [MaiSongORM._convert(song_row)]
+        result = await session.execute(select(MaiSongORMModel).where(MaiSongORMModel.title.ilike(f"%{name_or_alias}%")))
+        song_rows = result.scalars().all()
+        if song_rows:
+            return [MaiSongORM._convert(row) for row in song_rows]
 
         # 如果名称查找失败，则通过别名查找
         song = await MaiSongAliasORM.find_song_by_alias(session, name_or_alias)
