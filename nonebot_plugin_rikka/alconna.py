@@ -40,7 +40,7 @@ renderer = PicRenderer()
 COMMAND_PREFIXES = [".", "/"]
 
 _MAI_SONG_INFO_TEMPLATE = """[舞萌DX] 乐曲信息
-标题: {title}
+{title}({id})
 艺术家: {artist}
 分类: {genre}
 BPM: {bpm}
@@ -144,7 +144,9 @@ alconna_score = on_alconna(
         "score",
         Args["name", AllParam(str)],
         meta=CommandMeta("[舞萌DX]获取单曲游玩情况", usage=".score <id|别名>"),
-    )
+    ),
+    priority=10,
+    block=True,
 )
 
 alconna_scoreslist = on_alconna(
@@ -155,7 +157,9 @@ alconna_scoreslist = on_alconna(
         meta=CommandMeta(
             "[舞萌DX]获取指定条件的成绩列表", usage=".scoreslist <level|ach>", example=".scoreslist ach100.4"
         ),
-    )
+    ),
+    priority=10,
+    block=True,
 )
 
 alconna_update = on_alconna(
@@ -568,6 +572,7 @@ async def handle_minfo(
             UniImage(path=song_cover),
             _MAI_SONG_INFO_TEMPLATE.format(
                 title=song.title,
+                id=song.id,
                 artist=song.artist,
                 genre=song.genre,
                 bpm=song.bpm,
