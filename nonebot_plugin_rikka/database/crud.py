@@ -1,6 +1,6 @@
 import json
 from dataclasses import asdict
-from typing import TYPE_CHECKING, Literal, Optional
+from typing import TYPE_CHECKING, Literal, Optional, Sequence
 
 from nonebot import logger
 from nonebot_plugin_orm import async_scoped_session
@@ -307,6 +307,15 @@ class MaiSongORM:
         # 如果名称查找失败，则通过别名查找
         song = await MaiSongAliasORM.find_song_by_alias(session, name_or_alias)
         return song
+
+    @staticmethod
+    async def get_all_song_ids(session: async_scoped_session) -> Sequence[int]:
+        """
+        获取数据库中所有曲目的 ID 列表
+        """
+        result = await session.execute(select(MaiSongORMModel.id))
+        song_ids = result.scalars().all()
+        return song_ids
 
 
 class MaiSongAliasORM:

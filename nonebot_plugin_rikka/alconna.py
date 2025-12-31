@@ -31,6 +31,7 @@ from .score import (
     get_lxns_provider,
     get_maimaipy_provider,
 )
+from .utils.fortunate import generate_today_fortune
 from .utils.update_songs import update_song_alias_list
 from .utils.utils import get_song_by_id_or_alias, is_float
 
@@ -172,6 +173,17 @@ alconna_update = on_alconna(
         Subcommand("chart", help_text=".update chart 更新 music_chart.json 文件"),
         meta=CommandMeta("[舞萌DX]更新乐曲信息或别名列表"),
     ),
+    priority=10,
+    block=True,
+)
+
+alconna_fortune = on_alconna(
+    Alconna(
+        COMMAND_PREFIXES,
+        "fortune",
+        meta=CommandMeta("[舞萌DX]获取今日上机运势"),
+    ),
+    aliases={"今日舞萌"},
     priority=10,
     block=True,
 )
@@ -876,3 +888,16 @@ async def handle_update_chart(event: Event):
             "music_chart.json 文件已更新完成⭐",
         ]
     ).finish()
+
+
+@alconna_fortune.handle()
+async def handle_fortune(
+    event: Event,
+):
+    user_id = event.get_user_id()
+
+    logger.info(f"[{user_id}] 获取今日舞萌运势")
+
+    fortune_message = await generate_today_fortune(user_id)
+
+    await fortune_message.finish()
