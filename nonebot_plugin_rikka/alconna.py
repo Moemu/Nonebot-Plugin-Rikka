@@ -149,15 +149,16 @@ alconna_score = on_alconna(
     block=True,
 )
 
-alconna_scoreslist = on_alconna(
+alconna_scorelist = on_alconna(
     Alconna(
         COMMAND_PREFIXES,
-        "scoreslist",
+        "scorelist",
         Args["arg", str],
         meta=CommandMeta(
-            "[舞萌DX]获取指定条件的成绩列表", usage=".scoreslist <level|ach>", example=".scoreslist ach100.4"
+            "[舞萌DX]获取指定条件的成绩列表", usage=".scorelist <level|ach>", example=".scorelist ach100.4"
         ),
     ),
+    aliases={"scoreslist"},
     priority=10,
     block=True,
 )
@@ -190,7 +191,7 @@ async def handle_help(event: Event):
         ".minfo <乐曲ID/别名> 获取乐曲信息\n"
         ".alias 管理乐曲别名（添加、查询、更新）\n"
         ".score <乐曲ID/别名> 获取单曲游玩情况\n"
-        ".scoreslist <level|ach> 获取指定条件的成绩列表\n"
+        ".scorelist <level|ach> 获取指定条件的成绩列表\n"
         ".update songs 更新乐曲信息数据库\n"
         ".update alias 更新乐曲别名列表\n"
     )
@@ -761,8 +762,8 @@ async def handle_score(
     await UniMessage([At(flag="user", target=user_id), UniImage(raw=pic)]).finish()
 
 
-@alconna_scoreslist.handle()
-async def handle_scoreslist(
+@alconna_scorelist.handle()
+async def handle_scorelist(
     event: Event,
     db_session: async_scoped_session,
     arg: Match[str] = AlconnaMatch("arg"),
@@ -775,12 +776,12 @@ async def handle_scoreslist(
             [
                 At(flag="user", target=user_id),
                 (
-                    ".scoreslist 使用帮助\n"
-                    ".scoreslist level 获取指定等级的成绩列表\n"
-                    ".scoreslist ach 获取指定达成率的成绩列表\n"
+                    ".scorelist 使用帮助\n"
+                    ".scorelist level 获取指定等级的成绩列表\n"
+                    ".scorelist ach 获取指定达成率的成绩列表\n"
                     "eg.\n"
-                    ".scoreslist 12+\n"
-                    ".scoreslist ach100.8"
+                    ".scorelist 12+\n"
+                    ".scorelist ach100.8"
                 ),
             ]
         ).finish()

@@ -47,7 +47,7 @@
 | `.alias update`                     | [舞萌DX]从落雪查分器更新乐曲别名数据库                 |
 | `.alias query <id\|乐曲名称\|别名>` | [舞萌DX]查询该歌曲有什么别名                           |
 | `.score <id\|乐曲名称\|别名>`       | [舞萌DX]获取玩家游玩该乐曲的成绩                       |
-| `.scoreslist <level\|achXX.X>`      | [舞萌DX]获取玩家对应等级/达成率的成绩列表              |
+| `.scorelist <level\|achXX.X>`      | [舞萌DX]获取玩家对应等级/达成率的成绩列表              |
 | `.update maisong\|alias`                  | [舞萌DX]更新乐曲或别名数据库                     |
 | 🚧`.trend`                           | [舞萌DX]获取玩家的 DX Rating 趋势 （需绑定落雪查分器） |
 
