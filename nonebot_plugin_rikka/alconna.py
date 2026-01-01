@@ -21,7 +21,7 @@ from nonebot_plugin_orm import async_scoped_session
 
 from .config import config
 from .constants import _MAI_VERSION_MAP
-from .database import MaiSongAliasORM, UserBindInfoORM
+from .database import MaiSongAliasORM, MaiSongORM, UserBindInfoORM
 from .renderer import PicRenderer
 from .score import (
     DivingFishScoreProvider,
@@ -185,6 +185,16 @@ alconna_fortune = on_alconna(
     ),
     aliases={"今日舞萌"},
     priority=10,
+    block=True,
+)
+
+alconna_rikka = on_alconna(
+    Alconna(
+        COMMAND_PREFIXES,
+        "rikka",
+        meta=CommandMeta("输出 Rikka 插件信息"),
+    ),
+    priority=50,
     block=True,
 )
 
@@ -901,3 +911,17 @@ async def handle_fortune(
     fortune_message = await generate_today_fortune(user_id)
 
     await fortune_message.finish()
+
+
+@alconna_rikka.handle()
+async def handle_rikka(
+    db_session: async_scoped_session,
+):
+    from .utils.utils import get_version
+
+    version = get_version()
+    total_songs_count = len(await MaiSongORM.get_all_song_ids(db_session))
+
+    message = "Rikka 插件信息\n" f"插件版本: {version}\n" f"Bot 乐曲数量: {total_songs_count}"
+
+    await UniMessage(message).finish()
