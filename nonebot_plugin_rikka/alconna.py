@@ -114,6 +114,12 @@ alconna_r50 = on_alconna(
     block=True,
 )
 
+alconna_pc50 = on_alconna(
+    Alconna(COMMAND_PREFIXES, "pc50", meta=CommandMeta("[舞萌DX]生成玩家游玩次数 Top-50 (需绑定官方游戏账号)")),
+    priority=10,
+    block=True,
+)
+
 alconna_minfo = on_alconna(
     Alconna(
         COMMAND_PREFIXES,
@@ -589,6 +595,46 @@ async def handle_mai_r50(
 
     logger.debug(f"[{user_id}] 4/4 渲染玩家数据...")
     pic = await renderer.render_mai_player_scores(player_r50, player_info, title="Recent 50")
+
+    await UniMessage([At(flag="user", target=user_id), UniImage(raw=pic)]).finish()
+
+
+@alconna_pc50.handle()
+async def handle_pc50(
+    event: Event,
+    db_session: async_scoped_session,
+    score_provider: MaimaiPyScoreProvider = Depends(get_maimaipy_provider),
+):
+    user_id = event.get_user_id()
+    set_ctx(event)
+
+    from .score.providers.maimai import _arcade_provider as provider
+
+    logger.info(f"[{user_id}] 获取玩家 PC50, 查分器类型: {type(provider)}")
+    logger.debug(f"[{user_id}] 1/4 获得用户鉴权凭证...")
+
+    user_bind_info = await UserBindInfoORM.get_user_bind_info(db_session, user_id)
+    if not user_bind_info or not user_bind_info.maimaipy_identifier:
+        logger.warning(f"[{user_id}] 无法获取账号绑定信息，无法继续查询。")
+        await UniMessage(
+            [
+                At(flag="user", target=user_id),
+                "你还没有绑定游戏账号喵，请先发送 .bind maimai <公众号二维码内容> 绑定游戏账号谢谢喵",
+            ]
+        ).finish()
+        return
+
+    identifier = await MaimaiPyScoreProvider.auto_get_player_identifier(db_session, user_id, provider)
+    params = score_provider.ParamsType(provider, identifier)
+
+    logger.debug(f"[{user_id}] 2/4 发起 API 请求玩家信息...")
+    player_info = await score_provider.fetch_player_info(params)
+
+    logger.debug(f"[{user_id}] 3/4 发起 API 请求玩家 PC50...")
+    player_b50 = await score_provider.fetch_player_pc50(params)
+
+    logger.debug(f"[{user_id}] 4/4 渲染玩家数据...")
+    pic = await renderer.render_mai_player_best50(player_b50, player_info)
 
     await UniMessage([At(flag="user", target=user_id), UniImage(raw=pic)]).finish()
 

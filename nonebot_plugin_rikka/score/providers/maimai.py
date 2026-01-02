@@ -18,6 +18,10 @@ from maimai_py import (
     PlayerIdentifier,
     ScoreExtend,
 )
+from maimai_py import SongType as MaimaiPySongType
+from maimai_py import (
+    current_version,
+)
 from nonebot import logger
 from nonebot_plugin_alconna import At, UniMessage
 from nonebot_plugin_orm import async_scoped_session, get_scoped_session
@@ -171,6 +175,10 @@ class MaimaiPyScoreProvider(BaseScoreProvider[MaimaiPyParams]):
 
             identifier = PlayerIdentifier(friend_code=int(friend_code))
 
+        elif isinstance(score_provider, ArcadeProvider):
+            user_bind_info = cast(UserBindInfo, user_bind_info)
+            identifier = PlayerIdentifier(credentials=user_bind_info.maimaipy_identifier)
+
         # 水鱼查分器
         # elif isinstance(score_provider, DivingFishScoreProvider):
         else:
@@ -217,6 +225,38 @@ class MaimaiPyScoreProvider(BaseScoreProvider[MaimaiPyParams]):
         best15 = [self._score_unpack(score) for score in ap50.scores_b15]
 
         return await self.fetch_player_play_counts(PlayerMaiB50(best35, best15))
+
+    async def fetch_player_pc50(self, params: MaimaiPyParams) -> PlayerMaiB50:
+        """
+        获得玩家 PC 50
+
+        注：需要绑定官方账号
+
+        :param params: `MaimaiPyParams(score_provider=ArcadeProvider(...), ...)`
+        """
+        assert isinstance(params.score_provider, ArcadeProvider), "score_provider 必须为 ArcadeProvider!"
+
+        logger.debug("1/2 通过官方 API 获取完整游玩记录")
+        scores = await maimai_client.scores(params.identifier, params.score_provider)
+
+        scores_list = scores.scores.copy()
+        scores_list.sort(key=lambda x: x.play_count or 0, reverse=True)
+
+        logger.debug("2/2 划分版本信息")
+        old_version_scores: list[ScoreExtend] = []
+        new_version_scores: list[ScoreExtend] = []
+        song_diff_versions: dict[str, int] = await maimai_client._cache.get("versions", namespace="songs") or {}
+        for score in scores_list:
+            if score.type in [MaimaiPySongType.STANDARD, MaimaiPySongType.DX]:
+                # Find the version of the song, and decide whether it is b35 or b15.
+                diff_key = f"{score.id} {score.type} {score.level_index}"
+                if score_version := song_diff_versions.get(diff_key, None):
+                    (new_version_scores if score_version >= current_version.value else old_version_scores).append(score)
+
+        best35 = [self._score_unpack(score) for score in old_version_scores[:35]]
+        best15 = [self._score_unpack(score) for score in new_version_scores[:15]]
+
+        return PlayerMaiB50(best35, best15)
 
     async def fetch_player_minfo(
         self, params: MaimaiPyParams, song_id: int, song_type: Literal["standard", "dx"]
