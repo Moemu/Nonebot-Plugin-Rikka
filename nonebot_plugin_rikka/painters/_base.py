@@ -220,10 +220,17 @@ class ScoreBaseImage:
                     )
 
             self._tb.draw(x + 26, y + 98, 13, info.song_id, self.id_color[info.song_difficulty.value], anchor="mm")
+            # Song title
             title = info.song_name
-            if coloum_width(title) > 18:
-                title = change_column_width(title, 17) + "..."
+            if coloum_width(title) > 14:
+                title = change_column_width(title, 14) + "..."
             self._sy.draw(x + 93, y + 14, 14, title, self.t_color[info.song_difficulty.value], anchor="lm")
+            # Play Count
+            if info.play_count:
+                self._sy.draw(
+                    x + 215, y + 14, 14, f"PC: {info.play_count}", self.t_color[info.song_difficulty.value], anchor="lm"
+                )
+            # Achievements
             self._tb.draw(
                 x + 93, y + 38, 30, f"{info.achievements:.4f}%", self.t_color[info.song_difficulty.value], anchor="lm"
             )

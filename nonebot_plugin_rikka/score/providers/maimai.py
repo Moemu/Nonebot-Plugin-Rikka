@@ -1,9 +1,12 @@
 from dataclasses import dataclass
 from decimal import ROUND_DOWN, Decimal
-from typing import Literal, Optional, TypeAlias, cast
+from typing import Literal, Optional, TypeAlias, TypeVar, cast
 
+from async_lru import alru_cache
+from httpcore import NetworkError
 from httpx import HTTPStatusError
 from maimai_py import (
+    ArcadeProvider,
     DivingFishPlayer,
     DivingFishProvider,
     FCType,
@@ -17,10 +20,11 @@ from maimai_py import (
 )
 from nonebot import logger
 from nonebot_plugin_alconna import At, UniMessage
-from nonebot_plugin_orm import async_scoped_session
+from nonebot_plugin_orm import async_scoped_session, get_scoped_session
 
 from ...config import config
 from ...database import UserBindInfo, UserBindInfoORM
+from ...utils.utils import get_event
 from .._base import BaseScoreProvider
 from .._schema import (
     PlayerMaiB50,
@@ -33,11 +37,13 @@ from .._schema import (
     SongType,
 )
 
-_SUPPORT_PROVIDER: TypeAlias = DivingFishProvider | LXNSProvider
+_SUPPORT_PROVIDER: TypeAlias = DivingFishProvider | LXNSProvider | ArcadeProvider
+S = TypeVar("S", bound=list[PlayerMaiScore] | PlayerMaiB50)
 
 maimai_client = MaimaiClient()
 _divingfish_provider = DivingFishProvider(developer_token=config.divingfish_developer_api_key)
 _lxns_provider = LXNSProvider(developer_token=config.lxns_developer_api_key)
+_arcade_provider = ArcadeProvider()
 
 
 @dataclass
@@ -65,6 +71,7 @@ class MaimaiPyScoreProvider(BaseScoreProvider[MaimaiPyParams]):
             rate=ScoreRateType(score.rate.name.lower()),
             fc=ScoreFCType(score.fc.name.lower()) if score.fc else None,
             fs=ScoreFSType(score.fs.name.lower()) if score.fs else None,
+            play_count=score.play_count,
         )
 
     @staticmethod
@@ -188,7 +195,7 @@ class MaimaiPyScoreProvider(BaseScoreProvider[MaimaiPyParams]):
         best35 = [self._score_unpack(score) for score in player_b50.scores_b35]
         best15 = [self._score_unpack(score) for score in player_b50.scores_b15]
 
-        return PlayerMaiB50(best35, best15)
+        return await self.fetch_player_play_counts(PlayerMaiB50(best35, best15))
 
     async def fetch_player_ap50(self, params: MaimaiPyParams) -> PlayerMaiB50:
         """
@@ -209,7 +216,7 @@ class MaimaiPyScoreProvider(BaseScoreProvider[MaimaiPyParams]):
         best35 = [self._score_unpack(score) for score in ap50.scores_b35]
         best15 = [self._score_unpack(score) for score in ap50.scores_b15]
 
-        return PlayerMaiB50(best35, best15)
+        return await self.fetch_player_play_counts(PlayerMaiB50(best35, best15))
 
     async def fetch_player_minfo(
         self, params: MaimaiPyParams, song_id: int, song_type: Literal["standard", "dx"]
@@ -232,9 +239,10 @@ class MaimaiPyScoreProvider(BaseScoreProvider[MaimaiPyParams]):
         if not player_song:
             return []
 
-        scores = player_song.scores
+        raw_scores = player_song.scores
+        scores = [self._score_unpack(score) for score in raw_scores if score.type.value == song_type]
 
-        return [self._score_unpack(score) for score in scores if score.type.value == song_type]
+        return await self.fetch_player_play_counts(scores)
 
     async def fetch_player_scoreslist(
         self, params: MaimaiPyParams, level: Optional[str] = None, ach: Optional[float] = None
@@ -267,4 +275,58 @@ class MaimaiPyScoreProvider(BaseScoreProvider[MaimaiPyParams]):
 
         matched_scores.sort(key=lambda x: x.achievements or 0.0, reverse=True)
 
-        return [self._score_unpack(score) for score in matched_scores]
+        return await self.fetch_player_play_counts([self._score_unpack(score) for score in matched_scores])
+
+    async def get_player_identifier(self, qr_code_data: str) -> str:
+        """
+        获取玩家 Arcade 鉴权凭证（加密）
+
+        :param qr_code_data: 仍在有效期内的二维码数据
+        :type qr_code_data: str
+        :return: Arcade 加密鉴权凭证
+        :rtype: str
+        """
+        try:
+            player = await maimai_client.identifiers(qr_code_data, provider=_arcade_provider)
+        except NetworkError as exc:
+            logger.warning(f"尝试通过玩家二维码获取玩家数据时发生错误: {exc}")
+            raise
+
+        return player.credentials  # type:ignore
+
+    @alru_cache(maxsize=128, ttl=60 * 60)
+    async def _fetch_player_play_counts(self, identifier: str) -> list[PlayerMaiScore]:
+        """
+        获取用户各铺面游玩次数
+        """
+        maimai_scores = await maimai_client.scores(PlayerIdentifier(credentials=identifier), _arcade_provider)
+
+        return [self._score_unpack(score) for score in maimai_scores.scores]
+
+    async def fetch_player_play_counts(self, scores: S) -> S:
+        """
+        根据玩家成绩补充游玩次数
+        """
+        session = get_scoped_session()
+        try:
+            user_id = get_event().get_user_id()
+        except LookupError:
+            # 当事件上下文不存在时，无法获取用户 ID，直接返回原始成绩列表
+            return scores
+        user_bind_info = await UserBindInfoORM.get_user_bind_info(session, user_id=user_id)
+
+        if not user_bind_info or user_bind_info.maimaipy_identifier is None:
+            return scores
+
+        scores_with_play_count = await self._fetch_player_play_counts(user_bind_info.maimaipy_identifier)
+
+        for score in scores if isinstance(scores, list) else scores.dx + scores.standard:
+            for score_with_play_count in scores_with_play_count:
+                if (
+                    score.song_id == score_with_play_count.song_id
+                    and score.song_difficulty == score_with_play_count.song_difficulty
+                ):
+                    score.play_count = score_with_play_count.play_count
+                    break
+
+        return scores

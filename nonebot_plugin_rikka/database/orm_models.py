@@ -22,6 +22,7 @@ class UserBindInfo(Model):
     lxns_api_key: Mapped[Optional[str]] = mapped_column(String, nullable=True, default="")
     diving_fish_import_token: Mapped[Optional[str]] = mapped_column(String, nullable=True, default="")
     diving_fish_username: Mapped[Optional[str]] = mapped_column(String, nullable=True, default="")
+    maimaipy_identifier: Mapped[Optional[str]] = mapped_column(String, nullable=True, default="")
 
 
 class MaiSong(Model):

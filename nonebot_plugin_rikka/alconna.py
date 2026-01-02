@@ -3,7 +3,7 @@ from typing import Literal
 
 from aiohttp.client_exceptions import ClientResponseError
 from arclet.alconna import Alconna, AllParam, Args
-from maimai_py import LXNSProvider
+from maimai_py import LXNSProvider, PlayerIdentifier
 from nonebot import get_driver, logger
 from nonebot.adapters import Event
 from nonebot.params import Depends
@@ -31,9 +31,10 @@ from .score import (
     get_lxns_provider,
     get_maimaipy_provider,
 )
+from .score.providers.maimai import MaimaiPyParams
 from .utils.fortunate import generate_today_fortune
 from .utils.update_songs import update_song_alias_list
-from .utils.utils import get_song_by_id_or_alias, is_float
+from .utils.utils import get_song_by_id_or_alias, is_float, set_ctx
 
 renderer = PicRenderer()
 
@@ -65,6 +66,7 @@ alconna_bind = on_alconna(
         Subcommand(
             "divingfish", Args["token", str], help_text=".bind divingfish <水鱼查分器的成绩导入密钥> 绑定水鱼查分器"
         ),
+        Subcommand("maimai", Args["token", str], help_text=".bind maimai <玩家二维码内容> 绑定官方游戏账号"),
         meta=CommandMeta("[查分器相关]绑定游戏账号/查分器"),
     ),
     priority=10,
@@ -313,6 +315,68 @@ async def handle_bind_divingfish(
     ).finish()
 
 
+@alconna_bind.assign("maimai")
+async def handle_bind_maimai(
+    event: Event,
+    db_session: async_scoped_session,
+    score_provider: MaimaiPyScoreProvider = Depends(get_maimaipy_provider),
+    token: Match[str] = AlconnaMatch("token"),
+):
+    user_id = event.get_user_id()
+
+    if not token.available:
+        await UniMessage(
+            [
+                At(flag="user", target=user_id),
+                "请输入有效的玩家二维码内容",
+            ]
+        ).finish()
+        return
+
+    qr_code_data = token.result
+
+    logger.debug("1/2 尝试验证玩家二维码是否正确")
+    try:
+        identifier = await score_provider.get_player_identifier(qr_code_data)
+    except Exception as e:
+        logger.error(f"验证玩家二维码时发生异常: {e}")
+        await UniMessage(
+            [
+                At(flag="user", target=user_id),
+                "玩家二维码无效或者可能已经过期，请再次尝试绑定",
+            ]
+        ).finish()
+        return
+
+    # 测试鉴权凭证有效性
+    logger.debug("2/2 尝试验证获取的凭证是否有效")
+    try:
+        from .score.providers.maimai import _arcade_provider
+
+        player_identifier = PlayerIdentifier(credentials=identifier)
+        params = MaimaiPyParams(score_provider=_arcade_provider, identifier=player_identifier)
+        player_info = await score_provider.fetch_player_info(params=params)
+    except Exception as e:
+        logger.error(f"通过机台接口获取玩家信息时遇到问题: {e}")
+
+        await UniMessage(
+            [
+                At(flag="user", target=user_id),
+                f"获取玩家信息时遇到问题: {e}",
+            ]
+        ).finish()
+        return
+
+    await UserBindInfoORM.set_maimaipy_identifier(db_session, user_id, identifier)
+
+    await UniMessage(
+        [
+            At(flag="user", target=user_id),
+            f"已绑定至游戏账号: {player_info.name} ⭐",
+        ]
+    ).finish()
+
+
 @alconna_bind.assign("help")
 async def handle_bind_help(event: Event):
     user_id = event.get_user_id()
@@ -417,6 +481,7 @@ async def handle_mai_b50(
     score_provider: MaimaiPyScoreProvider = Depends(get_maimaipy_provider),
 ):
     user_id = event.get_user_id()
+    set_ctx(event)
     provider = await MaimaiPyScoreProvider.auto_get_score_provider(db_session, user_id)
 
     logger.info(f"[{user_id}] 获取玩家 Best50, 查分器类型: {type(provider)}")
@@ -444,6 +509,7 @@ async def handle_mai_ap50(
     score_provider: MaimaiPyScoreProvider = Depends(get_maimaipy_provider),
 ):
     user_id = event.get_user_id()
+    set_ctx(event)
     provider = await MaimaiPyScoreProvider.auto_get_score_provider(db_session, user_id)
 
     logger.info(f"[{user_id}] 获取玩家 AP50, 查分器类型: {type(score_provider)}")
@@ -478,6 +544,7 @@ async def handle_mai_r50(
     event: Event, db_session: async_scoped_session, score_provider: LXNSScoreProvider = Depends(get_lxns_provider)
 ):
     user_id = event.get_user_id()
+    set_ctx(event)
 
     logger.info(f"[{user_id}] 获取玩家 Recent 50, 查分器名称: {score_provider.provider}")
     logger.debug(f"[{user_id}] 1/4 尝试从数据库中获取玩家绑定信息...")
@@ -533,6 +600,7 @@ async def handle_minfo(
     name: Match[UniMessage] = AlconnaMatch("name"),
 ):
     user_id = event.get_user_id()
+    set_ctx(event)
 
     if not name.available:
         await UniMessage([At(flag="user", target=user_id), "请输入有效的乐曲ID/名称/别名！"]).finish()
@@ -737,6 +805,7 @@ async def handle_score(
     score_provider: MaimaiPyScoreProvider = Depends(get_maimaipy_provider),
 ):
     user_id = event.get_user_id()
+    set_ctx(event)
 
     if not name.available:
         await UniMessage([At(flag="user", target=user_id), "请输入有效的乐曲ID/名称/别名！"]).finish()
@@ -792,6 +861,7 @@ async def handle_scorelist(
     score_provider: MaimaiPyScoreProvider = Depends(get_maimaipy_provider),
 ):
     user_id = event.get_user_id()
+    set_ctx(event)
 
     if not arg.available or not arg.result:
         await UniMessage(

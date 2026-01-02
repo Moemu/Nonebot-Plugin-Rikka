@@ -1,15 +1,19 @@
 import os
 import sys
 import time
+from contextvars import ContextVar
 from importlib.metadata import PackageNotFoundError, version
 
 from nonebot import logger
+from nonebot.adapters import Event
 from nonebot.log import default_filter, logger_id
 from nonebot_plugin_orm import async_scoped_session
 
 from ..config import config
 from ..database import MaiSongORM
 from ..models.song import MaiSong
+
+event_context: ContextVar[Event] = ContextVar("event")
 
 
 def init_logger():
@@ -134,3 +138,21 @@ async def get_song_by_id_or_alias(session: async_scoped_session, name: str) -> M
 
     logger.debug(f"2/2 乐曲信息查询完毕，{name} -> ID {songs[0].id}")
     return songs[0]
+
+
+def get_event() -> Event:
+    try:
+        return event_context.get()
+    except LookupError as exc:
+        # Provide a clearer error when called outside of an event context
+        raise RuntimeError(
+            "get_event() called outside of an event context. "
+            "Ensure set_ctx(event) has been called in this context before using get_event()."
+        ) from exc
+
+
+def set_ctx(event: Event):
+    """
+    注册 Nonebot 中的上下文信息
+    """
+    event_context.set(event)

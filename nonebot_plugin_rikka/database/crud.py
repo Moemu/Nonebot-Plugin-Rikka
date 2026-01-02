@@ -75,6 +75,23 @@ class UserBindInfoORM:
         await session.commit()
 
     @staticmethod
+    async def set_maimaipy_identifier(session: async_scoped_session, user_id: str, maimaipy_identifier: str):
+        """
+        设置用户的 Maimai.py 鉴权凭证
+        """
+        bind_info = await UserBindInfoORM.get_user_bind_info(session, user_id)
+        if bind_info:
+            await session.execute(
+                update(UserBindInfo)
+                .where(UserBindInfo.user_id == user_id)
+                .values(maimaipy_identifier=maimaipy_identifier)
+            )
+        else:
+            new_bind_info = UserBindInfo(user_id=user_id, maimaipy_identifier=maimaipy_identifier)
+            session.add(new_bind_info)
+        await session.commit()
+
+    @staticmethod
     async def set_default_provider(
         session: async_scoped_session, user_id: str, provider: Literal["lxns", "divingfish"]
     ) -> None:

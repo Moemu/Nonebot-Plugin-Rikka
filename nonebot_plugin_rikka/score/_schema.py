@@ -131,6 +131,8 @@ class PlayerMaiScore:
     """同步游玩情况"""
     song_level_value: Optional[float] = None
     """乐曲定数"""
+    play_count: Optional[int] = None
+    """游玩次数"""
 
 
 @dataclass
