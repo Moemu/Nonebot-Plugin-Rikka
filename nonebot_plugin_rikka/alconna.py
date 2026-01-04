@@ -7,6 +7,7 @@ from maimai_py import LXNSProvider, PlayerIdentifier
 from nonebot import get_driver, logger
 from nonebot.adapters import Event
 from nonebot.params import Depends
+from nonebot.rule import to_me
 from nonebot_plugin_alconna import (
     AlconnaMatch,
     At,
@@ -56,6 +57,9 @@ alconna_help = on_alconna(
         "help",
         meta=CommandMeta("显示帮助信息", usage=".help"),
     ),
+    priority=50,
+    block=False,
+    rule=to_me(),
 )
 
 alconna_bind = on_alconna(
@@ -73,6 +77,7 @@ alconna_bind = on_alconna(
     priority=10,
     block=True,
     skip_for_unmatch=False,
+    rule=to_me(),
 )
 
 alconna_unbind = on_alconna(
@@ -84,6 +89,7 @@ alconna_unbind = on_alconna(
     ),
     priority=10,
     block=True,
+    rule=to_me(),
 )
 
 alconna_source = on_alconna(
@@ -95,30 +101,35 @@ alconna_source = on_alconna(
     ),
     priority=10,
     block=True,
+    rule=to_me(),
 )
 
 alconna_b50 = on_alconna(
     Alconna(COMMAND_PREFIXES, "b50", meta=CommandMeta("[舞萌DX]生成玩家 Best 50")),
     priority=10,
     block=True,
+    rule=to_me(),
 )
 
 alconna_ap50 = on_alconna(
     Alconna(COMMAND_PREFIXES, "ap50", meta=CommandMeta("[舞萌DX]生成玩家 ALL PERFECT 50")),
     priority=10,
     block=True,
+    rule=to_me(),
 )
 
 alconna_r50 = on_alconna(
     Alconna(COMMAND_PREFIXES, "r50", meta=CommandMeta("[舞萌DX]生成玩家 Recent 50 (需绑定落雪查分器)")),
     priority=10,
     block=True,
+    rule=to_me(),
 )
 
 alconna_pc50 = on_alconna(
     Alconna(COMMAND_PREFIXES, "pc50", meta=CommandMeta("[舞萌DX]生成玩家游玩次数 Top-50 (需绑定官方游戏账号)")),
     priority=10,
     block=True,
+    rule=to_me(),
 )
 
 alconna_minfo = on_alconna(
@@ -130,6 +141,7 @@ alconna_minfo = on_alconna(
     ),
     priority=10,
     block=True,
+    rule=to_me(),
 )
 
 alconna_alias = on_alconna(
@@ -146,6 +158,7 @@ alconna_alias = on_alconna(
     ),
     priority=10,
     block=True,
+    rule=to_me(),
 )
 
 alconna_score = on_alconna(
@@ -157,6 +170,7 @@ alconna_score = on_alconna(
     ),
     priority=10,
     block=True,
+    rule=to_me(),
 )
 
 alconna_scorelist = on_alconna(
@@ -171,6 +185,7 @@ alconna_scorelist = on_alconna(
     aliases={"scoreslist"},
     priority=10,
     block=True,
+    rule=to_me(),
 )
 
 alconna_update = on_alconna(
@@ -184,6 +199,7 @@ alconna_update = on_alconna(
     ),
     priority=10,
     block=True,
+    rule=to_me(),
 )
 
 alconna_fortune = on_alconna(
@@ -195,6 +211,7 @@ alconna_fortune = on_alconna(
     aliases={"今日舞萌"},
     priority=10,
     block=True,
+    rule=to_me(),
 )
 
 alconna_rikka = on_alconna(
@@ -205,6 +222,7 @@ alconna_rikka = on_alconna(
     ),
     priority=50,
     block=True,
+    rule=to_me(),
 )
 
 
