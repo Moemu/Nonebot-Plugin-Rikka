@@ -23,12 +23,12 @@ from maimai_py import (
     current_version,
 )
 from nonebot import logger
+from nonebot.internal.matcher import current_event
 from nonebot_plugin_alconna import At, UniMessage
 from nonebot_plugin_orm import async_scoped_session, get_scoped_session
 
 from ...config import config
 from ...database import UserBindInfo, UserBindInfoORM
-from ...utils.utils import get_event
 from .._base import BaseScoreProvider
 from .._schema import (
     PlayerMaiB50,
@@ -47,7 +47,7 @@ S = TypeVar("S", bound=list[PlayerMaiScore] | PlayerMaiB50)
 maimai_client = MaimaiClient()
 _divingfish_provider = DivingFishProvider(developer_token=config.divingfish_developer_api_key)
 _lxns_provider = LXNSProvider(developer_token=config.lxns_developer_api_key)
-_arcade_provider = ArcadeProvider()
+_arcade_provider = ArcadeProvider(http_proxy=config.arcade_provider_http_proxy)
 
 
 @dataclass
@@ -347,9 +347,13 @@ class MaimaiPyScoreProvider(BaseScoreProvider[MaimaiPyParams]):
         """
         根据玩家成绩补充游玩次数
         """
+        if not config.enable_arcade_provider:
+            logger.debug("未启用机台源查询，跳过pc数查询")
+            return scores
+
         session = get_scoped_session()
         try:
-            user_id = get_event().get_user_id()
+            user_id = current_event.get().get_user_id()
         except LookupError:
             # 当事件上下文不存在时，无法获取用户 ID，直接返回原始成绩列表
             return scores

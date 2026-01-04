@@ -11,12 +11,6 @@
   <a href="#"><img src="https://img.shields.io/badge/Code%20Style-Black-121110.svg" alt="codestyle"></a>
 </div>
 
-> [!WARNING]
->
-> 欢迎来到本项目！目前此项目尚处于开发早期，因此运行时可能会频繁遇到问题，作为一个开发新人，我在此提前跟大家表示歉意！
->
-> 由于本项目是 Owner 的练手项目，待实现的功能还有很多，因此近期没有也可能永远也不会有**发布**正式版或商店的打算。
-
 ## 介绍✨
 
 基于 [Nonebot2](https://nonebot.dev/) 的舞萌DX的查分插件
@@ -105,6 +99,22 @@
 - 类型: str
 
 - 默认值: static
+
+### enable_arcade_provider
+
+- 说明: 启用 Maimai.py 的机台源查询（需要将此值设置为 True 才可以查询 PC 数）
+
+- 类型: bool
+
+- 默认值: False
+
+### arcade_provider_http_proxy
+
+- 说明: 机台源的代理地址(部分云服务器厂商的 IP 段被华立阻断，因此需要使用家用代理绕开限制)
+
+- 类型: Optional[str]
+
+- 默认值: False
 
 ## 关于🎗️
 

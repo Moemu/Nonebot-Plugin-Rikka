@@ -18,6 +18,11 @@ class Config(BaseModel):
     divingfish_developer_api_key: Optional[str] = None
     """水鱼查分器开发者密钥"""
 
+    enable_arcade_provider: bool = False
+    """启用 Maimai.py 的机台源查询"""
+    arcade_provider_http_proxy: Optional[str] = None
+    """机台源的代理地址"""
+
     @field_validator("static_resource_path")
     def validate_static_resource_path(cls, v: str) -> str:
         p = Path(v)

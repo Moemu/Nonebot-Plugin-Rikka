@@ -34,7 +34,7 @@ from .score import (
 from .score.providers.maimai import MaimaiPyParams
 from .utils.fortunate import generate_today_fortune
 from .utils.update_songs import update_song_alias_list
-from .utils.utils import get_song_by_id_or_alias, is_float, set_ctx
+from .utils.utils import get_song_by_id_or_alias, is_float
 
 renderer = PicRenderer()
 
@@ -487,7 +487,6 @@ async def handle_mai_b50(
     score_provider: MaimaiPyScoreProvider = Depends(get_maimaipy_provider),
 ):
     user_id = event.get_user_id()
-    set_ctx(event)
     provider = await MaimaiPyScoreProvider.auto_get_score_provider(db_session, user_id)
 
     logger.info(f"[{user_id}] 获取玩家 Best50, 查分器类型: {type(provider)}")
@@ -515,7 +514,6 @@ async def handle_mai_ap50(
     score_provider: MaimaiPyScoreProvider = Depends(get_maimaipy_provider),
 ):
     user_id = event.get_user_id()
-    set_ctx(event)
     provider = await MaimaiPyScoreProvider.auto_get_score_provider(db_session, user_id)
 
     logger.info(f"[{user_id}] 获取玩家 AP50, 查分器类型: {type(score_provider)}")
@@ -550,7 +548,6 @@ async def handle_mai_r50(
     event: Event, db_session: async_scoped_session, score_provider: LXNSScoreProvider = Depends(get_lxns_provider)
 ):
     user_id = event.get_user_id()
-    set_ctx(event)
 
     logger.info(f"[{user_id}] 获取玩家 Recent 50, 查分器名称: {score_provider.provider}")
     logger.debug(f"[{user_id}] 1/4 尝试从数据库中获取玩家绑定信息...")
@@ -606,7 +603,14 @@ async def handle_pc50(
     score_provider: MaimaiPyScoreProvider = Depends(get_maimaipy_provider),
 ):
     user_id = event.get_user_id()
-    set_ctx(event)
+
+    if not config.enable_arcade_provider:
+        await UniMessage(
+            [
+                At(flag="user", target=user_id),
+                "管理员未启用pc数查询喵呜",
+            ]
+        ).finish()
 
     from .score.providers.maimai import _arcade_provider as provider
 
@@ -646,7 +650,6 @@ async def handle_minfo(
     name: Match[UniMessage] = AlconnaMatch("name"),
 ):
     user_id = event.get_user_id()
-    set_ctx(event)
 
     if not name.available:
         await UniMessage([At(flag="user", target=user_id), "请输入有效的乐曲ID/名称/别名！"]).finish()
@@ -851,7 +854,6 @@ async def handle_score(
     score_provider: MaimaiPyScoreProvider = Depends(get_maimaipy_provider),
 ):
     user_id = event.get_user_id()
-    set_ctx(event)
 
     if not name.available:
         await UniMessage([At(flag="user", target=user_id), "请输入有效的乐曲ID/名称/别名！"]).finish()
@@ -907,7 +909,6 @@ async def handle_scorelist(
     score_provider: MaimaiPyScoreProvider = Depends(get_maimaipy_provider),
 ):
     user_id = event.get_user_id()
-    set_ctx(event)
 
     if not arg.available or not arg.result:
         await UniMessage(
