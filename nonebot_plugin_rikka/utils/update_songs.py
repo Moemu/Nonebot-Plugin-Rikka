@@ -11,14 +11,12 @@ from nonebot_plugin_orm import async_scoped_session
 from typing_extensions import TypedDict
 
 from ..config import config
+from ..constants import USER_AGENT
 from ..database import MaiSongORM
 from ..models.song import MaiSong, SongDifficulties
 
 _BASE_SONG_QUERY_URL = "https://maimai.lxns.net/api/v0/maimai/song/{song_id}"
 _DIVING_FISH_CHART_STATS_URL = "https://www.diving-fish.com/api/maimaidxprober/chart_stats"
-USER_AGENT = (
-    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/58.0.3029.110 Safari/537.3"
-)
 
 _MUSIC_CHART_PATH = Path(config.static_resource_path) / "music_chart.json"
 

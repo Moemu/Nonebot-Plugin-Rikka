@@ -3,11 +3,9 @@ from pathlib import Path
 
 from aiohttp import ClientSession
 
-_BASE_RESOURCE_URL = "https://assets2.lxns.net/maimai"
+from ..constants import USER_AGENT
 
-USER_AGENT = (
-    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/58.0.3029.110 Safari/537.3"
-)
+_BASE_RESOURCE_URL = "https://assets2.lxns.net/maimai"
 
 
 async def download_resource(

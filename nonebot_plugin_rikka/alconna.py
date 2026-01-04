@@ -33,6 +33,7 @@ from .score import (
 )
 from .score.providers.maimai import MaimaiPyParams
 from .utils.fortunate import generate_today_fortune
+from .utils.song_tags import SONG_TAGS_DATA_AVAILABLE, get_songs_tags
 from .utils.update_songs import update_song_alias_list
 from .utils.utils import get_song_by_id_or_alias, is_float
 
@@ -691,6 +692,19 @@ async def handle_minfo(
             )
             response_difficulties_content.append(f"拟合定数: {fit_diffs}")
 
+        if SONG_TAGS_DATA_AVAILABLE:
+            song_tags_content = []
+            tags_expert = get_songs_tags(song.title, "std", "expert")
+            tags_master = get_songs_tags(song.title, "std", "master")
+            if tags_expert:
+                song_tags_content.append(f"{', '.join(tags_expert)}(Expert)")
+            if tags_master:
+                song_tags_content.append(f"{', '.join(tags_master)}(Master)")
+            if len(song.difficulties.standard) == 5:
+                tags_remaster = get_songs_tags(song.title, "std", "remaster")
+                song_tags_content.append(f"{', '.join(tags_remaster)}(Re:master)" if tags_remaster else "")
+            response_difficulties_content.append("铺面标签: " + "; ".join(song_tags_content))
+
     if song.difficulties.dx:
         dx_diffs = "/".join([str(diff.level_value) for diff in song.difficulties.dx])
         response_difficulties_content.append(f"定数(DX): {dx_diffs}")
@@ -703,6 +717,19 @@ async def handle_minfo(
                 ]
             )
             response_difficulties_content.append(f"拟合定数(DX): {fit_diffs}")
+
+        if SONG_TAGS_DATA_AVAILABLE:
+            song_tags_content = []
+            tags_expert = get_songs_tags(song.title, "dx", "expert")
+            tags_master = get_songs_tags(song.title, "dx", "master")
+            if tags_expert:
+                song_tags_content.append(f"{', '.join(tags_expert)}(Expert)")
+            if tags_master:
+                song_tags_content.append(f"{', '.join(tags_master)}(Master)")
+            if len(song.difficulties.dx) == 5:
+                tags_remaster = get_songs_tags(song.title, "dx", "remaster")
+                song_tags_content.append(f"{', '.join(tags_remaster)}(Re:master)" if tags_remaster else "")
+            response_difficulties_content.append("铺面标签(DX): " + "; ".join(song_tags_content))
 
     logger.debug(f"[{user_id}] 4/4 构建乐曲信息模板...")
 
