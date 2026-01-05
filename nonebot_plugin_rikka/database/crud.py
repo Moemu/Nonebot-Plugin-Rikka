@@ -17,7 +17,7 @@ from .orm_models import MaiSong as MaiSongORMModel
 from .orm_models import MaiSongAlias, UserBindInfo
 
 if TYPE_CHECKING:
-    from ..utils.update_songs import MusicAliasResponseItem
+    from ..updater.songs import MusicAliasResponseItem
 
 
 class UserBindInfoORM:
@@ -293,7 +293,7 @@ class MaiSongORM:
             return MaiSongORM._convert(song_row)
 
         logger.warning(f"曲目 ID {song_id} 不存在于数据库，正在从远程获取...")
-        from ..utils.update_songs import fetch_song_info
+        from ..updater.songs import fetch_song_info
 
         song_info = await fetch_song_info(song_id)
         await MaiSongORM.save_song_info(session, song_info)
@@ -329,7 +329,7 @@ class MaiSongORM:
         missing_ids = [sid for sid in ordered_unique_ids if sid not in id_to_song]
         for mid in missing_ids:
             logger.warning(f"曲目 ID {mid} 不存在于数据库，正在从远程获取...")
-            from ..utils.update_songs import fetch_song_info
+            from ..updater.songs import fetch_song_info
 
             fetched = await fetch_song_info(mid)
             await MaiSongORM.save_song_info(session, fetched)

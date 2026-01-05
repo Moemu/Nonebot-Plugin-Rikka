@@ -26,6 +26,9 @@ from nonebot_plugin_orm import async_scoped_session
 from .config import config
 from .constants import _MAI_VERSION_MAP
 from .database import MaiSongAliasORM, MaiSongORM, UserBindInfoORM
+from .functions.fortunate import generate_today_fortune
+from .functions.n50 import get_players_n50
+from .functions.song_tags import SONG_TAGS_DATA_AVAILABLE, get_songs_tags
 from .renderer import PicRenderer
 from .score import (
     DivingFishScoreProvider,
@@ -36,11 +39,8 @@ from .score import (
     get_maimaipy_provider,
 )
 from .score.providers.maimai import MaimaiPyParams
-from .utils.fortunate import generate_today_fortune
-from .utils.n50 import get_players_n50
-from .utils.song_tags import SONG_TAGS_DATA_AVAILABLE, get_songs_tags
-from .utils.update_songs import update_song_alias_list
-from .utils.utils import get_song_by_id_or_alias, is_float
+from .updater.songs import update_song_alias_list
+from .utils import get_song_by_id_or_alias, is_float
 
 renderer = PicRenderer()
 
@@ -1128,7 +1128,7 @@ async def handle_update_songs(
 
     logger.info(f"[{user_id}] 更新乐曲信息数据库")
 
-    from .utils.update_songs import update_song_database
+    from .updater.songs import update_song_database
 
     updated_count = await update_song_database(db_session)
 
@@ -1152,7 +1152,7 @@ async def handle_update_aliases(
 
 @alconna_update.assign("chart")
 async def handle_update_chart(event: Event):
-    from .utils.update_songs import update_local_chart_file
+    from .updater.songs import update_local_chart_file
 
     await update_local_chart_file()
 
@@ -1179,7 +1179,7 @@ async def handle_fortune(
 
 @alconna_rikka.handle()
 async def handle_rikka(db_session: async_scoped_session, event: Event):
-    from .utils.utils import get_version
+    from .utils import get_version
 
     version = get_version()
     total_songs_count = len(await MaiSongORM.get_all_song_ids(db_session))

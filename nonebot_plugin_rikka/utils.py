@@ -9,9 +9,9 @@ from nonebot.adapters import Event
 from nonebot.log import default_filter, logger_id
 from nonebot_plugin_orm import async_scoped_session
 
-from ..config import config
-from ..database import MaiSongORM
-from ..models.song import MaiSong
+from .config import config
+from .database import MaiSongORM
+from .models.song import MaiSong
 
 event_context: ContextVar[Event] = ContextVar("event")
 

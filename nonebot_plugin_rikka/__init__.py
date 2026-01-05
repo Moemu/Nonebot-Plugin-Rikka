@@ -7,7 +7,7 @@ require("nonebot_plugin_orm")
 from nonebot.plugin import PluginMetadata, inherit_supported_adapters  # noqa: E402
 
 from .config import Config  # noqa: E402
-from .utils.utils import init_logger  # noqa: E402
+from .utils import init_logger  # noqa: E402
 
 init_logger()
 

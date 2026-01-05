@@ -9,7 +9,7 @@ from .database.crud import MaiSongORM
 from .models.song import MaiSong
 from .painters import DrawBest, DrawScores, draw_music_info, image_to_bytes
 from .score import PlayerMaiB50, PlayerMaiInfo, PlayerMaiScore
-from .utils.update_resources import download_icon, download_jacket
+from .updater.resources import download_icon, download_jacket
 
 
 class ViewportDict(TypedDict):
