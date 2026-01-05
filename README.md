@@ -23,7 +23,7 @@
 
 ✅ 支持数据源: [落雪咖啡屋(未绑定的首选)](https://maimai.lxns.net/), [水鱼查分器](https://www.diving-fish.com/maimaidx/prober/)
 
-✅ 支持功能: 基础查分功能、拟合系数查询
+✅ 支持功能: 基础查分功能、拟合系数查询、曲目标签查询
 
 ## 指令列表🕹️
 
@@ -33,6 +33,7 @@
 | --------------------------------------- | ------------------------------------------------------ |
 | `.bind lxns\|divingfish\|maimai`        | [查分器相关]绑定游戏账号/查分器                        |
 | `.unbind lxns\|divingfish\|maimai\|all` | [查分器相关]解绑游戏账号/查分器                        |
+| `.source lxns\|divingfish`              | [查分器相关]设置默认查分器                             |
 | `.b50`                                  | [舞萌DX]生成玩家 Best50                                |
 | `.r50`                                  | [舞萌DX]生成玩家 Recent 50（需绑定落雪查分器）         |
 | `.ap50`                                 | [舞萌DX]生成玩家 ALL PERFECT 50                        |
@@ -73,6 +74,8 @@
 4. 启动 Nonebot 项目并根据提示运行数据库迁移脚本
 
 5. 更新乐曲信息：使用 SUPERUSER 账号执行指令: `.update maisong` 和 `.alias update`
+
+6. （可选）如果需要支持乐曲标签，您需要自行获取来自 [DXRating](https://dxrating.net/search) 的 `combined_tags.json` 并放置在 `static` 文件夹中
 
 ## 配置⚙️
 
@@ -128,6 +131,6 @@
 
 <a href="https://www.afdian.com/a/Moemu" target="_blank"><img src="https://pic1.afdiancdn.com/static/img/welcome/button-sponsorme.png" alt="afadian" style="height: 45px !important;width: 163px !important;"></a>
 
-<!-- Star History：
+Star History：
 
-[![Star History Chart](https://api.star-history.com/svg?repos=Moemu/MuiceBot&type=Date)](https://star-history.com/#Moemu/MuiceBot&Date) -->
+[![Star History Chart](https://api.star-history.com/svg?repos=Moemu/Nonebot-Plugin-Rikka&type=Date)](https://star-history.com/#Moemu/Nonebot-Plugin-Rikka&Date)
