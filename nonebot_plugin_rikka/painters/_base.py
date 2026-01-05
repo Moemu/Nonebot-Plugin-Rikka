@@ -2,6 +2,7 @@ from typing import List, Optional
 
 from PIL import Image, ImageDraw
 
+from ..database.crud import MaiSongORM
 from ..score import PlayerMaiInfo, PlayerMaiScore
 from ._config import (
     COVER_DIR,
@@ -195,6 +196,17 @@ class ScoreBaseImage:
             rate_str = SCORE_RANK_L.get(info.rate.value, "D")
             rate = Image.open(PIC_DIR / f"UI_TTR_Rank_{rate_str}.png").resize((63, 28))
 
+            max_dx_score: int | None = None
+            song_obj = MaiSongORM.get_song_sync(info.song_id)
+            if song_obj:
+                diff_value = info.song_difficulty.value
+                diff = (
+                    song_obj.difficulties.dx[diff_value]
+                    if info.song_type.value == "dx"
+                    else song_obj.difficulties.standard[diff_value]
+                )
+                max_dx_score = diff.notes.total * 3
+
             self._im.alpha_composite(self._diff[info.song_difficulty.value], (x, y))
             self._im.alpha_composite(cover, (x + 12, y + 12))
             self._im.alpha_composite(version, (x + 51, y + 91))
@@ -222,8 +234,8 @@ class ScoreBaseImage:
             self._tb.draw(x + 26, y + 98, 13, info.song_id, self.id_color[info.song_difficulty.value], anchor="mm")
             # Song title
             title = info.song_name
-            if coloum_width(title) > 14:
-                title = change_column_width(title, 14) + "..."
+            if coloum_width(title) > 12:
+                title = change_column_width(title, 12) + "..."
             self._sy.draw(x + 93, y + 14, 14, title, self.t_color[info.song_difficulty.value], anchor="lm")
             # Play Count
             if info.play_count:
@@ -234,9 +246,15 @@ class ScoreBaseImage:
             self._tb.draw(
                 x + 93, y + 38, 30, f"{info.achievements:.4f}%", self.t_color[info.song_difficulty.value], anchor="lm"
             )
-            self._tb.draw(
-                x + 219, y + 65, 15, f"{info.dx_score}", self.t_color[info.song_difficulty.value], anchor="mm"
-            )  # Missing max score
+            if max_dx_score is not None:
+                self._tb.draw(
+                    x + 209,
+                    y + 65,
+                    15,
+                    f"{info.dx_score}/{max_dx_score}",
+                    self.t_color[info.song_difficulty.value],
+                    anchor="mm",
+                )
             song_level_string = "{:.1f}".format(info.song_level_value) if info.song_level_value else info.song_level
             self._tb.draw(
                 x + 93,

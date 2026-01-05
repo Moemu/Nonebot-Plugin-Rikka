@@ -11,8 +11,19 @@ from .utils.utils import init_logger  # noqa: E402
 
 init_logger()
 
+from nonebot import get_driver  # noqa: E402
+from nonebot_plugin_orm import get_scoped_session  # noqa: E402
+
 from . import alconna  # noqa: E402, F401
 from . import database  # noqa: E402, F401
+from .database import MaiSongORM  # noqa: E402
+
+
+@get_driver().on_startup
+async def initialize_song_cache():
+    session = get_scoped_session()
+    await MaiSongORM.refresh_cache(session)
+
 
 __plugin_meta__ = PluginMetadata(
     name="Nonebot-Plugin-Rikka",

@@ -144,6 +144,30 @@ class UserBindInfoORM:
 
 
 class MaiSongORM:
+    _cache: dict[int, MaiSong] = {}
+
+    @classmethod
+    def get_song_sync(cls, song_id: int) -> Optional[MaiSong]:
+        """
+        同步获取曲目信息（仅从缓存）
+        """
+        return cls._cache.get(song_id)
+
+    @classmethod
+    def update_cache(cls, song: MaiSong) -> None:
+        cls._cache[song.id] = song
+
+    @staticmethod
+    async def refresh_cache(session: async_scoped_session) -> None:
+        """
+        刷新缓存，从数据库加载所有曲目信息
+        """
+        result = await session.execute(select(MaiSongORMModel))
+        rows = result.scalars().all()
+        for row in rows:
+            song = MaiSongORM._convert(row)
+            MaiSongORM.update_cache(song)
+
     @staticmethod
     def _convert(row: MaiSongORMModel) -> MaiSong:
         """
@@ -201,6 +225,7 @@ class MaiSongORM:
         )
         session.add(song_obj)
         await session.commit()
+        MaiSongORM.update_cache(song)
 
     @staticmethod
     async def save_song_info_batch(session: async_scoped_session, songs: list[MaiSong]) -> None:
@@ -249,6 +274,8 @@ class MaiSongORM:
                 session.add(song_obj)
 
         await session.commit()
+        for song in songs:
+            MaiSongORM.update_cache(song)
 
     @staticmethod
     async def get_song_info(session: async_scoped_session, song_id: int) -> MaiSong:
@@ -257,6 +284,9 @@ class MaiSongORM:
 
         :param song_id: 曲目 ID
         """
+        if song_id in MaiSongORM._cache:
+            return MaiSongORM._cache[song_id]
+
         result = await session.execute(select(MaiSongORMModel).where(MaiSongORMModel.id == song_id))
         song_row = result.scalar_one_or_none()
         if song_row:
