@@ -4,6 +4,10 @@ on:
   release:
     types: [published]
 
+permissions:
+  id-token: write
+  contents: read
+
 jobs:
   pypi-publish:
     name: upload release to PyPI
@@ -16,17 +20,10 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Set up Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: "3.12"
+      - uses: pdm-project/setup-pdm@v4
 
-      - name: Setup and Configure PDM
-        run: |
-          pip install pdm
-          pdm config python.use_venv false
+      - name: Install deps
+        run: pdm install
 
       - name: Publish to PyPI
-        env:
-          PYPI_TOKEN: ${{ secrets.PYPI_API_TOKEN }}
-        run: pdm publish --username __token__ --password "$PYPI_TOKEN"
+        run: pdm publish
