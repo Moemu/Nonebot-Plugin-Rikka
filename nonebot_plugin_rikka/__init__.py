@@ -27,8 +27,8 @@ async def initialize_song_cache():
 
 __plugin_meta__ = PluginMetadata(
     name="Nonebot-Plugin-Rikka",
-    description="None yet.",
-    usage="不知道喵",
+    description="一个简单的舞萌成绩查询Bot插件",
+    usage="使用 `.rikka` 查看指令用法",
     type="application",
     config=Config,
     homepage="https://bot.snowy.moe/",

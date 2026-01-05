@@ -65,9 +65,7 @@
     pip install .
     ```
 
-2. 获取资源文件：
-
-  下载静态资源文件，并解压到 `static` 目录中: [私人云盘](https://cloud.yuzuchan.moe/f/1bUn/Resource.7z), [OneDrive](https://yuzuai-my.sharepoint.com/:u:/g/personal/yuzu_yuzuchan_moe/EdGUKRSo-VpHjT2noa_9EroBdFZci-tqWjVZzKZRTEeZkw?e=a1TM40)
+2. 获取资源文件：下载静态资源文件，并解压到 `static` 目录中: [私人云盘](https://cloud.yuzuchan.moe/f/1bUn/Resource.7z), [OneDrive](https://yuzuai-my.sharepoint.com/:u:/g/personal/yuzu_yuzuchan_moe/EdGUKRSo-VpHjT2noa_9EroBdFZci-tqWjVZzKZRTEeZkw?e=a1TM40)
 
 3. 配置查分器开发者密钥，参考配置小节。
 
