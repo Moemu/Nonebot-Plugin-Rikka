@@ -285,7 +285,11 @@ class MaimaiPyScoreProvider(BaseScoreProvider[MaimaiPyParams]):
         return await self.fetch_player_play_counts(scores)
 
     async def fetch_player_scoreslist(
-        self, params: MaimaiPyParams, level: Optional[str] = None, ach: Optional[float] = None
+        self,
+        params: MaimaiPyParams,
+        level: Optional[str] = None,
+        ach: Optional[float] = None,
+        diff: Optional[Literal["BASIC", "ADVANCED", "EXPERT", "MASTER", "REMASTER"]] = None,
     ) -> list[PlayerMaiScore]:
         """
         获得玩家指定条件的成绩列表
@@ -296,6 +300,9 @@ class MaimaiPyScoreProvider(BaseScoreProvider[MaimaiPyParams]):
         :type level: str
         :param ach: 达成率，精确一位小数
         :type ach: float
+        :param diff: 铺面难度分类
+        :type diff: Literal["BASIC", "ADVANCED", "EXPERT", "MASTER", "REMASTER"]
+
         :return: 成绩列表
         :rtype: list[PlayerMaiScore]
         """
@@ -311,6 +318,10 @@ class MaimaiPyScoreProvider(BaseScoreProvider[MaimaiPyParams]):
         elif ach:
             for score in scores.scores:
                 if score.achievements and trunc_1(score.achievements) == trunc_1(ach):
+                    matched_scores.append(score)
+        elif diff:
+            for score in scores.scores:
+                if score.level_index.name == diff:
                     matched_scores.append(score)
 
         matched_scores.sort(key=lambda x: x.achievements or 0.0, reverse=True)

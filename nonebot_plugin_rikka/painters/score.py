@@ -49,7 +49,10 @@ class DrawScores(ScoreBaseImage):
 
         # Draw title
         self._im.alpha_composite(self.title_lengthen_bg, (475, 200))
-        self._sy.draw(700, 245, 28, title, self.text_color, "mm")
+        if len(title) < 12:
+            self._sy.draw(700, 245, 28, title, self.text_color, "mm")
+        else:
+            self._sy.draw(700, 245, 22, title, self.text_color, "mm")
 
         scores = scores[(page - 1) * page_size : page * page_size]
         self.whiledraw(scores, 320)

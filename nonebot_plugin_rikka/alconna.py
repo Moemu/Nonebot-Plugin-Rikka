@@ -199,7 +199,7 @@ alconna_scorelist = on_alconna(
         "scorelist",
         Args["arg", str],
         meta=CommandMeta(
-            "[舞萌DX]获取指定条件的成绩列表", usage=".scorelist <level|ach>", example=".scorelist ach100.4"
+            "[舞萌DX]获取指定条件的成绩列表", usage=".scorelist <level|ach|diff>", example=".scorelist ach100.4"
         ),
     ),
     aliases={"scoreslist"},
@@ -262,7 +262,7 @@ async def handle_help(event: Event):
         ".minfo <乐曲ID/别名> 获取乐曲信息\n"
         ".alias 管理乐曲别名（添加、查询、更新）\n"
         ".score <乐曲ID/别名> 获取单曲游玩情况\n"
-        ".scorelist <level|ach> 获取指定条件的成绩列表\n"
+        ".scorelist <level|ach|diff> 获取指定条件的成绩列表\n"
         ".update songs 更新乐曲信息数据库\n"
         ".update alias 更新乐曲别名列表\n"
     )
@@ -1004,11 +1004,13 @@ async def handle_scorelist(
                 At(flag="user", target=user_id),
                 (
                     ".scorelist 使用帮助\n"
-                    ".scorelist level 获取指定等级的成绩列表\n"
-                    ".scorelist ach 获取指定达成率的成绩列表\n"
+                    ".scorelist <level> 获取指定等级的成绩列表\n"
+                    ".scorelist ach<float> 获取指定达成率的成绩列表\n"
+                    ".scorelist <diff> 获取指定铺面难度的成绩列表\n"
                     "eg.\n"
                     ".scorelist 12+\n"
                     ".scorelist ach100.8"
+                    ".scorelist expert"
                 ),
             ]
         ).finish()
@@ -1017,12 +1019,17 @@ async def handle_scorelist(
     logger.info(f"[{user_id}] 查询指定条件的成绩列表, 查询内容: {raw_query}")
     level = None
     ach = None
+    diff = None
     if raw_query.isdigit() or (raw_query.endswith("+") and raw_query[:-1].isdigit()):
         level = raw_query
         title = f"{level} 成绩列表"
     elif raw_query.startswith("ach") and is_float(raw_query[3:]):
         ach = float(raw_query[3:])
         title = f"达成率 {ach} 成绩列表"
+    elif raw_query.upper() in ["BASIC", "ADVANCED", "EXPERT", "MASTER", "REMASTER", "RE:MASTER"]:
+        diff = raw_query.upper()
+        diff = "REMASTER" if diff == "RE:MASTER" else diff
+        title = f"铺面等级 {diff} 成绩列表"
     else:
         await UniMessage([At(flag="user", target=user_id), "命令格式错误，请检查后重新输入！"]).finish()
         return
@@ -1039,7 +1046,7 @@ async def handle_scorelist(
     player_info = await score_provider.fetch_player_info(params)
 
     logger.debug(f"[{user_id}] 3/4 发起 API 请求玩家全部成绩...")
-    scores = await score_provider.fetch_player_scoreslist(params, level, ach)
+    scores = await score_provider.fetch_player_scoreslist(params, level, ach, diff)  # type:ignore
 
     if not scores:
         await UniMessage(
