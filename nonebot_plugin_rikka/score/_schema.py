@@ -144,6 +144,15 @@ class PlayerMaiB50:
     dx: list[PlayerMaiScore] = field(default_factory=list)
     """现版本谱面 Best 15 列表"""
 
+    @property
+    def rating(self) -> int:
+        rating = 0.0
+
+        for score in self.standard[:35] + self.dx[:15]:
+            rating += score.dx_rating
+
+        return int(rating)
+
 
 @dataclass
 class PlayerMaiCollection:

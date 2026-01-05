@@ -112,16 +112,19 @@ class PicRenderer:
 
         raise ValueError(f"请求的乐曲 {song_id}({song_type}) 中的难度 {difficulty} 不存在")
 
-    async def render_mai_player_best50(self, player_best50: PlayerMaiB50, player_info: PlayerMaiInfo) -> bytes:
+    async def render_mai_player_best50(
+        self, player_best50: PlayerMaiB50, player_info: PlayerMaiInfo, calc_song_level_value: bool = True
+    ) -> bytes:
         """
         渲染玩家 Best50 信息
         """
         # Ensure covers
         for score in player_best50.standard + player_best50.dx:
             await self._ensure_cover(score.song_id)
-            score.song_level_value = await self._get_song_level_value(
-                score.song_id, score.song_type.value, score.song_difficulty.value  # type:ignore
-            )
+            if calc_song_level_value:
+                score.song_level_value = await self._get_song_level_value(
+                    score.song_id, score.song_type.value, score.song_difficulty.value  # type:ignore
+                )
 
         # Ensure icon/plate if needed
         if player_info.icon:

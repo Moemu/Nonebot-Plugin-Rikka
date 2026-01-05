@@ -1,5 +1,6 @@
 from functools import wraps
 from pathlib import Path
+from traceback import format_exc
 from typing import Literal
 
 from aiohttp.client_exceptions import ClientResponseError
@@ -36,6 +37,7 @@ from .score import (
 )
 from .score.providers.maimai import MaimaiPyParams
 from .utils.fortunate import generate_today_fortune
+from .utils.n50 import get_players_n50
 from .utils.song_tags import SONG_TAGS_DATA_AVAILABLE, get_songs_tags
 from .utils.update_songs import update_song_alias_list
 from .utils.utils import get_song_by_id_or_alias, is_float
@@ -52,6 +54,7 @@ def catch_exception(reply_prefix: str = "发生了未知错误", reply_error: bo
             except FinishedException:
                 raise
             except Exception as exc:
+                logger.error(format_exc())
                 reply_message = f"{reply_prefix}: {str(exc)}" if reply_error else reply_prefix
                 await UniMessage(reply_message).finish()
 
@@ -147,6 +150,13 @@ alconna_r50 = on_alconna(
 
 alconna_pc50 = on_alconna(
     Alconna(COMMAND_PREFIXES, "pc50", meta=CommandMeta("[舞萌DX]生成玩家游玩次数 Top-50 (需绑定官方游戏账号)")),
+    priority=10,
+    block=True,
+    rule=to_me(),
+)
+
+alconna_n50 = on_alconna(
+    Alconna(COMMAND_PREFIXES, "n50", meta=CommandMeta("[舞萌DX]生成玩家基于拟合系数的 Top-50")),
     priority=10,
     block=True,
     rule=to_me(),
@@ -258,6 +268,7 @@ async def handle_help(event: Event):
         ".b50 获取玩家 Best 50\n"
         ".ap50 获取玩家 ALL PERFECT 50\n"
         ".r50 获取玩家 Recent 50 (需绑定落雪查分器)\n"
+        ".n50 获取玩家拟合系数 Top-50"
         f".pc50 生成玩家游玩次数 Top50 （{'当前不可用' if not config.enable_arcade_provider else '需绑定游戏账号'})\n"
         ".minfo <乐曲ID/别名> 获取乐曲信息\n"
         ".alias 管理乐曲别名（添加、查询、更新）\n"
@@ -696,6 +707,46 @@ async def handle_pc50(
 
     logger.debug(f"[{user_id}] 4/4 渲染玩家数据...")
     pic = await renderer.render_mai_player_best50(player_b50, player_info)
+
+    await UniMessage([At(flag="user", target=user_id), UniImage(raw=pic)]).finish()
+
+
+@alconna_n50.handle()
+@catch_exception()
+async def handle_n50(
+    event: Event,
+    db_session: async_scoped_session,
+    score_provider: MaimaiPyScoreProvider = Depends(get_maimaipy_provider),
+):
+    user_id = event.get_user_id()
+    provider = await MaimaiPyScoreProvider.auto_get_score_provider(db_session, user_id)
+
+    logger.info(f"[{user_id}] 获取玩家 N50, 查分器类型: {type(provider)}")
+    logger.debug(f"[{user_id}] 1/5 获得用户鉴权凭证...")
+
+    identifier = await MaimaiPyScoreProvider.auto_get_player_identifier(db_session, user_id, provider)
+    params = score_provider.ParamsType(provider, identifier)
+
+    logger.debug(f"[{user_id}] 2/5 发起 API 请求玩家信息...")
+    player_info = await score_provider.fetch_player_info(params)
+
+    logger.debug(f"[{user_id}] 3/5 发起 API 请求玩家所有成绩")
+    if isinstance(provider, LXNSProvider):
+        user_bind_info = await UserBindInfoORM.get_user_bind_info(db_session, user_id)
+        if user_bind_info is None or user_bind_info.lxns_api_key is None:
+            await UniMessage("你还没有绑定任何查分器喵，请先用 /bind 绑定一个查分器谢谢喵").finish()
+            return  # Avoid TypeError.
+
+        identifier.credentials = user_bind_info.lxns_api_key
+        params = score_provider.ParamsType(provider, identifier)
+    player_scores = await score_provider.fetch_player_scoreslist(params)
+
+    logger.debug(f"[{user_id}] 4/5 计算 N50...")
+    player_n50 = get_players_n50(player_scores)
+    player_info.rating = player_n50.rating
+
+    logger.debug(f"[{user_id}] 5/5 渲染玩家数据...")
+    pic = await renderer.render_mai_player_best50(player_n50, player_info, calc_song_level_value=False)
 
     await UniMessage([At(flag="user", target=user_id), UniImage(raw=pic)]).finish()
 

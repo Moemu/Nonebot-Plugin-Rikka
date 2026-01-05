@@ -323,6 +323,8 @@ class MaimaiPyScoreProvider(BaseScoreProvider[MaimaiPyParams]):
             for score in scores.scores:
                 if score.level_index.name == diff:
                     matched_scores.append(score)
+        else:
+            matched_scores = scores.scores
 
         matched_scores.sort(key=lambda x: x.achievements or 0.0, reverse=True)
 
