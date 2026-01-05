@@ -1,0 +1,32 @@
+name: Publish
+
+on:
+  release:
+    types: [published]
+
+jobs:
+  pypi-publish:
+    name: upload release to PyPI
+    environment: Pypi
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Setup and Configure PDM
+        run: |
+          pip install pdm
+          pdm config python.use_venv false
+
+      - name: Publish to PyPI
+        env:
+          PYPI_TOKEN: ${{ secrets.PYPI_API_TOKEN }}
+        run: pdm publish --username __token__ --password "$PYPI_TOKEN"
