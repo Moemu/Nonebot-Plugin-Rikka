@@ -1,3 +1,4 @@
+from functools import wraps
 from pathlib import Path
 from typing import Literal
 
@@ -6,6 +7,7 @@ from arclet.alconna import Alconna, AllParam, Args
 from maimai_py import LXNSProvider, PlayerIdentifier
 from nonebot import get_driver, logger
 from nonebot.adapters import Event
+from nonebot.exception import FinishedException
 from nonebot.params import Depends
 from nonebot.rule import to_me
 from nonebot_plugin_alconna import (
@@ -39,6 +41,23 @@ from .utils.update_songs import update_song_alias_list
 from .utils.utils import get_song_by_id_or_alias, is_float
 
 renderer = PicRenderer()
+
+
+def catch_exception(reply_prefix: str = "发生了未知错误", reply_error: bool = True):
+    def decorator(func):
+        @wraps(func)
+        async def wrapper(*args, **kwargs):
+            try:
+                return await func(*args, **kwargs)
+            except FinishedException:
+                raise
+            except Exception as exc:
+                reply_message = f"{reply_prefix}: {str(exc)}" if reply_error else reply_prefix
+                await UniMessage(reply_message).finish()
+
+        return wrapper
+
+    return decorator
 
 
 COMMAND_PREFIXES = [".", "/"]
@@ -84,8 +103,8 @@ alconna_unbind = on_alconna(
     Alconna(
         COMMAND_PREFIXES,
         "unbind",
-        Args["provider", Literal["all", "lxns", "divingfish"]],
-        meta=CommandMeta("[查分器相关]解绑查分器账号", usage=".unbind <all|lxns|divingfish>"),
+        Args["provider", Literal["all", "lxns", "divingfish", "maimai"]],
+        meta=CommandMeta("[查分器相关]解绑查分器账号", usage=".unbind <all|lxns|divingfish|maimai>"),
     ),
     priority=10,
     block=True,
@@ -101,6 +120,7 @@ alconna_source = on_alconna(
     ),
     priority=10,
     block=True,
+    aliases={"provider"},
     rule=to_me(),
 )
 
@@ -233,10 +253,12 @@ async def handle_help(event: Event):
     help_text = (
         "Rikka 查分器帮助:\n"
         ".bind <查分器名称> <API密钥> 绑定查分器账号\n"
+        ".unbind <查分器名称> 解绑游戏账号/查分器\n"
         ".source <查分器名称> 设置默认查分器\n"
         ".b50 获取玩家 Best 50\n"
         ".ap50 获取玩家 ALL PERFECT 50\n"
         ".r50 获取玩家 Recent 50 (需绑定落雪查分器)\n"
+        f".pc50 生成玩家游玩次数 Top50 （{'当前不可用' if not config.enable_arcade_provider else '需绑定游戏账号'})\n"
         ".minfo <乐曲ID/别名> 获取乐曲信息\n"
         ".alias 管理乐曲别名（添加、查询、更新）\n"
         ".score <乐曲ID/别名> 获取单曲游玩情况\n"
@@ -254,6 +276,7 @@ async def handle_help(event: Event):
 
 
 @alconna_bind.assign("lxns")
+@catch_exception("尝试连接到落雪服务器时遇到错误")
 async def handle_bind_lxns(
     event: Event,
     db_session: async_scoped_session,
@@ -349,6 +372,15 @@ async def handle_bind_maimai(
 ):
     user_id = event.get_user_id()
 
+    if not config.enable_arcade_provider:
+        await UniMessage(
+            [
+                At(flag="user", target=user_id),
+                "管理员未启用机台源查询，无法绑定喵",
+            ]
+        ).finish()
+        return
+
     if not token.available:
         await UniMessage(
             [
@@ -410,6 +442,8 @@ async def handle_bind_help(event: Event):
         "查分器绑定帮助:\n"
         ".bind lxns <落雪咖啡屋的个人 API 密钥> 绑定落雪咖啡屋查分器\n"
         ".bind divingfish <水鱼查分器的成绩导入密钥> 绑定水鱼查分器\n"
+        ".bind maimai <舞萌|中二公众号二维码内容> 绑定官方游戏账号"
+        f"{'(当前不可用)' if not config.enable_arcade_provider else ''}"
     )
 
     await UniMessage(
@@ -429,15 +463,15 @@ async def handle_bind_main(event: Event):
 async def handle_unbind(
     event: Event,
     db_session: async_scoped_session,
-    provider: Match[Literal["all", "lxns", "divingfish"]] = AlconnaMatch("provider"),
+    provider: Match[Literal["all", "lxns", "divingfish", "maimai"]] = AlconnaMatch("provider"),
 ):
     user_id = event.get_user_id()
 
-    if not provider.available or provider.result not in ["all", "lxns", "divingfish"]:
+    if not provider.available or provider.result not in ["all", "lxns", "divingfish", "maimai"]:
         await UniMessage(
             [
                 At(flag="user", target=user_id),
-                "请输入有效的查分器名称: all, lxns 或 divingfish",
+                "请输入有效的查分器名称: all, lxns, divingfish 或 maimai",
             ]
         ).finish()
         return
@@ -500,6 +534,7 @@ async def handle_source(
 
 
 @alconna_b50.handle()
+@catch_exception()
 async def handle_mai_b50(
     event: Event,
     db_session: async_scoped_session,
@@ -527,6 +562,7 @@ async def handle_mai_b50(
 
 
 @alconna_ap50.handle()
+@catch_exception()
 async def handle_mai_ap50(
     event: Event,
     db_session: async_scoped_session,
@@ -563,6 +599,7 @@ async def handle_mai_ap50(
 
 
 @alconna_r50.handle()
+@catch_exception()
 async def handle_mai_r50(
     event: Event, db_session: async_scoped_session, score_provider: LXNSScoreProvider = Depends(get_lxns_provider)
 ):
@@ -616,6 +653,7 @@ async def handle_mai_r50(
 
 
 @alconna_pc50.handle()
+@catch_exception()
 async def handle_pc50(
     event: Event,
     db_session: async_scoped_session,
@@ -663,6 +701,7 @@ async def handle_pc50(
 
 
 @alconna_minfo.handle()
+@catch_exception()
 async def handle_minfo(
     event: Event,
     db_session: async_scoped_session,
@@ -721,7 +760,8 @@ async def handle_minfo(
             if len(song.difficulties.standard) == 5:
                 tags_remaster = get_songs_tags(song.title, "std", "remaster")
                 song_tags_content.append(f"{', '.join(tags_remaster)}(Re:master)" if tags_remaster else "")
-            response_difficulties_content.append("铺面标签: " + "; ".join(song_tags_content))
+            if song_tags_content:
+                response_difficulties_content.append("铺面标签: " + "; ".join(song_tags_content))
 
     if song.difficulties.dx:
         dx_diffs = "/".join([str(diff.level_value) for diff in song.difficulties.dx])
@@ -747,7 +787,8 @@ async def handle_minfo(
             if len(song.difficulties.dx) == 5:
                 tags_remaster = get_songs_tags(song.title, "dx", "remaster")
                 song_tags_content.append(f"{', '.join(tags_remaster)}(Re:master)" if tags_remaster else "")
-            response_difficulties_content.append("铺面标签(DX): " + "; ".join(song_tags_content))
+            if song_tags_content:
+                response_difficulties_content.append("铺面标签(DX): " + "; ".join(song_tags_content))
 
     logger.debug(f"[{user_id}] 4/4 构建乐曲信息模板...")
 
@@ -892,6 +933,7 @@ async def handle_alias_main(event: Event):
 
 
 @alconna_score.handle()
+@catch_exception()
 async def handle_score(
     event: Event,
     db_session: async_scoped_session,
@@ -947,6 +989,7 @@ async def handle_score(
 
 
 @alconna_scorelist.handle()
+@catch_exception()
 async def handle_scorelist(
     event: Event,
     db_session: async_scoped_session,
@@ -1014,6 +1057,7 @@ async def handle_scorelist(
 
 
 @alconna_update.assign("songs")
+@catch_exception()
 async def handle_update_songs(
     event: Event,
     db_session: async_scoped_session,
@@ -1076,9 +1120,7 @@ async def handle_fortune(
 
 
 @alconna_rikka.handle()
-async def handle_rikka(
-    db_session: async_scoped_session,
-):
+async def handle_rikka(db_session: async_scoped_session, event: Event):
     from .utils.utils import get_version
 
     version = get_version()
@@ -1086,4 +1128,6 @@ async def handle_rikka(
 
     message = "Rikka 插件信息\n" f"插件版本: {version}\n" f"Bot 乐曲数量: {total_songs_count}"
 
-    await UniMessage(message).finish()
+    await UniMessage(message).send()
+
+    await handle_help(event)

@@ -5,7 +5,7 @@ from asyncio import sleep
 from dataclasses import fields
 from pathlib import Path
 
-from aiohttp import ClientSession
+from aiohttp import ClientResponseError, ClientSession
 from nonebot import logger
 from nonebot_plugin_orm import async_scoped_session
 from typing_extensions import TypedDict
@@ -121,14 +121,24 @@ async def fetch_song_info(song_id: int, interval: float = 0.3) -> MaiSong:
 
     :param song_id: 曲目 ID
     :param interval: 请求间隔时间
+
+    :raise ValueError: 指定的乐曲信息不存在
+    :raise ClientResponseError: 上游服务出现问题
     """
     url = _BASE_SONG_QUERY_URL.format(song_id=song_id)
 
-    async with ClientSession() as session:
-        async with session.get(url, headers={"User-Agent": USER_AGENT}) as resp:
-            resp.raise_for_status()
-            content = await resp.json()
-            await sleep(interval)  # 避免请求过于频繁
+    try:
+        async with ClientSession() as session:
+            async with session.get(url, headers={"User-Agent": USER_AGENT}) as resp:
+                resp.raise_for_status()
+                content = await resp.json()
+                await sleep(interval)  # 避免请求过于频繁
+    except ClientResponseError as exc:
+        if exc.code == 404:
+            raise ValueError("指定的乐曲信息不存在!")
+
+        logger.warning(f"上游服务出现了问题无法获取曲目信息: {exc}")
+        raise
 
     song_info_fields = {f.name for f in fields(MaiSong)}
     song_info_dict = {k: v for k, v in content.items() if k in song_info_fields}

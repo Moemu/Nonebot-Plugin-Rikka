@@ -114,7 +114,7 @@ class UserBindInfoORM:
 
     @staticmethod
     async def unset_user_bind_info(
-        session: async_scoped_session, user_id: str, provider: Optional[Literal["lxns", "divingfish"]] = None
+        session: async_scoped_session, user_id: str, provider: Optional[Literal["lxns", "divingfish", "maimai"]] = None
     ) -> None:
         """
         解绑用户查分器账号
@@ -128,16 +128,16 @@ class UserBindInfoORM:
         if provider is None:
             await session.delete(bind_info)
         elif provider == "lxns":
-            await session.execute(
-                update(UserBindInfo)
-                .where(UserBindInfo.user_id == user_id)
-                .values(lxns_api_key=None, default_provider="divingfish")
-            )
+            await session.execute(update(UserBindInfo).where(UserBindInfo.user_id == user_id).values(lxns_api_key=None))
         elif provider == "divingfish":
             await session.execute(
                 update(UserBindInfo)
                 .where(UserBindInfo.user_id == user_id)
-                .values(diving_fish_import_token=None, diving_fish_username=None, default_provider="lxns")
+                .values(diving_fish_import_token=None, diving_fish_username=None)
+            )
+        elif provider == "maimai":
+            await session.execute(
+                update(UserBindInfo).where(UserBindInfo.user_id == user_id).values(maimaipy_identifier=None)
             )
 
         await session.commit()
@@ -318,12 +318,19 @@ class MaiSongORM:
         # 先尝试通过乐曲名称查找
         result = await session.execute(select(MaiSongORMModel).where(MaiSongORMModel.title.ilike(f"%{name_or_alias}%")))
         song_rows = result.scalars().all()
+        songs = []
         if song_rows:
-            return [MaiSongORM._convert(row) for row in song_rows]
+            songs = [MaiSongORM._convert(row) for row in song_rows]
+        else:
+            # 如果名称查找失败，则通过别名查找
+            songs = await MaiSongAliasORM.find_song_by_alias(session, name_or_alias)
 
-        # 如果名称查找失败，则通过别名查找
-        song = await MaiSongAliasORM.find_song_by_alias(session, name_or_alias)
-        return song
+        for song in songs:
+            # 如果存在精确匹配的结果，直接忽略别的模糊匹配结果
+            if song.title == name_or_alias:
+                return [song]
+
+        return songs
 
     @staticmethod
     async def get_all_song_ids(session: async_scoped_session) -> Sequence[int]:

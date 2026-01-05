@@ -112,16 +112,20 @@ async def get_song_by_id_or_alias(session: async_scoped_session, name: str) -> M
     """
     song_id = int(name) if name.isdigit() else None
     song_name = name if song_id is None else None
+    songs = []
 
     if song_id is not None:
         logger.debug(f"1/2 通过乐曲ID {song_id} 查询乐曲信息...")
         song_id = song_id if song_id < 10000 or song_id > 100000 else song_id % 10000
-        songs = [await MaiSongORM.get_song_info(session, song_id)]
-    elif song_name is not None:
+        try:
+            songs = [await MaiSongORM.get_song_info(session, song_id)]
+        except ValueError:
+            logger.warning("通过乐曲ID获取乐曲对象失败，该ID可能是乐曲标题")
+            song_name = str(song_id)
+
+    if song_name is not None and not songs:
         logger.debug(f"1/2 通过乐曲名称/别名 {song_name} 查询乐曲信息...")
         songs = await MaiSongORM.get_song_info_by_name_or_alias(session, song_name)
-    else:
-        raise ValueError("Unreachable code reached in handle_minfo")
 
     if not songs:
         raise ValueError(f"未找到与 '{name}' 相关的乐曲信息！")
