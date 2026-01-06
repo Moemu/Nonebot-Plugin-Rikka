@@ -6,8 +6,8 @@ import numpy as np
 from matplotlib.gridspec import GridSpec
 from PIL import Image
 
-from nonebot_plugin_rikka.config import config
-from nonebot_plugin_rikka.functions.analysis import PlayerStrength
+from ..config import config
+from ..functions.analysis import PlayerStrength
 
 _DEFAULT_FONT = "SimHei"
 plt.rcParams["font.sans-serif"] = [_DEFAULT_FONT]
