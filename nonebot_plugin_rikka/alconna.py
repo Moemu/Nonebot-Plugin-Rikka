@@ -1,5 +1,6 @@
 from functools import wraps
 from pathlib import Path
+from time import perf_counter
 from traceback import format_exc
 from typing import Literal
 
@@ -28,6 +29,7 @@ from .constants import _MAI_VERSION_MAP
 from .database import MaiSongAliasORM, MaiSongORM, UserBindInfoORM
 from .functions.analysis import get_player_strength
 from .functions.fortunate import generate_today_fortune
+from .functions.maistatus import capture_maimai_status_png
 from .functions.n50 import get_players_n50
 from .functions.song_tags import SONG_TAGS_DATA_AVAILABLE, get_songs_tags
 from .painters import draw_player_strength_analysis, image_to_bytes
@@ -258,6 +260,18 @@ alconna_analysis = on_alconna(
     rule=to_me(),
 )
 
+alconna_maistatus = on_alconna(
+    Alconna(
+        COMMAND_PREFIXES,
+        "maistatus",
+        meta=CommandMeta("[舞萌DX]获取舞萌状态页截图", usage=".maistatus"),
+    ),
+    aliases={"舞萌状态"},
+    priority=10,
+    block=True,
+    rule=to_me(),
+)
+
 alconna_rikka = on_alconna(
     Alconna(
         COMMAND_PREFIXES,
@@ -290,9 +304,9 @@ async def handle_help(event: Event):
         ".scorelist <level|ach|diff> 获取指定条件的成绩列表\n"
         ".update songs 更新乐曲信息数据库\n"
         ".update alias 更新乐曲别名列表\n"
-        ".成分分析 根据 B100 获取玩家成分分析"
-        f"{'(当前不可用)' if not SONG_TAGS_DATA_AVAILABLE else ''}\n"
-        ".今日舞萌 获取今日出勤运势"
+        f".成分分析 根据 B100 获取玩家成分分析 {'(当前不可用)' if not SONG_TAGS_DATA_AVAILABLE else ''}\n"
+        ".今日舞萌 获取今日出勤运势\n"
+        f".舞萌状态 获取舞萌状态页截图 {'(当前不可用)' if not config.maistatus_url else ''}\n"
     )
 
     await UniMessage(
@@ -1231,6 +1245,28 @@ async def handle_analysis(
     byte = image_to_bytes(pic)
 
     await UniMessage([At(flag="user", target=user_id), UniImage(raw=byte)]).finish()
+
+
+@alconna_maistatus.handle()
+@catch_exception(reply_prefix="获取状态截图失败")
+async def handle_maistatus(event: Event):
+    user_id = event.get_user_id()
+
+    if config.maistatus_url is None:
+        await UniMessage(
+            [
+                At(flag="user", target=user_id),
+                "管理员未配置舞萌状态截图地址，无法使用此功能喵",
+            ]
+        ).finish()
+        return
+
+    logger.info("正在尝试获取舞萌状态截图...")
+    st = perf_counter()
+    png = await capture_maimai_status_png(config.maistatus_url)
+    et = perf_counter()
+    render_time_message = f"渲染用时 {et - st:.2f} 秒"
+    await UniMessage([At(flag="user", target=user_id), UniImage(raw=png), render_time_message]).finish()
 
 
 @alconna_rikka.handle()

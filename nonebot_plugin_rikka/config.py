@@ -23,6 +23,9 @@ class Config(BaseModel):
     arcade_provider_http_proxy: Optional[str] = None
     """机台源的代理地址"""
 
+    maistatus_url: Optional[str] = None
+    """舞萌状态页地址，用于渲染 .maistatus """
+
     @field_validator("static_resource_path")
     def validate_static_resource_path(cls, v: str) -> str:
         p = Path(v)
