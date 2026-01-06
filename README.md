@@ -46,6 +46,7 @@
 | `.scorelist <level\|achXX.X>`           | [舞萌DX]获取玩家对应等级/达成率的成绩列表              |
 | `.update maisong\|alias`                | [舞萌DX]更新乐曲或别名数据库                           |
 | `.今日舞萌`                             | [舞萌DX]获取今日舞萌运势                               |
+| `.成分分析`                             | [舞萌DX]获取基于 B100 de                               |
 | 🚧`.trend`                               | [舞萌DX]获取玩家的 DX Rating 趋势 （需绑定落雪查分器） |
 
 

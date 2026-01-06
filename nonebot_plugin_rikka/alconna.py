@@ -26,9 +26,11 @@ from nonebot_plugin_orm import async_scoped_session
 from .config import config
 from .constants import _MAI_VERSION_MAP
 from .database import MaiSongAliasORM, MaiSongORM, UserBindInfoORM
+from .functions.analysis import get_player_strength
 from .functions.fortunate import generate_today_fortune
 from .functions.n50 import get_players_n50
 from .functions.song_tags import SONG_TAGS_DATA_AVAILABLE, get_songs_tags
+from .painters import draw_player_strength_analysis, image_to_bytes
 from .renderer import PicRenderer
 from .score import (
     DivingFishScoreProvider,
@@ -244,13 +246,25 @@ alconna_fortune = on_alconna(
     rule=to_me(),
 )
 
+alconna_analysis = on_alconna(
+    Alconna(
+        COMMAND_PREFIXES,
+        "analysis",
+        meta=CommandMeta("[舞萌DX]根据 B100 获取玩家成分"),
+    ),
+    aliases={"底力分析", "成分分析"},
+    priority=10,
+    block=True,
+    rule=to_me(),
+)
+
 alconna_rikka = on_alconna(
     Alconna(
         COMMAND_PREFIXES,
         "rikka",
         meta=CommandMeta("输出 Rikka 插件信息"),
     ),
-    priority=50,
+    priority=10,
     block=True,
     rule=to_me(),
 )
@@ -276,6 +290,9 @@ async def handle_help(event: Event):
         ".scorelist <level|ach|diff> 获取指定条件的成绩列表\n"
         ".update songs 更新乐曲信息数据库\n"
         ".update alias 更新乐曲别名列表\n"
+        ".成分分析 根据 B100 获取玩家成分分析"
+        f"{'(当前不可用)' if not SONG_TAGS_DATA_AVAILABLE else ''}\n"
+        ".今日舞萌 获取今日出勤运势"
     )
 
     await UniMessage(
@@ -1175,6 +1192,45 @@ async def handle_fortune(
     fortune_message = await generate_today_fortune(user_id)
 
     await fortune_message.finish()
+
+
+@alconna_analysis.handle()
+@catch_exception()
+async def handle_analysis(
+    db_session: async_scoped_session,
+    event: Event,
+    score_provider: MaimaiPyScoreProvider = Depends(get_maimaipy_provider),
+):
+    user_id = event.get_user_id()
+    provider = await MaimaiPyScoreProvider.auto_get_score_provider(db_session, user_id)
+
+    logger.info(f"[{user_id}] 获取玩家底力表, 查分器类型: {type(provider)}")
+    logger.debug(f"[{user_id}] 1/4 获得用户鉴权凭证...")
+
+    identifier = await MaimaiPyScoreProvider.auto_get_player_identifier(db_session, user_id, provider)
+    params = score_provider.ParamsType(provider, identifier)
+
+    logger.debug(f"[{user_id}] 2/4 发起 API 请求玩家所有成绩")
+    if isinstance(provider, LXNSProvider):
+        user_bind_info = await UserBindInfoORM.get_user_bind_info(db_session, user_id)
+        if user_bind_info is None or user_bind_info.lxns_api_key is None:
+            await UniMessage("你还没有绑定任何查分器喵，请先用 /bind 绑定一个查分器谢谢喵").finish()
+            return  # Avoid TypeError.
+
+        identifier.credentials = user_bind_info.lxns_api_key
+        params = score_provider.ParamsType(provider, identifier)
+    player_scores = await score_provider.fetch_player_scoreslist(params)
+
+    logger.debug(f"[{user_id}] 3/4 计算玩家成分")
+    player_scores.sort(key=lambda x: x.dx_rating, reverse=True)
+    player_scores = player_scores[:100]
+    player_strength = get_player_strength(player_scores)
+
+    logger.debug(f"[{user_id}] 4/4 渲染玩家数据...")
+    pic = draw_player_strength_analysis(player_strength)
+    byte = image_to_bytes(pic)
+
+    await UniMessage([At(flag="user", target=user_id), UniImage(raw=byte)]).finish()
 
 
 @alconna_rikka.handle()
