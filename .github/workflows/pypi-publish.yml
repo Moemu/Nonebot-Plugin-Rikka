@@ -17,13 +17,11 @@ jobs:
       contents: read
       id-token: write
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       - uses: pdm-project/setup-pdm@v4
-
-      - name: Install deps
-        run: pdm install
 
       - name: Publish to PyPI
         run: pdm publish
