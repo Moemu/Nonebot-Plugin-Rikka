@@ -9,7 +9,7 @@ from .database.crud import MaiSongORM
 from .models.song import MaiSong
 from .painters import DrawBest, DrawScores, draw_music_info, image_to_bytes
 from .score import PlayerMaiB50, PlayerMaiInfo, PlayerMaiScore
-from .updater.resources import download_icon, download_jacket
+from .updater.resources import download_icon, download_jacket, download_plate
 
 
 class ViewportDict(TypedDict):
@@ -68,22 +68,45 @@ class PicRenderer:
 
         return "0"  # 返回默认封面
 
-    async def _ensure_avatar(self, avatar_id: int) -> bool:
-        """
-        确保头像资源存在
-        """
-        avatar = Path(self.static_dir / "mai" / "icon" / f"{avatar_id}.png")
-        if avatar.exists():
-            return True
+    async def _validate_profile_resources(self, player_info: PlayerMaiInfo) -> bool:
+        """确保玩家相关资源存在（头像/姓名框/背景框）。"""
 
-        logger.warning(f"头像资源 {avatar_id} 不存在!尝试从服务器下载...")
-        try:
-            await download_icon(str(avatar_id))
-        except Exception as e:
-            logger.error(f"下载头像资源 {avatar_id} 失败: {e}")
-            return False
+        ok = True
 
-        return True
+        if player_info.icon:
+            icon_id = player_info.icon.id
+            icon_path = Path(self.static_dir / "mai" / "icon" / f"{icon_id}.png")
+            if not icon_path.exists():
+                logger.warning(f"头像资源 {icon_id} 不存在!尝试从服务器下载...")
+                try:
+                    await download_icon(str(icon_id))
+                except Exception as e:
+                    logger.error(f"下载头像资源 {icon_id} 失败: {e}")
+                    ok = False
+
+        if player_info.name_plate:
+            plate_id = player_info.name_plate.id
+            plate_path = Path(self.static_dir / "mai" / "plate" / f"{plate_id}.png")
+            if not plate_path.exists():
+                logger.warning(f"姓名框资源 {plate_id} 不存在!尝试从服务器下载...")
+                try:
+                    await download_plate(str(plate_id))
+                except Exception as e:
+                    logger.error(f"下载姓名框资源 {plate_id} 失败: {e}")
+                    ok = False
+
+        # if player_info.frame:
+        #     frame_id = player_info.frame.id
+        #     frame_path = Path(self.static_dir / "mai" / "frame" / f"{frame_id}.png")
+        #     if not frame_path.exists():
+        #         logger.warning(f"背景框资源 {frame_id} 不存在!尝试从服务器下载...")
+        #         try:
+        #             await download_frame(str(frame_id))
+        #         except Exception as e:
+        #             logger.error(f"下载背景框资源 {frame_id} 失败: {e}")
+        #             ok = False
+
+        return ok
 
     async def _get_song_level_value(
         self, song_id: int, song_type: Literal["standard", "dx", "utage"], difficulty: int
@@ -126,9 +149,8 @@ class PicRenderer:
                     score.song_id, score.song_type.value, score.song_difficulty.value  # type:ignore
                 )
 
-        # Ensure icon/plate if needed
-        if player_info.icon:
-            await self._ensure_avatar(player_info.icon.id)
+        # Ensure player assets
+        await self._validate_profile_resources(player_info)
 
         draw_best = DrawBest()
         img = draw_best.draw(player_info, player_best50)
@@ -140,6 +162,9 @@ class PicRenderer:
         """
         渲染玩家具体成绩图
         """
+        # Ensure player assets
+        await self._validate_profile_resources(player_info)
+
         # Ensure covers
         for score in scores:
             await self._ensure_cover(score.song_id)
