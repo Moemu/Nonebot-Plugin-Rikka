@@ -1230,6 +1230,16 @@ async def handle_analysis(
     score_provider: MaimaiPyScoreProvider = Depends(get_maimaipy_provider),
 ):
     user_id = event.get_user_id()
+
+    if not SONG_TAGS_DATA_AVAILABLE:
+        await UniMessage(
+            [
+                At(flag="user", target=user_id),
+                "管理员未配置乐曲标签，无法使用此功能喵",
+            ]
+        ).finish()
+        return
+
     provider = await MaimaiPyScoreProvider.auto_get_score_provider(db_session, user_id)
 
     logger.info(f"[{user_id}] 获取玩家底力表, 查分器类型: {type(provider)}")

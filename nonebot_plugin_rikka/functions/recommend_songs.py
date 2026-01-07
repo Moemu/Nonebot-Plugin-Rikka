@@ -14,7 +14,7 @@ from ..models.song import MaiSong, SongDifficulty
 from ..score import PlayerMaiScore
 from .analysis import get_player_strength
 from .n50 import calc_dx_rating
-from .song_tags import get_song_by_tags
+from .song_tags import SONG_TAGS_DATA_AVAILABLE, get_song_by_tags
 
 
 @dataclass
@@ -76,14 +76,7 @@ def get_player_raise_score_songs(scores: list[PlayerMaiScore], min_dx_rating: in
     if len(scores) < 100:
         raise ValueError("玩家成绩数不足 100 条，无法进行上分曲目推荐")
 
-    # 首先从 B100 中获得玩家的优势
     scores.sort(key=lambda x: x.dx_rating, reverse=True)
-    player_strengths = get_player_strength(scores[:100])
-
-    # 前 3 铺面配置
-    patterns_strengths = sorted(player_strengths.patterns_strengths.items(), key=lambda x: x[1], reverse=True)[:3]
-    # Top 1 铺面类型
-    song_evaluate = sorted(player_strengths.song_evaluates.items(), key=lambda x: x[1], reverse=True)[0]
 
     # 获取 B100 乐曲平均定数
     total_level_value = 0.0
@@ -113,18 +106,26 @@ def get_player_raise_score_songs(scores: list[PlayerMaiScore], min_dx_rating: in
 
     # 根据铺面优势继续添加推荐曲目(铺面系数)
     # 不需要去重: 因为如果该曲目定数范围和铺面优势都合适，应该值得更高的推荐概率
-    tags = [tag for tag, _ in patterns_strengths] + [song_evaluate[0]]
-    tag_filtered_song_names = get_song_by_tags(tags)
-    for song in all_songs:
-        if song.title in tag_filtered_song_names:
-            for difficulty in song.difficulties.dx + song.difficulties.standard:
-                level_value = difficulty.level_value or difficulty.level_fit
-                if level_value is None:
-                    continue
-                if not (min_level_value <= level_value <= max_level_value):
-                    continue
+    if SONG_TAGS_DATA_AVAILABLE:
+        # 首先从 B100 中获得玩家的优势
+        player_strengths = get_player_strength(scores[:100])
+        # 前 3 铺面配置
+        patterns_strengths = sorted(player_strengths.patterns_strengths.items(), key=lambda x: x[1], reverse=True)[:3]
+        # Top 1 铺面类型
+        song_evaluate = sorted(player_strengths.song_evaluates.items(), key=lambda x: x[1], reverse=True)[0]
 
-                total_recommended_songs.append((song, difficulty))
+        tags = [tag for tag, _ in patterns_strengths] + [song_evaluate[0]]
+        tag_filtered_song_names = get_song_by_tags(tags)
+        for song in all_songs:
+            if song.title in tag_filtered_song_names:
+                for difficulty in song.difficulties.dx + song.difficulties.standard:
+                    level_value = difficulty.level_value or difficulty.level_fit
+                    if level_value is None:
+                        continue
+                    if not (min_level_value <= level_value <= max_level_value):
+                        continue
+
+                    total_recommended_songs.append((song, difficulty))
 
     # 筛选模式: 0: 不过滤; 1: 过滤诈称铺; 2: 只输出水铺
     filter_mode = 2 if len(total_recommended_songs) > 500 else (1 if len(total_recommended_songs) > 100 else 0)
