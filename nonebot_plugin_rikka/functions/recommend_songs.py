@@ -200,9 +200,9 @@ def get_player_raise_score_songs(scores: list[PlayerMaiScore], min_dx_rating: in
             old_achievements=current_achievements,
         )
 
-        if song.version / 100 >= current_version:
+        if song.version / 100 >= current_version and recommended_song_obj not in recommended_songs_dx:
             recommended_songs_dx.append(recommended_song_obj)
-        else:
+        elif song.version / 100 < current_version and recommended_song_obj not in recommended_songs_std:
             recommended_songs_std.append(recommended_song_obj)
 
     logger.debug(f"共找到 {len(recommended_songs_std) + len(recommended_songs_dx)} 首推荐曲目")
