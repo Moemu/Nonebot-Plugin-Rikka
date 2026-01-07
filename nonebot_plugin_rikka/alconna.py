@@ -267,7 +267,7 @@ alconna_recommend = on_alconna(
         "recommend",
         meta=CommandMeta("[舞萌DX]生成随机推分曲目"),
     ),
-    aliases={"什么推分", "推分"},
+    aliases={"什么推分", "推分", "推分推荐"},
     priority=10,
     block=True,
     rule=to_me(),
@@ -320,6 +320,7 @@ async def handle_help(event: Event):
         f".成分分析 根据 B100 获取玩家成分分析 {'(当前不可用)' if not SONG_TAGS_DATA_AVAILABLE else ''}\n"
         ".今日舞萌 获取今日出勤运势\n"
         f".舞萌状态 获取舞萌状态页截图 {'(当前不可用)' if not config.maistatus_url else ''}\n"
+        f".推分推荐 生成随机推分曲目 {'(当前不可用)' if not SONG_TAGS_DATA_AVAILABLE else ''}\n"
     )
 
     await UniMessage(
