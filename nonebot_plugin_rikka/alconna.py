@@ -31,8 +31,9 @@ from .functions.analysis import get_player_strength
 from .functions.fortunate import generate_today_fortune
 from .functions.maistatus import capture_maimai_status_png
 from .functions.n50 import get_players_n50
+from .functions.recommend_songs import get_player_raise_score_songs
 from .functions.song_tags import SONG_TAGS_DATA_AVAILABLE, get_songs_tags
-from .painters import draw_player_strength_analysis, image_to_bytes
+from .painters import DrawScores, draw_player_strength_analysis, image_to_bytes
 from .renderer import PicRenderer
 from .score import (
     DivingFishScoreProvider,
@@ -255,6 +256,18 @@ alconna_analysis = on_alconna(
         meta=CommandMeta("[舞萌DX]根据 B100 获取玩家成分"),
     ),
     aliases={"底力分析", "成分分析"},
+    priority=10,
+    block=True,
+    rule=to_me(),
+)
+
+alconna_recommend = on_alconna(
+    Alconna(
+        COMMAND_PREFIXES,
+        "recommend",
+        meta=CommandMeta("[舞萌DX]生成随机推分曲目"),
+    ),
+    aliases={"什么推分", "推分"},
     priority=10,
     block=True,
     rule=to_me(),
@@ -1242,6 +1255,48 @@ async def handle_analysis(
 
     logger.debug(f"[{user_id}] 4/4 渲染玩家数据...")
     pic = draw_player_strength_analysis(player_strength)
+    byte = image_to_bytes(pic)
+
+    await UniMessage([At(flag="user", target=user_id), UniImage(raw=byte)]).finish()
+
+
+@alconna_recommend.handle()
+@catch_exception()
+async def handle_recommend(
+    db_session: async_scoped_session,
+    event: Event,
+    score_provider: MaimaiPyScoreProvider = Depends(get_maimaipy_provider),
+):
+    user_id = event.get_user_id()
+    provider = await MaimaiPyScoreProvider.auto_get_score_provider(db_session, user_id)
+
+    logger.info(f"[{user_id}] 获取玩家推分推荐, 查分器类型: {type(provider)}")
+    logger.debug(f"[{user_id}] 1/4 获得用户鉴权凭证...")
+
+    identifier = await MaimaiPyScoreProvider.auto_get_player_identifier(db_session, user_id, provider)
+    params = score_provider.ParamsType(provider, identifier)
+
+    logger.debug(f"[{user_id}] 2/4 发起 API 请求玩家所有成绩")
+    if isinstance(provider, LXNSProvider):
+        user_bind_info = await UserBindInfoORM.get_user_bind_info(db_session, user_id)
+        if user_bind_info is None or user_bind_info.lxns_api_key is None:
+            await UniMessage("你还没有绑定任何查分器喵，请先用 /bind 绑定一个查分器谢谢喵").finish()
+            return  # Avoid TypeError.
+
+        identifier.credentials = user_bind_info.lxns_api_key
+        params = score_provider.ParamsType(provider, identifier)
+    player_scores = await score_provider.fetch_player_scoreslist(params)
+
+    logger.debug(f"[{user_id}] 3/4 计算推分推荐...")
+    st = perf_counter()
+    player_scores.sort(key=lambda x: x.dx_rating, reverse=True)
+    min_dx_score = player_scores[:50][-1].dx_rating
+    recommend_songs = get_player_raise_score_songs(player_scores, round(min_dx_score))
+    et = perf_counter()
+    logger.debug(f"[{user_id}] 3/4 计算推分推荐用时 {(et - st):.3f}s")
+
+    logger.debug(f"[{user_id}] 4/4 渲染玩家数据...")
+    pic = DrawScores().draw_rise(recommend_songs, round(min_dx_score))
     byte = image_to_bytes(pic)
 
     await UniMessage([At(flag="user", target=user_id), UniImage(raw=byte)]).finish()

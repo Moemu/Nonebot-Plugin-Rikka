@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
-from typing import Literal
+from typing import Literal, Optional
 
 from typing_extensions import TypedDict
 
@@ -57,3 +57,23 @@ def get_songs_tags(
                     tags.append(tag["localized_name"].get("zh-Hans", "未知标签"))
                     break
     return tags
+
+
+def get_song_by_tags(
+    tags: list[str],
+    song_type: Optional[Literal["dx", "std"]] = None,
+    song_difficulty: Optional[Literal["remaster", "master", "expert"]] = None,
+) -> list[str]:
+    song_names = []
+    tag_ids = []
+    for tag in _SONG_TAGS_DATA["tags"]:
+        if tag["localized_name"].get("zh-Hans", "未知标签") in tags:
+            tag_ids.append(tag["id"])
+    for tag_song in _SONG_TAGS_DATA["tagSongs"]:
+        if tag_song["tag_id"] in tag_ids:
+            if song_type and tag_song["sheet_type"] != song_type:
+                continue
+            if song_difficulty and tag_song["sheet_difficulty"] != song_difficulty:
+                continue
+            song_names.append(tag_song["song_id"])
+    return list(set(song_names))
