@@ -1276,7 +1276,14 @@ async def handle_rikka(db_session: async_scoped_session, event: Event):
     version = get_version()
     total_songs_count = len(await MaiSongORM.get_all_song_ids(db_session))
 
-    message = "Rikka 插件信息\n" f"插件版本: {version}\n" f"Bot 乐曲数量: {total_songs_count}"
+    message = (
+        "Rikka 插件信息\n"
+        f"插件版本: {version}\n"
+        f"Bot 乐曲数量: {total_songs_count}\n"
+        f"机台源支持: {'已启用' if config.enable_arcade_provider else '未启用'}\n"
+        f"标签数据: {'已启用' if SONG_TAGS_DATA_AVAILABLE else '未启用'}\n"
+        f"状态页支持: {'已启用' if config.maistatus_url else '未启用'}\n"
+    )
 
     await UniMessage(message).send()
 
