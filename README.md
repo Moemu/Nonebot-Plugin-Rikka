@@ -46,7 +46,8 @@
 | `.scorelist <level\|achXX.X>`           | [舞萌DX]获取玩家对应等级/达成率的成绩列表              |
 | `.update maisong\|alias`                | [舞萌DX]更新乐曲或别名数据库                           |
 | `.今日舞萌`                             | [舞萌DX]获取今日舞萌运势                               |
-| `.成分分析`                             | [舞萌DX]获取基于 B100 de                               |
+| `.成分分析`                             | [舞萌DX]获取基于 B100 的玩家成分分析                   |
+| `.舞萌状态`                             | [舞萌DX]获取舞萌服务器状态                             |
 | 🚧`.trend`                               | [舞萌DX]获取玩家的 DX Rating 趋势 （需绑定落雪查分器） |
 
 
@@ -75,6 +76,8 @@
 5. 更新乐曲信息：使用 SUPERUSER 账号执行指令: `.update maisong` 和 `.alias update`
 
 6. （可选）如果需要支持乐曲标签，您需要自行获取来自 [DXRating](https://dxrating.net/search) 的 `combined_tags.json` 并放置在 `static` 文件夹中
+
+7. （可选）如果需要支持舞萌状态的获取，您需要自己搭建 Uptime kuma 服务或借助外部状态页
 
 ## 配置⚙️
 
@@ -117,6 +120,14 @@
 - 类型: Optional[str]
 
 - 默认值: False
+
+### maistatus_url
+
+- 说明: 能够显示舞萌服务器状态的外部状态服务页面
+
+- 类型: Optional[str]
+
+- 默认值: None
 
 ## 关于🎗️
 
