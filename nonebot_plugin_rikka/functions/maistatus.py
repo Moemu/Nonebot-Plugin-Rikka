@@ -9,7 +9,7 @@ _driver = get_driver()
 
 # Lazy singletons for Playwright/Chromium process reuse
 _init_lock = asyncio.Lock()
-_page_semaphore = asyncio.Semaphore(2)
+_page_semaphore = asyncio.Semaphore(1)
 _playwright = None
 _browser = None
 
@@ -48,6 +48,17 @@ async def _get_browser():
             args=[
                 "--no-sandbox",
                 "--disable-dev-shm-usage",
+                "--disable-gpu",
+                "--disable-software-rasterizer",
+                "--disable-extensions",
+                "--disable-background-networking",
+                "--disable-sync",
+                "--disable-default-apps",
+                "--disable-translate",
+                "--disable-features=site-per-process",
+                "--disable-features=IsolateOrigins",
+                "--no-first-run",
+                "--no-zygote",
             ],
         )
         return _browser
@@ -114,7 +125,20 @@ async def capture_webpage_png(
                 await page.goto(url, wait_until="networkidle", timeout=timeout_ms)
                 if wait_ms > 0:
                     await page.wait_for_timeout(wait_ms)
-                return await page.screenshot(type="png", full_page=full_page)
+                return await page.screenshot(
+                    type="png",
+                    full_page=full_page,
+                    clip=(
+                        None
+                        if full_page
+                        else {
+                            "x": 0,
+                            "y": 0,
+                            "width": viewport["width"],
+                            "height": viewport["height"],
+                        }
+                    ),
+                )
             finally:
                 await context.close()
     except PlaywrightError as exc:
@@ -131,7 +155,7 @@ async def capture_maimai_status_png(maimai_status_url: str) -> bytes:
     return await capture_webpage_png(
         maimai_status_url,
         viewport={"width": 1200, "height": 750},
-        full_page=True,
-        timeout_ms=30_000,
+        full_page=False,
+        timeout_ms=10_000,
         wait_ms=800,
     )
