@@ -374,6 +374,7 @@ class MaimaiPyScoreProvider(BaseScoreProvider[MaimaiPyParams]):
         if not user_bind_info or user_bind_info.maimaipy_identifier is None:
             return scores
 
+        logger.debug("尝试向机台源获取成绩...")
         scores_with_play_count = await self._fetch_player_play_counts(user_bind_info.maimaipy_identifier)
 
         for score in scores if isinstance(scores, list) else scores.dx + scores.standard:

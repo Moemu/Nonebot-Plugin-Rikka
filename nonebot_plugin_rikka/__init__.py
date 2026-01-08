@@ -1,4 +1,4 @@
-from nonebot import require
+from nonebot import logger, require
 
 require("nonebot_plugin_alconna")
 require("nonebot_plugin_localstore")
@@ -22,6 +22,7 @@ from .database import MaiSongORM  # noqa: E402
 @get_driver().on_startup
 async def initialize_song_cache():
     session = get_scoped_session()
+    logger.debug("更新乐曲缓存中...")
     await MaiSongORM.refresh_cache(session)
 
 
