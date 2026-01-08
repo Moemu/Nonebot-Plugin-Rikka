@@ -81,6 +81,6 @@ async def capture_maimai_status_png(maimai_status_url: str) -> bytes:
         maimai_status_url,
         viewport={"width": 1200, "height": 750},
         full_page=False,
-        timeout_ms=10_000,
+        timeout_ms=20_000,
         wait_ms=800,
     )
