@@ -4,7 +4,7 @@
 
 from dataclasses import dataclass
 from random import sample
-from typing import Literal, Optional
+from typing import Literal, cast
 
 from nonebot import logger
 
@@ -14,7 +14,7 @@ from ..models.song import MaiSong, SongDifficulty
 from ..score import PlayerMaiScore
 from .analysis import get_player_strength
 from .n50 import calc_dx_rating
-from .song_tags import SONG_TAGS_DATA_AVAILABLE, get_song_by_tags
+from .song_tags import SONG_TAGS_DATA_AVAILABLE, get_song_by_tags, get_songs_tags
 
 
 @dataclass
@@ -105,7 +105,6 @@ def get_player_raise_score_songs(scores: list[PlayerMaiScore], min_dx_rating: in
             total_recommended_songs.append((song, difficulty))
 
     # 根据铺面优势继续添加推荐曲目(铺面系数)
-    # 不需要去重: 因为如果该曲目定数范围和铺面优势都合适，应该值得更高的推荐概率
     if SONG_TAGS_DATA_AVAILABLE:
         # 首先从 B100 中获得玩家的优势
         player_strengths = get_player_strength(scores[:100])
@@ -117,21 +116,25 @@ def get_player_raise_score_songs(scores: list[PlayerMaiScore], min_dx_rating: in
         tags = [tag for tag, _ in patterns_strengths] + [song_evaluate[0]]
         tag_filtered_song_names = get_song_by_tags(tags)
         for song in all_songs:
-            if song.title in tag_filtered_song_names:
-                for difficulty in song.difficulties.dx + song.difficulties.standard:
-                    level_value = difficulty.level_value or difficulty.level_fit
-                    if level_value is None:
-                        continue
-                    if not (min_level_value <= level_value <= max_level_value):
-                        continue
-
-                    total_recommended_songs.append((song, difficulty))
+            if song.title not in tag_filtered_song_names:
+                continue
+            for difficulty in song.difficulties.dx + song.difficulties.standard:
+                level_value = difficulty.level_value or difficulty.level_fit
+                if level_value is None or not (min_level_value <= level_value <= max_level_value):
+                    continue
+                elif (song, difficulty) in total_recommended_songs:
+                    continue
+                total_recommended_songs.append((song, difficulty))
 
     # 筛选模式: 0: 不过滤; 1: 过滤诈称铺; 2: 只输出水铺
-    filter_mode = 2 if len(total_recommended_songs) > 500 else (1 if len(total_recommended_songs) > 100 else 0)
+    filter_mode = 2 if len(total_recommended_songs) > 500 else (1 if len(total_recommended_songs) > 200 else 0)
+    logger.debug(f"共找到 {len(total_recommended_songs)} 待定推分曲目, 筛选模式: {filter_mode}")
 
-    # 筛选推荐曲目: 如果达成率 > 100.5 则剔除
-    pending_recommended_songs: list[tuple[MaiSong, SongDifficulty, Optional[PlayerMaiScore]]] = []
+    # 筛选推荐曲目
+    current_version = sorted(_MAI_VERSION_MAP.keys())[-1]
+
+    recommended_songs_std: list[RecommendSong] = []
+    recommended_songs_dx: list[RecommendSong] = []
     for song, difficulty in total_recommended_songs:
         # 查找玩家该曲该难度成绩
         player_score = next(
@@ -144,23 +147,31 @@ def get_player_raise_score_songs(scores: list[PlayerMaiScore], min_dx_rating: in
             ),
             None,
         )
+
+        # 如果达成率 > 100.5 则剔除
         if player_score and player_score.achievements > 100.5:
             continue
 
-        elif filter_mode >= 2 and difficulty.level_value - difficulty.level_fit < 0.3:
+        song_type: Literal["dx", "std"] = "dx" if difficulty.type == "dx" else "std"
+        # 就算 song_difficulty in ['BASIC', 'ADVANCED'] 也不影响实际运行, get_songs_tags(...) 会返回空值
+        song_difficulty = cast(
+            Literal["remaster", "master", "expert"],
+            ["BASIC", "ADVANCED", "EXPERT", "MASTER", "ReMASTER"][difficulty.difficulty],
+        )
+
+        # 按筛选模式筛选
+        if filter_mode >= 2 and "水" not in get_songs_tags(song.title, song_type, song_difficulty):
             continue
 
-        elif filter_mode >= 1 and difficulty.level_fit - difficulty.level_value > 0.3:
+        elif filter_mode >= 1 and "诈称谱" in get_songs_tags(song.title, song_type, song_difficulty):
             continue
 
-        pending_recommended_songs.append((song, difficulty, player_score))
+        elif difficulty.level_value - difficulty.level_fit > 0.3:
+            continue
 
-    # 筛选推荐曲目: 如果该曲目达成了更高的达成率之后仍然未加分就剔除
-    recommended_songs_std: list[RecommendSong] = []
-    recommended_songs_dx: list[RecommendSong] = []
-    current_version = sorted(_MAI_VERSION_MAP.keys())[-1]
-    for song, difficulty, player_score in pending_recommended_songs:
+        # 如果该曲目达成了更高的达成率之后仍然未加分就剔除
         level_value = difficulty.level_value
+
         if level_value is None:
             continue
 
@@ -206,9 +217,9 @@ def get_player_raise_score_songs(scores: list[PlayerMaiScore], min_dx_rating: in
         elif song.version / 100 < current_version and recommended_song_obj not in recommended_songs_std:
             recommended_songs_std.append(recommended_song_obj)
 
-    logger.debug(f"共找到 {len(recommended_songs_std) + len(recommended_songs_dx)} 首推荐曲目")
+    logger.debug(f"筛选后, 共找到 {len(recommended_songs_std) + len(recommended_songs_dx)} 首推荐曲目")
 
-    # 随机选取 6 首推荐曲目
+    # 随机选取 7 首推荐曲目
     return RecommendSongs(
         old_version=sample(recommended_songs_std, min(7, len(recommended_songs_std))),
         new_version=sample(recommended_songs_dx, min(7, len(recommended_songs_dx))),

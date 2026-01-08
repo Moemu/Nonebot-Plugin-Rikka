@@ -1,5 +1,5 @@
 from dataclasses import dataclass, fields
-from typing import Optional
+from typing import Literal, Optional
 
 
 @dataclass
@@ -42,7 +42,7 @@ class BuddyNotes:
 
 @dataclass
 class SongDifficulty:
-    type: str
+    type: Literal["standard", "dx", "utage"]
     """谱面类型"""
     difficulty: int
     """难度"""
@@ -133,3 +133,6 @@ class MaiSong:
     """是否需要解锁"""
     disabled: bool = False
     """是否被禁用"""
+
+    def __hash__(self) -> int:
+        return hash(self.id)
