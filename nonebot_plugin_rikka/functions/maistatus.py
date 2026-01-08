@@ -2,8 +2,6 @@ from __future__ import annotations
 
 from typing import TypedDict
 
-from nonebot import logger
-
 from ..browser import get_browser, get_page_semaphore
 
 
@@ -27,51 +25,36 @@ async def capture_webpage_png(
         - If you see errors about missing browser executables, run:
           `python -m playwright install chromium`
     """
-
-    try:
-        from playwright.async_api import Error as PlaywrightError
-    except Exception as exc:  # pragma: no cover
-        raise RuntimeError(
-            "缺少依赖 playwright，无法截图。请安装 playwright 并执行 `python -m playwright install chromium`。"
-        ) from exc
-
     if not url.startswith("http://") and not url.startswith("https://"):
         raise ValueError("url 必须以 http:// 或 https:// 开头")
 
     viewport = viewport or {"width": 1400, "height": 900}
 
-    try:
-        page_semaphore = await get_page_semaphore()
-        async with page_semaphore:
-            browser = await get_browser()
-            context = await browser.new_context(viewport=viewport)
-            try:
-                page = await context.new_page()
-                await page.goto(url, wait_until="networkidle", timeout=timeout_ms)
-                if wait_ms > 0:
-                    await page.wait_for_timeout(wait_ms)
-                return await page.screenshot(
-                    type="png",
-                    full_page=full_page,
-                    clip=(
-                        None
-                        if full_page
-                        else {
-                            "x": 0,
-                            "y": 0,
-                            "width": viewport["width"],
-                            "height": viewport["height"],
-                        }
-                    ),
-                )
-            finally:
-                await context.close()
-    except PlaywrightError as exc:
-        logger.warning(f"Playwright 截图失败: {exc}")
-        raise RuntimeError(
-            "截图失败：Playwright/Chromium 运行异常。"
-            "请确认已执行 `python -m playwright install chromium`，并且当前环境允许启动浏览器。"
-        ) from exc
+    page_semaphore = await get_page_semaphore()
+    async with page_semaphore:
+        browser = await get_browser()
+        context = await browser.new_context(viewport=viewport)
+        try:
+            page = await context.new_page()
+            await page.goto(url, wait_until="networkidle", timeout=timeout_ms)
+            if wait_ms > 0:
+                await page.wait_for_timeout(wait_ms)
+            return await page.screenshot(
+                type="png",
+                full_page=full_page,
+                clip=(
+                    None
+                    if full_page
+                    else {
+                        "x": 0,
+                        "y": 0,
+                        "width": viewport["width"],
+                        "height": viewport["height"],
+                    }
+                ),
+            )
+        finally:
+            await context.close()
 
 
 async def capture_maimai_status_png(maimai_status_url: str) -> bytes:

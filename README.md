@@ -72,13 +72,15 @@
 
 3. 配置查分器开发者密钥，参考配置小节。
 
-4. 启动 Nonebot 项目并根据提示运行数据库迁移脚本
+4. 运行 `python -m playwright install chromium` 来安装 playwright 浏览器环境，用于模拟浏览器请求游戏资源和获取舞萌状态页截图
 
-5. 更新乐曲信息：使用 SUPERUSER 账号执行指令: `.update maisong` 和 `.alias update`
+5. 启动 Nonebot 项目并根据提示运行数据库迁移脚本
 
-6. （可选）如果需要支持乐曲标签，您需要自行获取来自 [DXRating](https://dxrating.net/search) 的 `combined_tags.json` 并放置在 `static` 文件夹中
+6. 更新乐曲信息：使用 SUPERUSER 账号执行指令: `.update maisong` 和 `.alias update`
 
-7. （可选）如果需要支持舞萌状态的获取，您需要自己搭建 Uptime kuma 服务或借助外部状态页
+7. （可选）如果需要支持乐曲标签，您需要自行获取来自 [DXRating](https://dxrating.net/search) 的 `combined_tags.json` 并放置在 `static` 文件夹中
+
+8. （可选）如果需要支持舞萌状态的获取，您需要自己搭建 Uptime kuma 服务或借助外部状态页
 
 ## 配置⚙️
 

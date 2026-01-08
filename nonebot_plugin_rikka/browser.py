@@ -3,6 +3,7 @@ from __future__ import annotations
 import asyncio
 
 from nonebot import get_driver, logger
+from playwright.async_api import async_playwright
 
 _driver = get_driver()
 
@@ -33,13 +34,6 @@ async def get_browser():
                 _browser = None
 
         logger.debug("启动 Chromium 浏览器以供 Playwright 使用...")
-
-        try:
-            from playwright.async_api import async_playwright
-        except Exception as exc:  # pragma: no cover
-            raise RuntimeError(
-                "缺少依赖 playwright，无法启动浏览器。请安装 playwright 并执行 `python -m playwright install chromium`。"
-            ) from exc
 
         if _playwright is None:
             _playwright = await async_playwright().start()

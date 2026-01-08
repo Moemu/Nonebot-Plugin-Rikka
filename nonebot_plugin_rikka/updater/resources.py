@@ -24,40 +24,27 @@ async def download_resource(
     if save_path.exists():
         return str(save_path.resolve())
 
-    try:
-        from playwright.async_api import Error as PlaywrightError
-    except Exception as exc:  # pragma: no cover
-        raise RuntimeError(
-            "缺少依赖 playwright，无法下载资源。请安装 playwright 并执行 `python -m playwright install chromium`。"
-        ) from exc
-
-    try:
-        page_semaphore = await get_page_semaphore()
-        async with page_semaphore:
-            browser = await get_browser()
-            context = await browser.new_context(
-                user_agent=USER_AGENT,
-                locale="zh-CN",
-                extra_http_headers={
-                    "Accept": "*/*",
-                    "Accept-Language": "zh-CN,zh;q=0.9",
-                },
-            )
-            try:
-                page = await context.new_page()
-                resp = await page.goto(url, wait_until="load", timeout=30_000)
-                if resp is None:
-                    raise RuntimeError("下载失败：浏览器未返回响应")
-                if resp.status >= 400:
-                    raise RuntimeError(f"下载失败：HTTP {resp.status}")
-                content = await resp.body()
-            finally:
-                await context.close()
-    except PlaywrightError as exc:
-        raise RuntimeError(
-            "下载失败：Playwright/Chromium 运行异常。"
-            "请确认已执行 `python -m playwright install chromium`，并且当前环境允许启动浏览器。"
-        ) from exc
+    page_semaphore = await get_page_semaphore()
+    async with page_semaphore:
+        browser = await get_browser()
+        context = await browser.new_context(
+            user_agent=USER_AGENT,
+            locale="zh-CN",
+            extra_http_headers={
+                "Accept": "*/*",
+                "Accept-Language": "zh-CN,zh;q=0.9",
+            },
+        )
+        try:
+            page = await context.new_page()
+            resp = await page.goto(url, wait_until="load", timeout=30_000)
+            if resp is None:
+                raise RuntimeError("下载失败：浏览器未返回响应")
+            if resp.status >= 400:
+                raise RuntimeError(f"下载失败：HTTP {resp.status}")
+            content = await resp.body()
+        finally:
+            await context.close()
 
     save_path.parent.mkdir(parents=True, exist_ok=True)
     with open(save_path, "wb") as f:
