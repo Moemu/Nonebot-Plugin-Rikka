@@ -6,7 +6,7 @@ from ..functions.recommend_songs import RecommendSong, RecommendSongs
 from ..score import PlayerMaiInfo, PlayerMaiScore
 from ._base import ScoreBaseImage
 from ._config import COVER_DIR, PIC_DIR
-from .utils import change_column_width, coloum_width
+from .utils import change_column_width, coloum_width, find_all_clear_rank
 
 
 class DrawScores(ScoreBaseImage):
@@ -56,7 +56,8 @@ class DrawScores(ScoreBaseImage):
         :param page_size: 每个页码展示的成绩长度
         :return: 绘制后的图片
         """
-        self.draw_profile(player_info)
+        all_clear_rank = find_all_clear_rank(scores)
+        self.draw_profile(player_info, all_clear_rank)
 
         # Draw title
         self._im.alpha_composite(self.title_lengthen_bg, (475, 200))

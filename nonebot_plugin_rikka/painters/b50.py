@@ -3,6 +3,7 @@ from PIL import Image
 from ..score import PlayerMaiB50, PlayerMaiInfo
 from ._base import ScoreBaseImage
 from ._config import PIC_DIR
+from .utils import find_all_clear_rank
 
 
 class DrawBest(ScoreBaseImage):
@@ -24,7 +25,8 @@ class DrawBest(ScoreBaseImage):
         :param best50: 玩家 Best 50 数据
         :return: 绘制完成的图片
         """
-        self.draw_profile(player_info)
+        all_clear_rank = find_all_clear_rank(best50.standard + best50.dx)
+        self.draw_profile(player_info, all_clear_rank)
 
         # Calculate sum of ratings
         sd_rating = sum([s.dx_rating for s in best50.standard])

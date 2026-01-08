@@ -1,8 +1,11 @@
 from io import BytesIO
 from pathlib import Path
-from typing import Tuple, Union
+from typing import Optional, Tuple, Union
 
 from PIL import Image, ImageDraw, ImageFont, ImageOps
+
+from ..score import PlayerMaiScore
+from ._config import PIC_DIR
 
 
 def get_char_width(o: int) -> int:
@@ -141,6 +144,34 @@ def rounded_corners(
     new_im = ImageOps.fit(image, mask.size)
     new_im.putalpha(mask)
     return new_im
+
+
+def find_all_clear_rank(scores: list[PlayerMaiScore]) -> Optional[Image.Image]:
+    """
+    获取最小达成率并返回其对应的 rank 图
+    """
+    if len(scores) < 50:
+        return None
+
+    min_ach = scores[0].achievements
+    for score in scores[1:]:
+        if score.achievements < min_ach:
+            min_ach = score.achievements
+
+    if min_ach < 97:
+        return None
+    elif min_ach < 98:
+        return Image.open(PIC_DIR / "UI_MSS_Allclear_Icon_S.png")
+    elif min_ach < 99:
+        return Image.open(PIC_DIR / "UI_MSS_Allclear_Icon_Sp.png")
+    elif min_ach < 99.5:
+        return Image.open(PIC_DIR / "UI_MSS_Allclear_Icon_SS.png")
+    elif min_ach < 100:
+        return Image.open(PIC_DIR / "UI_MSS_Allclear_Icon_SSp.png")
+    elif min_ach < 100.5:
+        return Image.open(PIC_DIR / "UI_MSS_Allclear_Icon_SSS.png")
+    else:
+        return Image.open(PIC_DIR / "UI_MSS_Allclear_Icon_SSSp.png")
 
 
 class DrawText:

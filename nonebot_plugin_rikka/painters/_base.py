@@ -102,12 +102,13 @@ class ScoreBaseImage:
             num = f"{course_rank + 1:02d}"
         return f"UI_DNM_DaniPlate_{num}.png"
 
-    def draw_profile(self, player_info: PlayerMaiInfo):
+    def draw_profile(self, player_info: PlayerMaiInfo, all_clear_rank: Optional[Image.Image] = None):
         """
         绘制 Profile 部分
 
         :param player_info: 玩家信息对象
         :type player_info: PlayerMaiInfo
+        :param all_clear_rank: 全部达成的成绩等级
         """
         logo = Image.open(PIC_DIR / "logo.png").resize((249, 120))
         dx_rating = Image.open(PIC_DIR / self._find_ra_pic(player_info.rating)).resize((186, 35))
@@ -150,6 +151,11 @@ class ScoreBaseImage:
         self._im.alpha_composite(class_level, (620, 60))
 
         self._sy.draw(445, 135, 25, player_info.name, (0, 0, 0, 255), "lm")
+
+        # All Clear Rank
+        if all_clear_rank:
+            # all_clear_rank = all_clear_rank.resize(())
+            self._im.alpha_composite(all_clear_rank, (1125, 50))
 
     def draw_footer(self):
         self._sy.draw(
