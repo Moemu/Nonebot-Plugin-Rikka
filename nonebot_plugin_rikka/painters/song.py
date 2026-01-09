@@ -112,13 +112,13 @@ def draw_music_info(song: MaiSong, scores: List[PlayerMaiScore]) -> Image.Image:
                 fc_str = FCL.get(score.fc.value, "")
                 if fc_str:
                     im.alpha_composite(
-                        Image.open(PIC_DIR / f"UI_CHR_PlayBonus_{fc_str}.png").resize((60, 60)), (732, 261 + y * num)
+                        Image.open(PIC_DIR / f"UI_CHR_PlayBonus_{fc_str}.png").resize((60, 60)), (732, 258 + y * num)
                     )
             if score.fs:
                 fs_str = FSL.get(score.fs.value, "")
                 if fs_str:
                     im.alpha_composite(
-                        Image.open(PIC_DIR / f"UI_CHR_PlayBonus_{fs_str}.png").resize((60, 60)), (780, 261 + y * num)
+                        Image.open(PIC_DIR / f"UI_CHR_PlayBonus_{fs_str}.png").resize((60, 60)), (780, 258 + y * num)
                     )
 
             im.alpha_composite(Image.open(PIC_DIR / "ra.png"), (1350, 400 + y * num))
@@ -131,6 +131,9 @@ def draw_music_info(song: MaiSong, scores: List[PlayerMaiScore]) -> Image.Image:
             tb.draw(510, 292 + y * num, 42, f"{score.achievements:.4f}%", default_color, "lm")
             tb.draw(685, 248 + y * num, 25, f"{diff.level_value}", (255, 255, 255, 255), "mm")
             tb.draw(915, 283 + y * num, 18, f"{score.dx_rating}", default_color, "mm")
+
+            if score.play_count:
+                tb.draw(750, 243 + y * num, 22, f"Play Count: {score.play_count}", default_color, "lm")
 
         else:
             tb.draw(685, 248 + y * num, 25, f"{diff.level_value}", (255, 255, 255, 255), "mm")
