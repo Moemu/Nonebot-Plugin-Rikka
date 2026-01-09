@@ -2,6 +2,7 @@ from typing import List, Optional
 
 from PIL import Image, ImageDraw
 
+from ..config import config
 from ..database.crud import MaiSongORM
 from ..score import PlayerMaiInfo, PlayerMaiScore
 from ._config import (
@@ -47,18 +48,18 @@ class ScoreBaseImage:
         :param image: 可选的 PIL Image 对象，如果提供则在其上绘图
         """
         self._diff = [
-            Image.open(PIC_DIR / "b50_score_basic.png"),
-            Image.open(PIC_DIR / "b50_score_advanced.png"),
-            Image.open(PIC_DIR / "b50_score_expert.png"),
-            Image.open(PIC_DIR / "b50_score_master.png"),
-            Image.open(PIC_DIR / "b50_score_remaster.png"),
+            self._with_opacity(Image.open(PIC_DIR / "b50_score_basic.png")),
+            self._with_opacity(Image.open(PIC_DIR / "b50_score_advanced.png")),
+            self._with_opacity(Image.open(PIC_DIR / "b50_score_expert.png")),
+            self._with_opacity(Image.open(PIC_DIR / "b50_score_master.png")),
+            self._with_opacity(Image.open(PIC_DIR / "b50_score_remaster.png")),
         ]
         self.title_lengthen_bg = Image.open(PIC_DIR / "title-lengthen.png")
         self.design_bg = Image.open(PIC_DIR / "design.png")
         self.id_diff = [Image.new("RGBA", (55, 10), color) for color in self.bg_color]
 
-        image = image or Image.open(PIC_DIR / "b50_bg.png").convert("RGBA")
-        self._im = image
+        bg_path = config.scorelist_bg or PIC_DIR / "b50_bg.png"
+        self._im = image or Image.open(bg_path).convert("RGBA").resize((1400, 1600))
         dr = ImageDraw.Draw(self._im)
         self._sy = DrawText(dr, FONT_MAIN)
         self._tb = DrawText(dr, FONT_NUM)
@@ -110,11 +111,21 @@ class ScoreBaseImage:
         :type player_info: PlayerMaiInfo
         :param all_clear_rank: 全部达成的成绩等级
         """
-        logo = Image.open(PIC_DIR / "logo.png").resize((249, 120))
-        dx_rating = Image.open(PIC_DIR / self._find_ra_pic(player_info.rating)).resize((186, 35))
-        name_img = Image.open(PIC_DIR / "Name.png")
-        match_level = Image.open(PIC_DIR / self._find_match_level(player_info.course_rank)).resize((80, 32))
-        class_level = Image.open(PIC_DIR / f"UI_FBR_Class_{player_info.class_rank:02d}.png").resize((90, 54))
+        logo = self._with_opacity(
+            Image.open(PIC_DIR / "logo.png").resize((249, 120)),
+        )
+        dx_rating = self._with_opacity(
+            Image.open(PIC_DIR / self._find_ra_pic(player_info.rating)).resize((186, 35)),
+        )
+        name_img = self._with_opacity(
+            Image.open(PIC_DIR / "Name.png"),
+        )
+        match_level = self._with_opacity(
+            Image.open(PIC_DIR / self._find_match_level(player_info.course_rank)).resize((80, 32)),
+        )
+        class_level = self._with_opacity(
+            Image.open(PIC_DIR / f"UI_FBR_Class_{player_info.class_rank:02d}.png").resize((90, 54)),
+        )
 
         self._im.alpha_composite(logo, (14, 60))
 
@@ -127,6 +138,7 @@ class ScoreBaseImage:
                 plate = Image.open(PIC_DIR / "UI_Plate_300501.png").resize((800, 130))
         else:
             plate = Image.open(PIC_DIR / "UI_Plate_300501.png").resize((800, 130))
+        plate = self._with_opacity(plate)
         self._im.alpha_composite(plate, (300, 60))
 
         # Icon
@@ -138,14 +150,16 @@ class ScoreBaseImage:
                 icon = Image.open(PIC_DIR / "UI_Icon_309503.png").resize((120, 120))
         else:
             icon = Image.open(PIC_DIR / "UI_Icon_309503.png").resize((120, 120))
+        icon = self._with_opacity(icon)
         self._im.alpha_composite(icon, (305, 65))
 
         self._im.alpha_composite(dx_rating, (435, 72))
         rating_str = f"{player_info.rating:05d}"
         for n, i in enumerate(rating_str):
-            self._im.alpha_composite(
-                Image.open(PIC_DIR / f"UI_NUM_Drating_{i}.png").resize((17, 20)), (520 + 15 * n, 80)
+            digit = self._with_opacity(
+                Image.open(PIC_DIR / f"UI_NUM_Drating_{i}.png").resize((17, 20)),
             )
+            self._im.alpha_composite(digit, (520 + 15 * n, 80))
         self._im.alpha_composite(name_img, (435, 115))
         self._im.alpha_composite(match_level, (625, 120))
         self._im.alpha_composite(class_level, (620, 60))
@@ -155,7 +169,32 @@ class ScoreBaseImage:
         # All Clear Rank
         if all_clear_rank:
             # all_clear_rank = all_clear_rank.resize(())
-            self._im.alpha_composite(all_clear_rank, (1125, 50))
+            self._im.alpha_composite(
+                self._with_opacity(all_clear_rank),
+                (1125, 50),
+            )
+
+    @staticmethod
+    def _with_opacity(img: Image.Image, opacity: float = config.scorelist_element_opacity) -> Image.Image:
+        """Return a copy of image with its alpha multiplied by opacity (0.0~1.0)."""
+
+        if opacity is None:
+            opacity = 1.0
+        if opacity >= 0.999:
+            return img.convert("RGBA") if img.mode != "RGBA" else img
+
+        opacity = max(0.0, min(1.0, float(opacity)))
+        rgba = img.convert("RGBA")
+        if opacity <= 0.0:
+            out = rgba.copy()
+            out.putalpha(0)
+            return out
+
+        r, g, b, a = rgba.split()
+        a = a.point(lambda p: int(p * opacity))
+        out = rgba.copy()
+        out.putalpha(a)
+        return out
 
     def draw_footer(self):
         self._sy.draw(

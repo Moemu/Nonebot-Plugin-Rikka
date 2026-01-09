@@ -15,7 +15,7 @@ class DrawBest(ScoreBaseImage):
         """
         初始化 DrawBest
         """
-        super().__init__(Image.open(PIC_DIR / "b50_bg.png").convert("RGBA"))
+        super().__init__()
 
     def draw(self, player_info: PlayerMaiInfo, best50: PlayerMaiB50) -> Image.Image:
         """

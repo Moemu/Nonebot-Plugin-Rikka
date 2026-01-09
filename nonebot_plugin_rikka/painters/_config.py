@@ -18,8 +18,10 @@ ICON_DIR = MAI_DIR / "icon"
 
 # Fonts
 # Adjust these paths if necessary based on your actual font files
-FONT_MAIN = STATIC_DIR / "ResourceHanRoundedCN-Bold.ttf"
-FONT_NUM = STATIC_DIR / "Torus SemiBold.otf"
+FONT_MAIN = (
+    STATIC_DIR / "ResourceHanRoundedCN-Bold.ttf" if not config.scorelist_font_main else Path(config.scorelist_font_main)
+)
+FONT_NUM = STATIC_DIR / "Torus SemiBold.otf" if not config.scorelist_font_num else Path(config.scorelist_font_num)
 
 # Colors
 TEXT_COLOR = (124, 129, 255, 255)
