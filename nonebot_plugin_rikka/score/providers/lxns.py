@@ -25,6 +25,13 @@ class LXNSBest50Response(TypedDict):
     dx: list[dict]
 
 
+class LXNSRatingTrend(TypedDict):
+    total: int
+    standard_total: int
+    dx_total: int
+    date: str
+
+
 @dataclass
 class LXNSParams:
     friend_code: Optional[str] = None
@@ -200,3 +207,14 @@ class LXNSScoreProvider(BaseScoreProvider[LXNSParams]):
             scores.append(score)
 
         return scores
+
+    async def fetch_player_trend(self, friend_code: str) -> list[LXNSRatingTrend]:
+        """
+        获取玩家 DX Rating 趋势
+        """
+        endpoint = f"{friend_code}/trend"
+
+        response = await self._get_resp(endpoint, self._developer_api_key)
+        data: list[LXNSRatingTrend] = response.get("data", response)
+
+        return data

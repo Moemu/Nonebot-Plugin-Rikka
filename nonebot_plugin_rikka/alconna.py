@@ -33,7 +33,12 @@ from .functions.maistatus import capture_maimai_status_png
 from .functions.n50 import get_players_n50
 from .functions.recommend_songs import get_player_raise_score_songs
 from .functions.song_tags import SONG_TAGS_DATA_AVAILABLE, get_songs_tags
-from .painters import DrawScores, draw_player_strength_analysis, image_to_bytes
+from .painters import (
+    DrawScores,
+    draw_player_rating_trend,
+    draw_player_strength_analysis,
+    image_to_bytes,
+)
 from .renderer import PicRenderer
 from .score import (
     DivingFishScoreProvider,
@@ -256,6 +261,17 @@ alconna_analysis = on_alconna(
         meta=CommandMeta("[舞萌DX]根据 B100 获取玩家成分"),
     ),
     aliases={"底力分析", "成分分析"},
+    priority=10,
+    block=True,
+    rule=to_me(),
+)
+
+alconna_trend = on_alconna(
+    Alconna(
+        COMMAND_PREFIXES,
+        "trend",
+        meta=CommandMeta("[舞萌DX]生成玩家 DX Rating 趋势（需绑定落雪查分器）"),
+    ),
     priority=10,
     block=True,
     rule=to_me(),
@@ -1266,6 +1282,69 @@ async def handle_analysis(
 
     logger.debug(f"[{user_id}] 4/4 渲染玩家数据...")
     pic = draw_player_strength_analysis(player_strength)
+    byte = image_to_bytes(pic)
+
+    await UniMessage([At(flag="user", target=user_id), UniImage(raw=byte)]).finish()
+
+
+@alconna_trend.handle()
+@catch_exception()
+async def handle_trend(
+    db_session: async_scoped_session,
+    event: Event,
+    score_provider: LXNSScoreProvider = Depends(get_lxns_provider),
+):
+    user_id = event.get_user_id()
+
+    logger.info(f"[{user_id}] 获取玩家 Rating 趋势, 查分器类型: {type(score_provider)}")
+    logger.debug(f"[{user_id}] 1/3 获得用户鉴权凭证...")
+
+    user_bind_info = await UserBindInfoORM.get_user_bind_info(db_session, user_id)
+
+    new_player_friend_code = None
+    if user_bind_info is None:
+        logger.warning(f"[{user_id}] 未能获取玩家码，数据库中不存在绑定的玩家数据")
+        logger.debug(f"[{user_id}] 1/3 尝试通过 QQ 请求玩家数据")
+        try:
+            player_info = await score_provider.fetch_player_info_by_qq(user_id)
+            new_player_friend_code = player_info.friend_code
+        except ClientResponseError as e:
+            logger.warning(f"[{user_id}] 无法通过 QQ 号请求玩家数据: {e.code}: {e.message}")
+
+            await UniMessage(
+                [
+                    At(flag="user", target=user_id),
+                    "查询 Rating 趋势的操作需要绑定落雪查分器喵，还请使用 /bind 指令进行绑定喵呜",
+                ]
+            ).finish()
+
+            return
+
+    friend_code = new_player_friend_code or user_bind_info.friend_code  # type:ignore
+    if not friend_code:
+        logger.warning(f"[{user_id}] 无法获取好友码，无法继续查询。")
+        await UniMessage(
+            [
+                At(flag="user", target=user_id),
+                "无法获取好友码，请确认已绑定或查分器可用。",
+            ]
+        ).finish()
+        return
+
+    logger.debug(f"[{user_id}] 2/3 发起 API 请求玩家 Trend 趋势")
+
+    trends = await score_provider.fetch_player_trend(friend_code)
+
+    if len(trends) < 5:
+        await UniMessage(
+            [
+                At(flag="user", target=user_id),
+                "玩家 Rating 记录数据太少，无法进行渲染",
+            ]
+        ).finish()
+
+    logger.debug(f"[{user_id}] 3/3 渲染玩家数据...")
+    pic = draw_player_rating_trend(trends)
     byte = image_to_bytes(pic)
 
     await UniMessage([At(flag="user", target=user_id), UniImage(raw=byte)]).finish()
