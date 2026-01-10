@@ -34,7 +34,7 @@ class Config(BaseModel):
     """成绩图默认文字颜色"""
     scorelist_font_num: Optional[str] = None
     """成绩图数字字体文件"""
-    scorelist_element_opacity: float = Field(1.0, le=0.0, ge=1.0)
+    scorelist_element_opacity: float = Field(1.0, le=1.0, ge=0.0)
     """成绩图元素不透明度"""
 
     @field_validator("static_resource_path")
