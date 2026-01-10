@@ -168,7 +168,7 @@ async def update_song_alias_list(db_session: async_scoped_session):
 
 async def update_song_database(db_session: async_scoped_session) -> int:
     """
-    通关落雪查分器更新曲目数据库
+    通过落雪查分器更新曲目数据库
 
     :param db_session: 数据库会话对象
     :type db_session: async_scoped_session
