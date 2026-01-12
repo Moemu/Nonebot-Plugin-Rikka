@@ -1,5 +1,7 @@
+import re
 from functools import wraps
 from pathlib import Path
+from random import choice
 from time import perf_counter
 from traceback import format_exc
 from typing import Literal
@@ -33,6 +35,7 @@ from .functions.maistatus import capture_maimai_status_png
 from .functions.n50 import get_players_n50
 from .functions.recommend_songs import get_player_raise_score_songs
 from .functions.song_tags import SONG_TAGS_DATA_AVAILABLE, get_songs_tags
+from .models.song import MaiSong
 from .painters import (
     DrawScores,
     draw_player_rating_trend,
@@ -53,6 +56,91 @@ from .updater.songs import update_song_alias_list
 from .utils import get_song_by_id_or_alias, is_float
 
 renderer = PicRenderer()
+
+
+def _build_song_info_message(user_id: str, song: MaiSong) -> UniMessage:
+    """Reuseable builder for song info replies."""
+
+    song_cover = Path(config.static_resource_path) / "mai" / "cover" / f"{song.id}.png"
+
+    if not song_cover.exists():
+        dx_song_id = song.id + 10000  # DX 版封面
+        dx_cover = Path(config.static_resource_path) / "mai" / "cover" / f"{dx_song_id}.png"
+        if not dx_cover.exists():
+            logger.warning(f"未找到乐曲 {song.id} 的封面图片")
+            dx_cover = Path(config.static_resource_path) / "mai" / "cover" / "0.png"
+
+    response_difficulties_content = []
+
+    if song.difficulties.standard:
+        std_diffs = "/".join([str(diff.level_value) for diff in song.difficulties.standard])
+        response_difficulties_content.append(f"定数: {std_diffs}")
+
+        if song.difficulties.standard[0].level_fit is not None:
+            fit_diffs = "/".join(
+                [
+                    "{:.2f}".format(diff.level_fit) if diff.level_fit is not None else f"{diff.level}"
+                    for diff in song.difficulties.standard
+                ]
+            )
+            response_difficulties_content.append(f"拟合定数: {fit_diffs}")
+
+        if SONG_TAGS_DATA_AVAILABLE:
+            song_tags_content = []
+            tags_expert = get_songs_tags(song.title, "std", "expert")
+            tags_master = get_songs_tags(song.title, "std", "master")
+            if tags_expert:
+                song_tags_content.append(f"{', '.join(tags_expert)}(Expert)")
+            if tags_master:
+                song_tags_content.append(f"{', '.join(tags_master)}(Master)")
+            if len(song.difficulties.standard) == 5:
+                tags_remaster = get_songs_tags(song.title, "std", "remaster")
+                song_tags_content.append(f"{', '.join(tags_remaster)}(Re:master)" if tags_remaster else "")
+            if song_tags_content:
+                response_difficulties_content.append("铺面标签: " + "; ".join(song_tags_content))
+
+    if song.difficulties.dx:
+        dx_diffs = "/".join([str(diff.level_value) for diff in song.difficulties.dx])
+        response_difficulties_content.append(f"定数(DX): {dx_diffs}")
+
+        if song.difficulties.dx[0].level_fit is not None:
+            fit_diffs = "/".join(
+                [
+                    "{:.2f}".format(diff.level_fit) if diff.level_fit is not None else f"{diff.level}"
+                    for diff in song.difficulties.dx
+                ]
+            )
+            response_difficulties_content.append(f"拟合定数(DX): {fit_diffs}")
+
+        if SONG_TAGS_DATA_AVAILABLE:
+            song_tags_content = []
+            tags_expert = get_songs_tags(song.title, "dx", "expert")
+            tags_master = get_songs_tags(song.title, "dx", "master")
+            if tags_expert:
+                song_tags_content.append(f"{', '.join(tags_expert)}(Expert)")
+            if tags_master:
+                song_tags_content.append(f"{', '.join(tags_master)}(Master)")
+            if len(song.difficulties.dx) == 5:
+                tags_remaster = get_songs_tags(song.title, "dx", "remaster")
+                song_tags_content.append(f"{', '.join(tags_remaster)}(Re:master)" if tags_remaster else "")
+            if song_tags_content:
+                response_difficulties_content.append("铺面标签(DX): " + "; ".join(song_tags_content))
+
+    return UniMessage(
+        [
+            At(flag="user", target=user_id),
+            UniImage(path=song_cover),
+            _MAI_SONG_INFO_TEMPLATE.format(
+                title=song.title,
+                id=song.id,
+                artist=song.artist,
+                genre=song.genre,
+                bpm=song.bpm,
+                version=_MAI_VERSION_MAP.get(song.version // 100, "未知版本"),
+            ),
+            "\n".join(response_difficulties_content),
+        ]
+    )
 
 
 def catch_exception(reply_prefix: str = "发生了未知错误", reply_error: bool = True):
@@ -82,6 +170,8 @@ _MAI_SONG_INFO_TEMPLATE = """[舞萌DX] 乐曲信息
 BPM: {bpm}
 版本: {version}
 """
+
+_DIFFICULTY_VALUE_MAP = {"BASIC": 0, "ADVANCED": 1, "EXPERT": 2, "MASTER": 3, "REMASTER": 4, "RE:MASTER": 4}
 
 alconna_help = on_alconna(
     Alconna(
@@ -179,6 +269,19 @@ alconna_minfo = on_alconna(
         Args["name", AllParam(str)],
         meta=CommandMeta("[舞萌DX]获取乐曲信息", usage=".minfo <id|别名>"),
     ),
+    priority=10,
+    block=True,
+    rule=to_me(),
+)
+
+alconna_random = on_alconna(
+    Alconna(
+        COMMAND_PREFIXES,
+        "random",
+        Args["filters", AllParam(str)],
+        meta=CommandMeta("[舞萌DX]随机抽取乐曲", usage=".random [难度] [等级|定数]"),
+    ),
+    aliases={"随机乐曲", "随"},
     priority=10,
     block=True,
     rule=to_me(),
@@ -327,6 +430,7 @@ async def handle_help(event: Event):
         ".r50 获取玩家 Recent 50 (需绑定落雪查分器)\n"
         ".n50 获取玩家拟合系数 Top-50"
         f".pc50 生成玩家游玩次数 Top50 （{'当前不可用' if not config.enable_arcade_provider else '需绑定游戏账号'})\n"
+        ".random 随机获取一首乐曲（可选难度、等级、定数）\n"
         ".minfo <乐曲ID/别名> 获取乐曲信息\n"
         ".alias 管理乐曲别名（添加、查询、更新）\n"
         ".score <乐曲ID/别名> 获取单曲游玩情况\n"
@@ -834,93 +938,105 @@ async def handle_minfo(
         await UniMessage([At(flag="user", target=user_id), str(e)]).finish()
         return
 
-    logger.debug(f"[{user_id}] 2/4 获取乐曲封面...")
-    song_cover = Path(config.static_resource_path) / "mai" / "cover" / f"{song.id}.png"
-
-    if not song_cover.exists():
-        dx_song_id = song.id + 10000  # DX 版封面
-        song_cover = Path(config.static_resource_path) / "mai" / "cover" / f"{dx_song_id}.png"
-        if not song_cover.exists():
-            logger.warning(f"未找到乐曲 {song.id} 的封面图片")
-            song_cover = Path(config.static_resource_path) / "mai" / "cover" / "0.png"
-
-    logger.debug(f"[{user_id}] 3/4 获取定数信息...")
-
-    response_difficulties_content = []
-
-    if song.difficulties.standard:
-        std_diffs = "/".join([str(diff.level_value) for diff in song.difficulties.standard])
-        response_difficulties_content.append(f"定数: {std_diffs}")
-
-        if song.difficulties.standard[0].level_fit is not None:
-            fit_diffs = "/".join(
-                [
-                    "{:.2f}".format(diff.level_fit) if diff.level_fit is not None else f"{diff.level}"
-                    for diff in song.difficulties.standard
-                ]
-            )
-            response_difficulties_content.append(f"拟合定数: {fit_diffs}")
-
-        if SONG_TAGS_DATA_AVAILABLE:
-            song_tags_content = []
-            tags_expert = get_songs_tags(song.title, "std", "expert")
-            tags_master = get_songs_tags(song.title, "std", "master")
-            if tags_expert:
-                song_tags_content.append(f"{', '.join(tags_expert)}(Expert)")
-            if tags_master:
-                song_tags_content.append(f"{', '.join(tags_master)}(Master)")
-            if len(song.difficulties.standard) == 5:
-                tags_remaster = get_songs_tags(song.title, "std", "remaster")
-                song_tags_content.append(f"{', '.join(tags_remaster)}(Re:master)" if tags_remaster else "")
-            if song_tags_content:
-                response_difficulties_content.append("铺面标签: " + "; ".join(song_tags_content))
-
-    if song.difficulties.dx:
-        dx_diffs = "/".join([str(diff.level_value) for diff in song.difficulties.dx])
-        response_difficulties_content.append(f"定数(DX): {dx_diffs}")
-
-        if song.difficulties.dx[0].level_fit is not None:
-            fit_diffs = "/".join(
-                [
-                    "{:.2f}".format(diff.level_fit) if diff.level_fit is not None else f"{diff.level}"
-                    for diff in song.difficulties.dx
-                ]
-            )
-            response_difficulties_content.append(f"拟合定数(DX): {fit_diffs}")
-
-        if SONG_TAGS_DATA_AVAILABLE:
-            song_tags_content = []
-            tags_expert = get_songs_tags(song.title, "dx", "expert")
-            tags_master = get_songs_tags(song.title, "dx", "master")
-            if tags_expert:
-                song_tags_content.append(f"{', '.join(tags_expert)}(Expert)")
-            if tags_master:
-                song_tags_content.append(f"{', '.join(tags_master)}(Master)")
-            if len(song.difficulties.dx) == 5:
-                tags_remaster = get_songs_tags(song.title, "dx", "remaster")
-                song_tags_content.append(f"{', '.join(tags_remaster)}(Re:master)" if tags_remaster else "")
-            if song_tags_content:
-                response_difficulties_content.append("铺面标签(DX): " + "; ".join(song_tags_content))
-
-    logger.debug(f"[{user_id}] 4/4 构建乐曲信息模板...")
-
-    response_content = UniMessage(
-        [
-            At(flag="user", target=user_id),
-            UniImage(path=song_cover),
-            _MAI_SONG_INFO_TEMPLATE.format(
-                title=song.title,
-                id=song.id,
-                artist=song.artist,
-                genre=song.genre,
-                bpm=song.bpm,
-                version=_MAI_VERSION_MAP.get(song.version // 100, "未知版本"),
-            ),
-            "\n".join(response_difficulties_content),
-        ]
-    )
+    logger.debug(f"[{user_id}] 2/2 构建乐曲信息模板...")
+    response_content = _build_song_info_message(user_id, song)
 
     await response_content.finish()
+
+
+@alconna_random.handle()
+@catch_exception()
+async def handle_random(
+    event: Event,
+    db_session: async_scoped_session,
+    filters: Match[UniMessage] = AlconnaMatch("filters"),
+):
+    user_id = event.get_user_id()
+
+    raw_filters = filters.result.extract_plain_text().strip() if filters.available else ""
+    tokens = [tok for tok in raw_filters.split() if tok]
+
+    if len(tokens) > 2:
+        await UniMessage([At(flag="user", target=user_id), "参数过多，最多填写难度与等级/定数两个条件哦~"]).finish()
+        return
+
+    diff_value = None
+    diff_name = None
+    level_value = None
+    level_const = None
+    invalid_tokens: list[str] = []
+
+    for tok in tokens:
+        up_tok = tok.upper()
+        up_tok = "REMASTER" if up_tok == "RE:MASTER" else up_tok
+        if up_tok in _DIFFICULTY_VALUE_MAP:
+            if diff_value is not None:
+                invalid_tokens.append(tok)
+                continue
+            diff_value = _DIFFICULTY_VALUE_MAP[up_tok]
+            diff_name = up_tok
+            continue
+
+        if re.fullmatch(r"\d+\+?", tok):
+            if level_value is not None:
+                invalid_tokens.append(tok)
+                continue
+            level_value = tok
+            continue
+
+        if "." in tok and re.fullmatch(r"\d+(?:\.\d+)?", tok):
+            if level_const is not None:
+                invalid_tokens.append(tok)
+                continue
+            try:
+                level_const = float(tok)
+            except ValueError:
+                invalid_tokens.append(tok)
+            continue
+
+        invalid_tokens.append(tok)
+
+    if invalid_tokens:
+        await UniMessage(
+            [
+                At(flag="user", target=user_id),
+                f"以下参数无法识别: {' '.join(invalid_tokens)}，请使用难度(BASIC~RE:MASTER)、等级(如12+)或定数(如12.7)重试~",
+            ]
+        ).finish()
+        return
+
+    logger.info(f"[{user_id}] 随机抽取乐曲, 条件 diff={diff_name}, level={level_value}, const={level_const}")
+
+    song_ids = await MaiSongORM.get_all_song_ids(db_session)
+    songs = await MaiSongORM.get_songs_info_by_ids(db_session, list(song_ids))
+
+    def match_song(song: MaiSong) -> bool:
+        candidates = list(song.difficulties.standard) + list(song.difficulties.dx)
+        for d in candidates:
+            if diff_value is not None and d.difficulty != diff_value:
+                continue
+            if level_value and d.level != level_value:
+                continue
+            if level_const is not None and abs(d.level_value - level_const) > 1e-6:
+                continue
+            return True
+        return False
+
+    filtered_songs = [s for s in songs if match_song(s)]
+
+    if not filtered_songs:
+        await UniMessage(
+            [
+                At(flag="user", target=user_id),
+                "未找到符合条件的乐曲喵，试试放宽条件再来一次吧~",
+            ]
+        ).finish()
+        return
+
+    song = choice(filtered_songs)
+    response = _build_song_info_message(user_id, song)
+
+    await response.finish()
 
 
 @alconna_alias.assign("update")
