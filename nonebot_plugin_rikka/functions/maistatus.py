@@ -13,7 +13,7 @@ class Viewport(TypedDict):
 async def capture_webpage_png(
     url: str,
     *,
-    viewport: Viewport | None = None,
+    viewport: Viewport = Viewport(width=1400, height=900),
     full_page: bool = True,
     timeout_ms: int = 30_000,
     wait_ms: int = 500,
@@ -27,8 +27,6 @@ async def capture_webpage_png(
     """
     if not url.startswith("http://") and not url.startswith("https://"):
         raise ValueError("url 必须以 http:// 或 https:// 开头")
-
-    viewport = viewport or {"width": 1400, "height": 900}
 
     page_semaphore = await get_page_semaphore()
     async with page_semaphore:
@@ -62,7 +60,7 @@ async def capture_maimai_status_png(maimai_status_url: str) -> bytes:
 
     return await capture_webpage_png(
         maimai_status_url,
-        viewport={"width": 1200, "height": 750},
+        viewport={"width": 1200, "height": 850},
         full_page=False,
         timeout_ms=20_000,
         wait_ms=800,
