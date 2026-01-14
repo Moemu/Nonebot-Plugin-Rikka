@@ -29,6 +29,7 @@ from nonebot_plugin_orm import async_scoped_session
 from .config import config
 from .constants import _MAI_VERSION_MAP
 from .database import MaiSongAliasORM, MaiSongORM, UserBindInfoORM
+from .extra_proxy import ExtraNotInstalledError, get_maistatus
 from .functions.analysis import get_player_strength
 from .functions.fortunate import generate_today_fortune
 from .functions.maistatus import capture_maimai_status_png
@@ -430,7 +431,7 @@ alconna_maistatus = on_alconna(
     Alconna(
         COMMAND_PREFIXES,
         "maistatus",
-        meta=CommandMeta("[舞萌DX]获取舞萌状态页截图", usage=".maistatus"),
+        meta=CommandMeta("[舞萌DX]检测服务器状态（可选渲染状态页截图）", usage=".maistatus"),
     ),
     aliases={"舞萌状态"},
     priority=10,
@@ -473,7 +474,7 @@ async def handle_help(event: Event):
         ".update alias 更新乐曲别名列表\n"
         f".成分分析 根据 B100 获取玩家成分分析 {'(当前不可用)' if not SONG_TAGS_DATA_AVAILABLE else ''}\n"
         ".今日舞萌 获取今日出勤运势\n"
-        f".舞萌状态 获取舞萌状态页截图 {'(当前不可用)' if not config.maistatus_url else ''}\n"
+        ".舞萌状态 检测服务器状态\n"
         f".推分推荐 生成随机推分曲目 {'(当前不可用)' if not SONG_TAGS_DATA_AVAILABLE else ''}\n"
     )
 
@@ -1652,24 +1653,35 @@ async def handle_recommend(
 
 
 @alconna_maistatus.handle()
-@catch_exception(reply_prefix="获取状态截图失败")
+@catch_exception(reply_prefix="获取舞萌状态失败")
 async def handle_maistatus(event: Event):
     user_id = event.get_user_id()
 
-    if config.maistatus_url is None:
-        await UniMessage(
-            [
-                At(flag="user", target=user_id),
-                "管理员未配置舞萌状态截图地址，无法使用此功能喵",
-            ]
-        ).finish()
+    logger.debug("正在获取舞萌服务器状态...")
+    try:
+        status_text = await get_maistatus()
+    except ExtraNotInstalledError:
+        status_text = "未安装 nonebot-plugin-rikka-extra，无法检测服务器状态。请联系管理员安装该插件以启用此功能。"
+        await UniMessage([At(flag="user", target=user_id), status_text]).finish()
+        return
+    except Exception as e:
+        status_text = f"服务器状态检测失败：{e}"
+
+    await UniMessage([At(flag="user", target=user_id), status_text]).send()
+
+    if not config.maistatus_url:
         return
 
-    logger.info("正在尝试获取舞萌状态截图...")
-    st = perf_counter()
-    png = await capture_maimai_status_png(config.maistatus_url)
-    et = perf_counter()
-    render_time_message = f"渲染用时 {et - st:.2f} 秒"
+    logger.debug("正在尝试获取舞萌状态截图...")
+    try:
+        st = perf_counter()
+        png = await capture_maimai_status_png(config.maistatus_url)
+        et = perf_counter()
+        render_time_message = f"渲染用时 {et - st:.2f} 秒"
+    except Exception as e:
+        await UniMessage([At(flag="user", target=user_id), f"状态页截图渲染失败：{e}"]).finish()
+        return
+
     await UniMessage([At(flag="user", target=user_id), UniImage(raw=png), render_time_message]).finish()
 
 
