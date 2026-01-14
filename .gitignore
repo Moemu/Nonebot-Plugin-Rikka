@@ -155,5 +155,5 @@ yarn-error.log
 # Nonebot
 
 bot.py
-nonebot_plugin_rikka_extra
+nonebot-plugin-rikka-extra
 test_server_status.py

@@ -14,8 +14,9 @@ dependencies = [
     "pillow>=11.3.0",
     "playwright>=1.41.0",
     "async-lru>=2.0.5",
-    "numpy>=2.0.2",
+    "numpy>=1.26,<2.4",
     "matplotlib>=3.9.4",
+    "nonebot-plugin-rikka-extra>=0.1.3",
 ]
 
 [project.optional-dependencies]
