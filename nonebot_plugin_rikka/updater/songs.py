@@ -200,3 +200,19 @@ async def update_song_database(db_session: async_scoped_session) -> int:
     await MaiSongORM.save_song_info_batch(db_session, songs_obj)
 
     return len(songs_obj)
+
+
+async def get_plate_data() -> dict:
+    """
+    获取牌子数据
+    """
+    _BASE_URL = "https://www.yuzuchan.moe/api/maimaidx/maimaidxplate"
+
+    async with ClientSession() as session:
+        async with session.get(_BASE_URL, headers={"User-Agent": USER_AGENT}) as resp:
+            resp.raise_for_status()
+            content = await resp.json()
+
+    data = content["content"]
+
+    return data

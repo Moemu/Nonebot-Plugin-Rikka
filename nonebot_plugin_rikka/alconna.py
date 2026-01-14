@@ -33,6 +33,11 @@ from .functions.analysis import get_player_strength
 from .functions.fortunate import generate_today_fortune
 from .functions.maistatus import capture_maimai_status_png
 from .functions.n50 import get_players_n50
+from .functions.process import (
+    ProcessDataError,
+    get_level_process_data,
+    get_plate_process_data,
+)
 from .functions.recommend_songs import get_player_raise_score_songs
 from .functions.song_tags import SONG_TAGS_DATA_AVAILABLE, get_songs_tags
 from .models.song import MaiSong
@@ -42,6 +47,7 @@ from .painters import (
     draw_player_strength_analysis,
     image_to_bytes,
 )
+from .painters.process import ProcessPainter
 from .renderer import PicRenderer
 from .score import (
     DivingFishScoreProvider,
@@ -326,6 +332,34 @@ alconna_scorelist = on_alconna(
         ),
     ),
     aliases={"scoreslist"},
+    priority=10,
+    block=True,
+    rule=to_me(),
+)
+
+alconna_plate_process = on_alconna(
+    Alconna(
+        COMMAND_PREFIXES,
+        r"re:([真超檄橙暁晓桃櫻樱紫菫堇白雪輝辉舞霸熊華华爽煌星宙祭祝双宴镜彩])([極极将舞神者]舞?)进度\s?(.+)?",
+        meta=CommandMeta(
+            "[舞萌DX]牌子进度",
+            usage=".真极进度 / .熊将进度 难 / .紫舞舞进度",
+        ),
+    ),
+    priority=10,
+    block=True,
+    rule=to_me(),
+)
+
+alconna_level_process = on_alconna(
+    Alconna(
+        COMMAND_PREFIXES,
+        r"re:([0-9]+\+?)\s?([abcdsfxp\+]+)\s?([\u4e00-\u9fa5]+)?进度\s?([0-9]+)?\s?(.+)?",
+        meta=CommandMeta(
+            "[舞萌DX]等级进度",
+            usage=".13+ sss 进度 / .14 ap 进度",
+        ),
+    ),
     priority=10,
     block=True,
     rule=to_me(),
@@ -1289,6 +1323,115 @@ async def handle_scorelist(
     pic = await renderer.render_mai_player_scores(scores[:50], player_info, title)
 
     await UniMessage([At(flag="user", target=user_id), UniImage(raw=pic)]).finish()
+
+
+@alconna_plate_process.handle()
+@catch_exception()
+async def handle_plate_process(
+    event: Event,
+    db_session: async_scoped_session,
+    score_provider: MaimaiPyScoreProvider = Depends(get_maimaipy_provider),
+):
+    user_id = event.get_user_id()
+
+    raw_text = event.get_plaintext().strip()
+    for p in COMMAND_PREFIXES:
+        if raw_text.startswith(p):
+            raw_text = raw_text[len(p) :]
+            break
+
+    m = re.match(
+        r"^([真超檄橙暁晓桃櫻樱紫菫堇白雪輝辉舞霸熊華华爽煌星宙祭祝双宴镜彩])([極极将舞神者]舞?)进度\s?(.+)?$",
+        raw_text,
+    )
+    if not m:
+        await UniMessage([At(flag="user", target=user_id), "命令解析失败，请检查输入格式"]).finish()
+        return
+
+    ver_char, plan, extra_text = m.group(1), m.group(2), (m.group(3) or "")
+    use_difficult = "难" in extra_text
+
+    if f"{ver_char}{plan}" == "真将":
+        await UniMessage([At(flag="user", target=user_id), "真系没有真将哦"]).finish()
+        return
+
+    logger.info(f"[{user_id}] 查询牌子进度: {ver_char}{plan} {'难' if use_difficult else ''}")
+
+    logger.debug(f"[{user_id}] 1/3 获得用户鉴权凭证...")
+    provider = await MaimaiPyScoreProvider.auto_get_score_provider(db_session, user_id)
+    identifier = await MaimaiPyScoreProvider.auto_get_player_identifier(
+        db_session, user_id, provider, use_personal_api=True
+    )
+
+    songs = list(MaiSongORM._cache.values())
+    if not songs:
+        await MaiSongORM.refresh_cache(db_session)
+        songs = list(MaiSongORM._cache.values())
+
+    logger.debug(f"[{user_id}] 2/3 发起 API 请求玩家所有成绩")
+    scores = await score_provider.fetch_player_scoreslist(
+        MaimaiPyParams(score_provider=provider, identifier=identifier)
+    )
+    try:
+        data = get_plate_process_data(songs, scores, ver_char, plan)
+    except ProcessDataError as e:
+        await UniMessage([At(flag="user", target=user_id), str(e)]).finish()
+        return
+
+    logger.debug(f"[{user_id}] 3/3 渲染玩家数据...")
+    img = ProcessPainter(data).draw_plate(use_difficult=use_difficult)
+    await UniMessage([At(flag="user", target=user_id), UniImage(raw=img.getvalue())]).finish()
+
+
+@alconna_level_process.handle()
+@catch_exception()
+async def handle_level_process(
+    event: Event,
+    db_session: async_scoped_session,
+    score_provider: MaimaiPyScoreProvider = Depends(get_maimaipy_provider),
+):
+    user_id = event.get_user_id()
+
+    raw_text = event.get_plaintext().strip()
+    for p in COMMAND_PREFIXES:
+        if raw_text.startswith(p):
+            raw_text = raw_text[len(p) :]
+            break
+
+    m = re.match(r"^([0-9]+\+?)\s?([abcdsfxp\+]+)\s?([\u4e00-\u9fa5]+)?进度\s?([0-9]+)?\s?(.+)?$", raw_text)
+    if not m:
+        await UniMessage([At(flag="user", target=user_id), "命令解析失败，请检查输入格式"]).finish()
+        return
+
+    raw_level = m.group(1)
+    raw_plan = m.group(2)
+
+    logger.info(f"[{user_id}] 查询等级进度: {raw_level} {raw_plan}")
+
+    logger.debug(f"[{user_id}] 1/3 获得用户鉴权凭证...")
+    provider = await MaimaiPyScoreProvider.auto_get_score_provider(db_session, user_id)
+    identifier = await MaimaiPyScoreProvider.auto_get_player_identifier(
+        db_session, user_id, provider, use_personal_api=True
+    )
+
+    songs = list(MaiSongORM._cache.values())
+    if not songs:
+        await MaiSongORM.refresh_cache(db_session)
+        songs = list(MaiSongORM._cache.values())
+
+    logger.debug(f"[{user_id}] 2/3 发起 API 请求玩家所有成绩")
+    scores = await score_provider.fetch_player_scoreslist(
+        MaimaiPyParams(score_provider=provider, identifier=identifier)
+    )
+    try:
+        data = get_level_process_data(songs, scores, raw_level, raw_plan)
+    except ProcessDataError as e:
+        await UniMessage([At(flag="user", target=user_id), str(e)]).finish()
+        return
+
+    logger.debug(f"[{user_id}] 3/3 渲染玩家数据...")
+    img = ProcessPainter(data).draw_level()
+    await UniMessage([At(flag="user", target=user_id), UniImage(raw=img.getvalue())]).finish()
 
 
 @alconna_update.assign("songs")
