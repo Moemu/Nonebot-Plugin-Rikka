@@ -375,7 +375,11 @@ class MaimaiPyScoreProvider(BaseScoreProvider[MaimaiPyParams]):
             return scores
 
         logger.debug("尝试向机台源获取成绩...")
-        scores_with_play_count = await self._fetch_player_play_counts(user_bind_info.maimaipy_identifier)
+        try:
+            scores_with_play_count = await self._fetch_player_play_counts(user_bind_info.maimaipy_identifier)
+        except Exception as exc:
+            logger.warning(f"无法连接到机台服务器: {exc}, 已调过 pc 数获取")
+            return scores
 
         for score in scores if isinstance(scores, list) else scores.dx + scores.standard:
             for score_with_play_count in scores_with_play_count:
