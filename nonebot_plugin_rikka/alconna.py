@@ -72,10 +72,10 @@ def _build_song_info_message(user_id: str, song: MaiSong) -> UniMessage:
 
     if not song_cover.exists():
         dx_song_id = song.id + 10000  # DX 版封面
-        dx_cover = Path(config.static_resource_path) / "mai" / "cover" / f"{dx_song_id}.png"
-        if not dx_cover.exists():
+        song_cover = Path(config.static_resource_path) / "mai" / "cover" / f"{dx_song_id}.png"
+        if not song_cover.exists():
             logger.warning(f"未找到乐曲 {song.id} 的封面图片")
-            dx_cover = Path(config.static_resource_path) / "mai" / "cover" / "0.png"
+            song_cover = Path(config.static_resource_path) / "mai" / "cover" / "0.png"
 
     response_difficulties_content = []
 
