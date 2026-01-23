@@ -20,6 +20,8 @@ _DIVING_FISH_CHART_STATS_URL = "https://www.diving-fish.com/api/maimaidxprober/c
 
 _MUSIC_CHART_PATH = Path(config.static_resource_path) / "music_chart.json"
 
+_music_chart_updated: bool = False
+
 
 async def update_local_chart_file():
     """
@@ -33,8 +35,9 @@ async def update_local_chart_file():
     _MUSIC_CHART_PATH.write_text(json.dumps(content, ensure_ascii=False, indent=4), encoding="utf-8")
     logger.info("已更新本地 music_chart.json 文件")
 
-    global _MUSIC_CHART_DATA
+    global _MUSIC_CHART_DATA, _music_chart_updated
     _MUSIC_CHART_DATA = content
+    _music_chart_updated = True
 
 
 if not _MUSIC_CHART_PATH.exists():
@@ -103,6 +106,10 @@ async def _update_song_fit_diff(difficulties: SongDifficulties, song_id: int):
         for index, difficulty in enumerate(difficulties.dx):
             difficulty.level_fit = get_song_fit_diff_from_local(song_id + 10000, index)
     except ValueError:
+        if _music_chart_updated:
+            logger.error(f"曲目 {song_id} 的拟合定数获取失败，跳过该曲目拟合定数设置")
+            return
+
         logger.warning(f"曲目 {song_id} 的拟合定数获取失败，尝试更新本地 chart 文件")
         await update_local_chart_file()
         await sleep(0.1)  # 避免重复请求过快
