@@ -48,3 +48,14 @@ class MaiSongAlias(Model):
     custom_alias: Mapped[str] = mapped_column(String, nullable=True, default="[]")
 
     song: Mapped["MaiSong"] = relationship("MaiSong", back_populates="alias_entry")
+
+
+class MaiPlayCount(Model):
+    """玩家铺面游玩次数"""
+
+    __tablename__ = "nonebot_plugin_rikka_playcount"
+
+    user_id: Mapped[str] = mapped_column(String, primary_key=True)
+    song_id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    difficulty: Mapped[int] = mapped_column(Integer, primary_key=True)
+    play_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)

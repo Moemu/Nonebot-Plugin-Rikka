@@ -28,7 +28,7 @@ from nonebot_plugin_alconna import At, UniMessage
 from nonebot_plugin_orm import async_scoped_session, get_scoped_session
 
 from ...config import config
-from ...database import UserBindInfo, UserBindInfoORM
+from ...database import MaiPlayCountORM, UserBindInfo, UserBindInfoORM
 from .._base import BaseScoreProvider
 from .._schema import (
     PlayerMaiB50,
@@ -359,35 +359,26 @@ class MaimaiPyScoreProvider(BaseScoreProvider[MaimaiPyParams]):
         """
         根据玩家成绩补充游玩次数
         """
-        if not config.enable_arcade_provider:
-            logger.debug("未启用机台源查询，跳过pc数查询")
-            return scores
-
         session = get_scoped_session()
         try:
             user_id = current_event.get().get_user_id()
         except LookupError:
             # 当事件上下文不存在时，无法获取用户 ID，直接返回原始成绩列表
             return scores
-        user_bind_info = await UserBindInfoORM.get_user_bind_info(session, user_id=user_id)
 
-        if not user_bind_info or user_bind_info.maimaipy_identifier is None:
+        score_list = scores if isinstance(scores, list) else scores.dx + scores.standard
+        if not score_list:
             return scores
 
-        logger.debug("尝试向机台源获取成绩...")
-        try:
-            scores_with_play_count = await self._fetch_player_play_counts(user_bind_info.maimaipy_identifier)
-        except Exception as exc:
-            logger.warning(f"无法连接到机台服务器: {exc}, 已调过 pc 数获取")
-            return scores
+        song_ids = [
+            (score.song_id + 10000 if score.song_type == SongType.DX else score.song_id) for score in score_list
+        ]
+        play_map = await MaiPlayCountORM.get_user_play_count_map(session, user_id, song_ids)
 
-        for score in scores if isinstance(scores, list) else scores.dx + scores.standard:
-            for score_with_play_count in scores_with_play_count:
-                if (
-                    score.song_id == score_with_play_count.song_id
-                    and score.song_difficulty == score_with_play_count.song_difficulty
-                ):
-                    score.play_count = score_with_play_count.play_count
-                    break
+        for score in score_list:
+            song_key = score.song_id + 10000 if score.song_type == SongType.DX else score.song_id
+            play_count = play_map.get((song_key, score.song_difficulty.value))
+            if play_count is not None:
+                score.play_count = play_count
 
         return scores

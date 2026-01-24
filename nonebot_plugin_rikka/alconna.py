@@ -28,8 +28,12 @@ from nonebot_plugin_orm import async_scoped_session
 
 from .config import config
 from .constants import _MAI_VERSION_MAP
-from .database import MaiSongAliasORM, MaiSongORM, UserBindInfoORM
-from .extra_proxy import ExtraNotInstalledError, get_maistatus
+from .database import MaiPlayCountORM, MaiSongAliasORM, MaiSongORM, UserBindInfoORM
+from .extra_proxy import (
+    ExtraNotInstalledError,
+    get_maistatus,
+    run_extend_score_workflow,
+)
 from .functions.analysis import get_player_strength
 from .functions.fortunate import generate_today_fortune
 from .functions.maistatus import capture_maimai_status_png
@@ -206,6 +210,18 @@ alconna_bind = on_alconna(
     priority=10,
     block=True,
     skip_for_unmatch=False,
+    rule=to_me(),
+)
+
+alconna_import = on_alconna(
+    Alconna(
+        COMMAND_PREFIXES,
+        "import",
+        Args["qr_code", str],
+        meta=CommandMeta("[舞萌DX]导入游玩次数", usage=".import <qr_code>"),
+    ),
+    priority=10,
+    block=True,
     rule=to_me(),
 )
 
@@ -668,6 +684,64 @@ async def handle_bind_help(event: Event):
 @alconna_bind.assign("$main")
 async def handle_bind_main(event: Event):
     return await handle_bind_help(event)
+
+
+@alconna_import.handle()
+@catch_exception("导入游玩次数失败")
+async def handle_import_play_count(
+    event: Event,
+    db_session: async_scoped_session,
+    qr_code: Match[str] = AlconnaMatch("qr_code"),
+):
+    user_id = event.get_user_id()
+
+    if not qr_code.available or not qr_code.result:
+        await UniMessage(
+            [
+                At(flag="user", target=user_id),
+                "请提供二维码内容: .import <qr_code>",
+            ]
+        ).finish()
+        return
+
+    try:
+        workflow_result = await run_extend_score_workflow(qr_code.result)
+    except ExtraNotInstalledError:
+        await UniMessage(
+            [
+                At(flag="user", target=user_id),
+                "未安装 nonebot-plugin-rikka-extra，无法导入游玩次数",
+            ]
+        ).finish()
+        return
+    except Exception as exc:
+        await UniMessage([At(flag="user", target=user_id), f"导入失败: {exc}"]).finish()
+        return
+
+    records: list[tuple[int, int, int]] = []
+    for item in workflow_result:
+        if not isinstance(item, dict):
+            continue
+        try:
+            song_id = int(item["musicId"])
+            difficulty = int(item["level"])
+            play_count = int(item["playCount"])
+        except (KeyError, TypeError, ValueError):
+            continue
+        records.append((song_id, difficulty, play_count))
+
+    if not records:
+        await UniMessage([At(flag="user", target=user_id), "未获取到可用的游玩次数数据"]).finish()
+        return
+
+    imported = await MaiPlayCountORM.upsert_user_play_counts(db_session, user_id, records)
+
+    await UniMessage(
+        [
+            At(flag="user", target=user_id),
+            f"已导入 {imported} 条游玩次数记录",
+        ]
+    ).finish()
 
 
 @alconna_unbind.handle()

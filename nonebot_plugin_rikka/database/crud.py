@@ -13,6 +13,7 @@ from ..models.song import (
     SongDifficultyUtage,
     SongNotes,
 )
+from .orm_models import MaiPlayCount
 from .orm_models import MaiSong as MaiSongORMModel
 from .orm_models import MaiSongAlias, UserBindInfo
 
@@ -474,3 +475,62 @@ class MaiSongAliasORM:
 
         # 批量获取已存在的记录，并保持输入顺序
         return await MaiSongORM.get_songs_info_by_ids(session, [int(sid) for sid in song_ids])
+
+
+class MaiPlayCountORM:
+    @staticmethod
+    async def upsert_user_play_counts(
+        session: async_scoped_session, user_id: str, records: list[tuple[int, int, int]]
+    ) -> int:
+        """
+        批量写入用户游玩次数。
+
+        :param records: (song_id, difficulty, play_count)
+        :return: 实际处理的记录数量
+        """
+        if not records:
+            return 0
+
+        unique_map: dict[tuple[int, int], int] = {}
+        for song_id, difficulty, play_count in records:
+            unique_map[(song_id, difficulty)] = play_count
+
+        song_ids = [key[0] for key in unique_map]
+        result = await session.execute(
+            select(MaiPlayCount).where(MaiPlayCount.user_id == user_id, MaiPlayCount.song_id.in_(song_ids))
+        )
+        existing_rows = result.scalars().all()
+        existing_map = {(row.song_id, row.difficulty): row for row in existing_rows}
+
+        for (song_id, difficulty), play_count in unique_map.items():
+            row = existing_map.get((song_id, difficulty))
+            if row:
+                row.play_count = play_count
+            else:
+                session.add(
+                    MaiPlayCount(
+                        user_id=user_id,
+                        song_id=song_id,
+                        difficulty=difficulty,
+                        play_count=play_count,
+                    )
+                )
+
+        await session.commit()
+        return len(unique_map)
+
+    @staticmethod
+    async def get_user_play_count_map(
+        session: async_scoped_session, user_id: str, song_ids: list[int]
+    ) -> dict[tuple[int, int], int]:
+        """
+        获取用户游玩次数映射
+        """
+        if not song_ids:
+            return {}
+
+        result = await session.execute(
+            select(MaiPlayCount).where(MaiPlayCount.user_id == user_id, MaiPlayCount.song_id.in_(song_ids))
+        )
+        rows = result.scalars().all()
+        return {(row.song_id, row.difficulty): row.play_count for row in rows}

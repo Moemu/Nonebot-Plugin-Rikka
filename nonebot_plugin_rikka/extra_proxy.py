@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import importlib
+import inspect
 import re
 from dataclasses import asdict, is_dataclass
 from typing import Any, Mapping, Optional
@@ -20,6 +21,30 @@ def _load_extra_server_status_attr(attr: str) -> Any:
         return getattr(mod, attr)
     except AttributeError as e:
         raise RuntimeError(f"nonebot-plugin-rikka-extra 缺少接口: {attr}") from e
+
+
+def _load_extend_score_attr(attr: str) -> Any:
+    try:
+        mod = importlib.import_module("nonebot_plugin_rikka_extra.score")
+    except ModuleNotFoundError as e:
+        raise ExtraNotInstalledError("未安装 nonebot-plugin-rikka-extra") from e
+
+    try:
+        return getattr(mod, attr)
+    except AttributeError as e:
+        raise RuntimeError(f"nonebot-plugin-rikka-extra 缺少接口: {attr}") from e
+
+
+async def run_extend_score_workflow(qr_code: str) -> list[dict[str, Any]]:
+    """Proxy to nonebot-plugin-rikka-extra.score.run_workflow"""
+
+    workflow = _load_extend_score_attr("run_workflow")
+    result = workflow(qr_code)
+    if inspect.isawaitable(result):
+        result = await result
+    if not isinstance(result, list):
+        raise RuntimeError("run_workflow 返回结果格式异常")
+    return result
 
 
 async def get_maistatus(
