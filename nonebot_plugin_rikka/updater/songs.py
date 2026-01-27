@@ -87,8 +87,11 @@ def get_song_fit_diff_from_local(song_id: int, difficulty: int) -> float:
     if not (chart_infos := _MUSIC_CHART_DATA["charts"].get(str(song_id))):
         raise ValueError(f"所请求的铺面 ID: {song_id} 不存在")
 
-    if len(chart_infos) < difficulty:
+    elif len(chart_infos) < difficulty:
         raise ValueError(f"难度 {difficulty} 在铺面 {song_id} 中不存在")
+
+    elif "fit_diff" not in chart_infos[difficulty]:
+        raise ValueError(f"难度 {difficulty} 在铺面 {song_id} 中不存在拟合定数")
 
     return chart_infos[difficulty]["fit_diff"]
 
