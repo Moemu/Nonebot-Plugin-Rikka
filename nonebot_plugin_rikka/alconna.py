@@ -536,7 +536,7 @@ async def handle_bind_lxns(
         ).finish()
         return
 
-    await UserBindInfoORM.set_user_friend_code(db_session, user_id, player_info.friend_code)  # type:ignore
+    await UserBindInfoORM.set_user_friend_code(db_session, user_id, player_info.friend_code)  # type: ignore
     await UserBindInfoORM.set_lxns_api_key(db_session, user_id, lxns_token)
 
     await UniMessage(
@@ -800,7 +800,7 @@ async def handle_source(
         return
 
     try:
-        await UserBindInfoORM.set_default_provider(db_session, user_id, provider.result)  # type:ignore
+        await UserBindInfoORM.set_default_provider(db_session, user_id, provider.result)  # type: ignore
     except ValueError as e:
         await UniMessage(
             [
@@ -914,7 +914,7 @@ async def handle_mai_r50(
 
             return
 
-    friend_code = new_player_friend_code or user_bind_info.friend_code  # type:ignore
+    friend_code = new_player_friend_code or user_bind_info.friend_code  # type: ignore
     if not friend_code:
         logger.warning(f"[{user_id}] 无法获取好友码，无法继续查询。")
         await UniMessage(
@@ -1383,7 +1383,7 @@ async def handle_scorelist(
     player_info = await score_provider.fetch_player_info(params)
 
     logger.debug(f"[{user_id}] 3/4 发起 API 请求玩家全部成绩...")
-    scores = await score_provider.fetch_player_scoreslist(params, level, ach, diff)  # type:ignore
+    scores = await score_provider.fetch_player_scoreslist(params, level, ach, diff)  # type: ignore
 
     if not scores:
         await UniMessage(
@@ -1654,7 +1654,7 @@ async def handle_trend(
 
             return
 
-    friend_code = new_player_friend_code or user_bind_info.friend_code  # type:ignore
+    friend_code = new_player_friend_code or user_bind_info.friend_code  # type: ignore
     if not friend_code:
         logger.warning(f"[{user_id}] 无法获取好友码，无法继续查询。")
         await UniMessage(

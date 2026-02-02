@@ -33,7 +33,7 @@ def get_player_strength(scores: list[PlayerMaiScore]) -> PlayerStrength:
         if song_diff not in ["remaster", "master", "expert"]:
             continue
 
-        tags = get_songs_tags(score.song_name, song_type, song_diff)  # type:ignore
+        tags = get_songs_tags(score.song_name, song_type, song_diff)  # type: ignore
 
         for tag in tags:
             player_strengths[tag] = player_strengths.get(tag, 0) + 1

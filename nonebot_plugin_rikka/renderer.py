@@ -146,7 +146,7 @@ class PicRenderer:
             await self._ensure_cover(score.song_id)
             if calc_song_level_value:
                 score.song_level_value = await self._get_song_level_value(
-                    score.song_id, score.song_type.value, score.song_difficulty.value  # type:ignore
+                    score.song_id, score.song_type.value, score.song_difficulty.value  # type: ignore
                 )
 
         # Ensure player assets
@@ -169,7 +169,7 @@ class PicRenderer:
         for score in scores:
             await self._ensure_cover(score.song_id)
             score.song_level_value = await self._get_song_level_value(
-                score.song_id, score.song_type.value, score.song_difficulty.value  # type:ignore
+                score.song_id, score.song_type.value, score.song_difficulty.value  # type: ignore
             )
 
         img = self.draw_score.draw_scorelist(player_info, scores, title or "Player Scores")

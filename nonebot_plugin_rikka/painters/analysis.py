@@ -39,7 +39,7 @@ def draw_player_strength_analysis(data: PlayerStrength) -> Image.Image:
 
     ax1.plot(angles, values, "o-", color="#4ECDC4", linewidth=2, label="强度")
     ax1.fill(angles, values, color="#4ECDC4", alpha=0.25)
-    ax1.set_thetagrids(np.degrees(angles[:-1]), categories, fontsize=10, color="#444444")  # type:ignore
+    ax1.set_thetagrids(np.degrees(angles[:-1]), categories, fontsize=10, color="#444444")  # type: ignore
     ax1.set_ylim(0, max(values) * 1.1 if values else 1)
     ax1.grid(True, linestyle="--", alpha=0.3, color="#CCCCCC")
     ax1.spines["polar"].set_color("#88CCDD")
@@ -106,7 +106,7 @@ def draw_player_strength_analysis(data: PlayerStrength) -> Image.Image:
 
     ax3.plot(angles, values, "o-", color="#4ECDC4", linewidth=2, label="强度")
     ax3.fill(angles, values, color="#4ECDC4", alpha=0.25)
-    ax3.set_thetagrids(np.degrees(angles[:-1]), categories, fontsize=10, color="#444444")  # type:ignore
+    ax3.set_thetagrids(np.degrees(angles[:-1]), categories, fontsize=10, color="#444444")  # type: ignore
     ax3.set_ylim(0, max(values) * 1.1 if values else 1)
     ax3.grid(True, linestyle="--", alpha=0.3, color="#CCCCCC")
     ax3.spines["polar"].set_color("#88CCDD")

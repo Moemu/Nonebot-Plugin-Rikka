@@ -68,7 +68,7 @@ class MaimaiPyScoreProvider(BaseScoreProvider[MaimaiPyParams]):
             song_type=SongType(score.type.value),
             song_level=score.level,
             song_difficulty=SongDifficulty(score.level_index.value),
-            achievements=score.achievements,  # type:ignore
+            achievements=score.achievements,  # type: ignore
             dx_score=score.dx_score or 0,
             dx_star=0,  # unsupported.
             dx_rating=score.dx_rating or 0,
@@ -161,7 +161,7 @@ class MaimaiPyScoreProvider(BaseScoreProvider[MaimaiPyParams]):
 
                     return
 
-            friend_code = new_player_friend_code or user_bind_info.friend_code  # type:ignore
+            friend_code = new_player_friend_code or user_bind_info.friend_code  # type: ignore
             if not friend_code:
                 logger.warning(f"[{user_id}] 无法获取好友码，无法继续查询。")
                 await UniMessage(
@@ -344,7 +344,7 @@ class MaimaiPyScoreProvider(BaseScoreProvider[MaimaiPyParams]):
             logger.warning(f"尝试通过玩家二维码获取玩家数据时发生错误: {exc}")
             raise
 
-        return player.credentials  # type:ignore
+        return player.credentials  # type: ignore
 
     @alru_cache(maxsize=128, ttl=60 * 60)
     async def _fetch_player_play_counts(self, identifier: str) -> list[PlayerMaiScore]:
