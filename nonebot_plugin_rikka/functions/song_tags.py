@@ -11,7 +11,7 @@ from ..config import config
 _SONG_TAGS_FILE = Path(config.static_resource_path) / "combined_tags.json"
 SONG_TAGS_DATA_AVAILABLE = _SONG_TAGS_FILE.exists() and _SONG_TAGS_FILE.stat().st_size > 0
 _SONG_TAGS_DATA: DxRatingCombinedTags = (
-    json.loads(_SONG_TAGS_FILE.read_text(encoding="utf-8")) if SONG_TAGS_DATA_AVAILABLE else {}  # type:ignore
+    json.loads(_SONG_TAGS_FILE.read_text(encoding="utf-8")) if SONG_TAGS_DATA_AVAILABLE else {}  # type: ignore
 )
 
 
