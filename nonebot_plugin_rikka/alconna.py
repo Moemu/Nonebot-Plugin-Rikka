@@ -30,9 +30,9 @@ from .config import config
 from .constants import _MAI_VERSION_MAP
 from .database import MaiPlayCountORM, MaiSongAliasORM, MaiSongORM, UserBindInfoORM
 from .extra_proxy import (
-    ExtraNotInstalledError,
     get_maistatus,
     run_extend_score_workflow,
+    run_extend_ticket_workflow,
 )
 from .functions.analysis import get_player_strength
 from .functions.fortunate import generate_today_fortune
@@ -219,6 +219,18 @@ alconna_import = on_alconna(
         "import",
         Args["qr_code", str],
         meta=CommandMeta("[舞萌DX]导入游玩次数", usage=".import <qr_code>"),
+    ),
+    priority=10,
+    block=True,
+    rule=to_me(),
+)
+
+alconna_ticket = on_alconna(
+    Alconna(
+        COMMAND_PREFIXES,
+        "ticket",
+        Args["qr_code", str],
+        meta=CommandMeta("[舞萌DX]发送六倍票", usage=".ticket <qr_code>"),
     ),
     priority=10,
     block=True,
@@ -706,14 +718,6 @@ async def handle_import_play_count(
 
     try:
         workflow_result = await run_extend_score_workflow(qr_code.result)
-    except ExtraNotInstalledError:
-        await UniMessage(
-            [
-                At(flag="user", target=user_id),
-                "未安装 nonebot-plugin-rikka-extra，无法导入游玩次数",
-            ]
-        ).finish()
-        return
     except Exception as exc:
         await UniMessage([At(flag="user", target=user_id), f"导入失败: {exc}"]).finish()
         return
@@ -742,6 +746,32 @@ async def handle_import_play_count(
             f"已导入 {imported} 条游玩次数记录",
         ]
     ).finish()
+
+
+@alconna_ticket.handle()
+@catch_exception("发票失败")
+async def handle_ticket(
+    event: Event,
+    qr_code: Match[str] = AlconnaMatch("qr_code"),
+):
+    user_id = event.get_user_id()
+
+    if not qr_code.available or not qr_code.result:
+        await UniMessage(
+            [
+                At(flag="user", target=user_id),
+                "请提供二维码内容: .ticket <qr_code>",
+            ]
+        ).finish()
+        return
+
+    try:
+        await run_extend_ticket_workflow(qr_code.result)
+    except Exception as exc:
+        await UniMessage([At(flag="user", target=user_id), f"发票生成失败: {exc}"]).finish()
+        return
+
+    await UniMessage([At(flag="user", target=user_id), "发票生成成功"]).finish()
 
 
 @alconna_unbind.handle()
@@ -1734,10 +1764,6 @@ async def handle_maistatus(event: Event):
     logger.debug("正在获取舞萌服务器状态...")
     try:
         status_text = await get_maistatus()
-    except ExtraNotInstalledError:
-        status_text = "未安装 nonebot-plugin-rikka-extra，无法检测服务器状态。请联系管理员安装该插件以启用此功能。"
-        await UniMessage([At(flag="user", target=user_id), status_text]).finish()
-        return
     except Exception as e:
         status_text = f"服务器状态检测失败：{e}"
 
