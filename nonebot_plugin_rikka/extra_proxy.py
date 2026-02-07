@@ -151,12 +151,12 @@ def format_allnet_server_status(status: Mapping[str, Any]) -> str:
     init_line = f"- 机台启动服务(NET Initialize): {'正常' if init_ok else '异常'} ({init_elapsed})"
     lines.append(init_line)
 
-    aime_line = f"- 舞萌登录服务(CAime): {'正常' if aime_ok else '异常'} ({aime_elapsed})"
+    aime_line = f"- 舞萌登录服务(Chime): {'正常' if aime_ok else '异常'} ({aime_elapsed})"
     lines.append(aime_line)
 
     title_line = f"- 舞萌游戏服务(Title): {'正常' if title_ok else '异常'} ({title_elapsed})"
     if title_ok and title_empty:
-        title_line += " | 空响应（可能被拉黑/限制）"
+        title_line += " | 空响应（可能是 Bot 所属服务器 IP 被限制请求）"
     elif not title_ok and title_elapsed > "5000ms":
         title_line += " | 响应超时"
     lines.append(title_line)
