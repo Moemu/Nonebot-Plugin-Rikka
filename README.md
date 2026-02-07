@@ -5,11 +5,15 @@
 </div>
 <div align=center>
   <a href="#关于️"><img src="https://img.shields.io/github/stars/Moemu/Nonebot-Plugin-Rikka" alt="Stars"></a>
-  <!-- <a href="https://pypi.org/project/MuiceBot/"><img src="https://img.shields.io/pypi/v/Muicebot" alt="PyPI Version"></a>
-  <a href="https://pypi.org/project/MuiceBot/"><img src="https://img.shields.io/pypi/dm/Muicebot" alt="PyPI Downloads" ></a> -->
+  <a href="https://pypi.org/project/Nonebot-Plugin-Rikka/"><img src="https://img.shields.io/pypi/v/Nonebot-Plugin-Rikka" alt="PyPI Version"></a>
+  <a href="https://pypi.org/project/Nonebot-Plugin-Rikka/"><img src="https://img.shields.io/pypi/dm/Nonebot-Plugin-Rikka" alt="PyPI Downloads" ></a>
   <a href="https://nonebot.dev/"><img src="https://img.shields.io/badge/nonebot-2-red" alt="nonebot2"></a>
   <a href="#"><img src="https://img.shields.io/badge/Code%20Style-Black-121110.svg" alt="codestyle"></a>
 </div>
+
+> [!NOTE]
+>
+> 本项目进入慢更新状态，但是您仍然可以提出新的特性请求
 
 ## 介绍✨
 
@@ -52,6 +56,7 @@
 | `.trend`                            | [舞萌DX]获取玩家的 DX Rating 趋势 （需绑定落雪查分器） |
 | `.import <玩家二维码>`              | [舞萌DX]导入玩家 PC 数信息                             |
 | `.ticket <玩家二维码>`              | [舞萌DX]发送 6 倍票                                    |
+| `.logout <玩家二维码>`              | [舞萌DX]尝试强制登出                                   |
 
 
 
