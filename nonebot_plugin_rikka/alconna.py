@@ -33,6 +33,7 @@ from .extra_proxy import (
     get_maistatus,
     run_extend_score_workflow,
     run_extend_ticket_workflow,
+    run_extent_force_logout,
 )
 from .functions.analysis import get_player_strength
 from .functions.fortunate import generate_today_fortune
@@ -231,6 +232,18 @@ alconna_ticket = on_alconna(
         "ticket",
         Args["qr_code", str],
         meta=CommandMeta("[舞萌DX]发送六倍票", usage=".ticket <qr_code>"),
+    ),
+    priority=10,
+    block=True,
+    rule=to_me(),
+)
+
+alconna_logout = on_alconna(
+    Alconna(
+        COMMAND_PREFIXES,
+        "logout",
+        Args["qr_code", str],
+        meta=CommandMeta("[舞萌DX]尝试强制登出", usage=".logout <qr_code>"),
     ),
     priority=10,
     block=True,
@@ -765,13 +778,30 @@ async def handle_ticket(
         ).finish()
         return
 
-    try:
-        await run_extend_ticket_workflow(qr_code.result)
-    except Exception as exc:
-        await UniMessage([At(flag="user", target=user_id), f"发票生成失败: {exc}"]).finish()
+    await run_extend_ticket_workflow(qr_code.result)
+
+    await UniMessage([At(flag="user", target=user_id), "已成功发送了 6 倍票"]).finish()
+
+
+@alconna_logout.handle()
+@catch_exception(reply_prefix="强制登出失败")
+async def handle_logout(
+    event: Event,
+    qr_code: Match[str] = AlconnaMatch("qr_code"),
+):
+    user_id = event.get_user_id()
+
+    if not qr_code.available or not qr_code.result:
+        await UniMessage(
+            [
+                At(flag="user", target=user_id),
+                "请提供二维码内容: .ticket <qr_code>",
+            ]
+        ).finish()
         return
 
-    await UniMessage([At(flag="user", target=user_id), "发票生成成功"]).finish()
+    await run_extent_force_logout(qr_code.result)
+    await UniMessage([At(flag="user", target=user_id), "已尝试强制登出，请尝试重新登录"]).finish()
 
 
 @alconna_unbind.handle()

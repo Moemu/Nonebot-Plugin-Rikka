@@ -11,33 +11,9 @@ class ExtraNotInstalledError(RuntimeError):
     """Raised when nonebot-plugin-rikka-extra is not installed."""
 
 
-def _load_extra_server_status_attr(attr: str) -> Any:
+def _load_extra_attr(module_name: str, attr: str) -> Any:
     try:
-        mod = importlib.import_module("nonebot_plugin_rikka_extra.server_status")
-    except ModuleNotFoundError as e:
-        raise ExtraNotInstalledError("未安装 nonebot-plugin-rikka-extra") from e
-
-    try:
-        return getattr(mod, attr)
-    except AttributeError as e:
-        raise RuntimeError(f"nonebot-plugin-rikka-extra 缺少接口: {attr}") from e
-
-
-def _load_extend_score_attr(attr: str) -> Any:
-    try:
-        mod = importlib.import_module("nonebot_plugin_rikka_extra.score")
-    except ModuleNotFoundError as e:
-        raise ExtraNotInstalledError("未安装 nonebot-plugin-rikka-extra") from e
-
-    try:
-        return getattr(mod, attr)
-    except AttributeError as e:
-        raise RuntimeError(f"nonebot-plugin-rikka-extra 缺少接口: {attr}") from e
-
-
-def _load_extend_ticket_attr(attr: str) -> Any:
-    try:
-        mod = importlib.import_module("nonebot_plugin_rikka_extra.ticket")
+        mod = importlib.import_module(f"nonebot_plugin_rikka_extra.{module_name}")
     except ModuleNotFoundError as e:
         raise ExtraNotInstalledError("未安装 nonebot-plugin-rikka-extra") from e
 
@@ -50,7 +26,7 @@ def _load_extend_ticket_attr(attr: str) -> Any:
 async def run_extend_score_workflow(qr_code: str) -> list[dict[str, Any]]:
     """Proxy to nonebot-plugin-rikka-extra.score.run_workflow"""
 
-    workflow = _load_extend_score_attr("run_workflow")
+    workflow = _load_extra_attr("score", "run_workflow")
     result = workflow(qr_code)
     if inspect.isawaitable(result):
         result = await result
@@ -62,8 +38,15 @@ async def run_extend_score_workflow(qr_code: str) -> list[dict[str, Any]]:
 async def run_extend_ticket_workflow(qr_code: str) -> None:
     """Proxy to nonebot-plugin-rikka-extra.ticket.run_workflow"""
 
-    workflow = _load_extend_ticket_attr("run_workflow")
+    workflow = _load_extra_attr("ticket", "run_workflow")
     result = workflow(qr_code)
+    if inspect.isawaitable(result):
+        await result
+
+
+async def run_extent_force_logout(qr_code: str):
+    func = _load_extra_attr("logout", "force_logout")
+    result = func(qr_code)
     if inspect.isawaitable(result):
         await result
 
@@ -95,7 +78,7 @@ async def _check_allnet_server_status_obj(
     initialize_payload: Optional[str],
     timeout_seconds: float,
 ) -> Any:
-    check_func = _load_extra_server_status_attr("check_allnet_server_status")
+    check_func = _load_extra_attr("server_status", "check_allnet_server_status")
     return await check_func(
         title_ver=title_ver,
         initialize_payload=initialize_payload,
