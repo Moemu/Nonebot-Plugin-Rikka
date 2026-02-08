@@ -49,7 +49,7 @@ def get_songs_tags(
         if (
             tag_song["song_id"] == song_name
             and tag_song["sheet_type"] == song_type
-            and tag_song["sheet_difficulty"] == song_difficulty
+            and tag_song["sheet_difficulty"] == song_difficulty.lower()
         ):
             tag_id = tag_song["tag_id"]
             for tag in _SONG_TAGS_DATA["tags"]:

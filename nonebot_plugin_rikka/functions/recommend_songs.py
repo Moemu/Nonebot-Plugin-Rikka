@@ -4,7 +4,7 @@
 
 from dataclasses import dataclass
 from random import sample
-from typing import Literal, cast
+from typing import Literal, Optional, cast
 
 from nonebot import logger
 
@@ -66,7 +66,9 @@ def _get_song_level_value(song_id: int, song_type: Literal["standard", "dx", "ut
     raise ValueError(f"请求的乐曲 {song_id}({song_type}) 中的难度 {difficulty} 不存在")
 
 
-def get_player_raise_score_songs(scores: list[PlayerMaiScore], min_dx_rating: int) -> RecommendSongs:
+def get_player_raise_score_songs(
+    scores: list[PlayerMaiScore], min_dx_rating: int, filter_mode: Optional[Literal[0, 1, 2]] = None
+) -> RecommendSongs:
     """
     获取玩家推荐加分曲目
 
@@ -127,7 +129,8 @@ def get_player_raise_score_songs(scores: list[PlayerMaiScore], min_dx_rating: in
                 total_recommended_songs.append((song, difficulty))
 
     # 筛选模式: 0: 不过滤; 1: 过滤诈称铺; 2: 只输出水铺
-    filter_mode = 2 if len(total_recommended_songs) > 500 else (1 if len(total_recommended_songs) > 200 else 0)
+    if filter_mode is None:
+        filter_mode = 2 if len(total_recommended_songs) > 500 else (1 if len(total_recommended_songs) > 200 else 0)
     logger.debug(f"共找到 {len(total_recommended_songs)} 待定推分曲目, 筛选模式: {filter_mode}")
 
     # 筛选推荐曲目
@@ -218,6 +221,10 @@ def get_player_raise_score_songs(scores: list[PlayerMaiScore], min_dx_rating: in
             recommended_songs_std.append(recommended_song_obj)
 
     logger.debug(f"筛选后, 共找到 {len(recommended_songs_std) + len(recommended_songs_dx)} 首推荐曲目")
+
+    if len(recommended_songs_std) + len(recommended_songs_dx) < 50 and filter_mode > 0:
+        logger.debug("筛选后的曲目数量不足 50 条，尝试降低筛选模式后重试")
+        return get_player_raise_score_songs(scores, min_dx_rating, filter_mode=filter_mode - 1)  # type: ignore
 
     # 随机选取 7 首推荐曲目
     return RecommendSongs(
