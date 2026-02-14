@@ -31,6 +31,7 @@ from .constants import _MAI_VERSION_MAP
 from .database import MaiPlayCountORM, MaiSongAliasORM, MaiSongORM, UserBindInfoORM
 from .extra_proxy import (
     get_maistatus,
+    run_divingfish_import_workflow,
     run_extend_score_workflow,
     run_extend_ticket_workflow,
     run_extent_force_logout,
@@ -219,8 +220,9 @@ alconna_import = on_alconna(
     Alconna(
         COMMAND_PREFIXES,
         "import",
+        Subcommand("divingfish", help_text="导入成绩到水鱼查分器"),
         Args["qr_code", str],
-        meta=CommandMeta("[舞萌DX]导入游玩次数", usage=".import <qr_code>"),
+        meta=CommandMeta("[舞萌DX]导入游玩次数或同步成绩到查分器", usage=".import [divingfish] <qr_code>"),
     ),
     priority=10,
     block=True,
@@ -724,7 +726,7 @@ async def handle_bind_main(event: Event):
     return await handle_bind_help(event)
 
 
-@alconna_import.handle()
+@alconna_import.assign("$main")
 @catch_exception("导入游玩次数失败")
 async def handle_import_play_count(
     event: Event,
@@ -772,6 +774,40 @@ async def handle_import_play_count(
             f"已导入 {imported} 条游玩次数记录",
         ]
     ).finish()
+
+
+@alconna_import.assign("divingfish")
+@catch_exception("更新水鱼查分器失败")
+async def handle_import_divingfish(
+    event: Event, db_session: async_scoped_session, qr_code: Match[str] = AlconnaMatch("qr_code")
+):
+    user_id = event.get_user_id()
+
+    if not qr_code.available or not qr_code.result:
+        await UniMessage(
+            [
+                At(flag="user", target=user_id),
+                "请提供二维码内容: .import <qr_code>",
+            ]
+        ).finish()
+        return
+
+    # 检查是否绑定了水鱼 Token
+    bind_info = await UserBindInfoORM.get_user_bind_info(db_session, user_id)
+    if not bind_info or not bind_info.diving_fish_import_token:
+        await UniMessage(
+            [
+                At(flag="user", target=user_id),
+                "未绑定水鱼查分器导入 Token，请使用 .bind divingfish <Token> 命令绑定",
+            ]
+        ).finish()
+        return  # 防止 mypy 报错 bind_info 可能为 None 的情况
+
+    import_token = bind_info.diving_fish_import_token
+
+    await run_divingfish_import_workflow(qr_code.result, import_token)
+
+    await UniMessage([At(flag="user", target=user_id), "水鱼查分器更新成功！"]).finish()
 
 
 @alconna_ticket.handle()

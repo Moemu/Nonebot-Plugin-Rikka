@@ -59,6 +59,15 @@ async def run_unlock_workflow(qr_code: str) -> None:
         await result
 
 
+async def run_divingfish_import_workflow(qr_code: str, import_token: str) -> None:
+    """Proxy to nonebot-plugin-rikka-extra.Best50_To_Diving_Fish.run_workflow"""
+
+    workflow = _load_extra_attr("convert", "run_workflow")
+    result = workflow(qr_code, import_token)
+    if inspect.isawaitable(result):
+        await result
+
+
 async def run_extent_force_logout(qr_code: str):
     func = _load_extra_attr("logout", "force_logout")
     result = func(qr_code)
