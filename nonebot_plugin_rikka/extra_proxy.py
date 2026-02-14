@@ -3,8 +3,14 @@ from __future__ import annotations
 import importlib
 import inspect
 import re
+import sys
 from dataclasses import asdict, is_dataclass
+from pathlib import Path
 from typing import Any, Mapping, Optional
+
+DEV_MODULE_PATH = Path("./nonebot-plugin-rikka-extra")
+if DEV_MODULE_PATH.exists():
+    sys.path.insert(0, str(DEV_MODULE_PATH))
 
 
 class ExtraNotInstalledError(RuntimeError):
