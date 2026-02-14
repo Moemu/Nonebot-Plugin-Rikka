@@ -34,6 +34,7 @@ from .extra_proxy import (
     run_extend_score_workflow,
     run_extend_ticket_workflow,
     run_extent_force_logout,
+    run_unlock_workflow,
 )
 from .functions.analysis import get_player_strength
 from .functions.fortunate import generate_today_fortune
@@ -244,6 +245,18 @@ alconna_logout = on_alconna(
         "logout",
         Args["qr_code", str],
         meta=CommandMeta("[舞萌DX]尝试强制登出", usage=".logout <qr_code>"),
+    ),
+    priority=10,
+    block=True,
+    rule=to_me(),
+)
+
+alconna_unlock = on_alconna(
+    Alconna(
+        COMMAND_PREFIXES,
+        "unlock",
+        Args["qr_code", str],
+        meta=CommandMeta("[舞萌DX]解锁新框紫铺", usage=".unlock <qr_code>"),
     ),
     priority=10,
     block=True,
@@ -795,13 +808,37 @@ async def handle_logout(
         await UniMessage(
             [
                 At(flag="user", target=user_id),
-                "请提供二维码内容: .ticket <qr_code>",
+                "请提供二维码内容: .logout <qr_code>",
             ]
         ).finish()
         return
 
     await run_extent_force_logout(qr_code.result)
     await UniMessage([At(flag="user", target=user_id), "已尝试强制登出，请尝试重新登录"]).finish()
+
+
+@alconna_unlock.handle()
+@catch_exception()
+async def handle_rikka_unlock(
+    event: Event,
+    qr_code: Match[str] = AlconnaMatch("qr_code"),
+):
+    user_id = event.get_user_id()
+
+    if not config.enable_arcade_provider:
+        await UniMessage([At(flag="user", target=user_id), "机台源不可用，无法执行该操作"]).finish()
+
+    if not qr_code.available or not qr_code.result:
+        await UniMessage(
+            [
+                At(flag="user", target=user_id),
+                "请提供二维码内容: .unlock <qr_code>",
+            ]
+        ).finish()
+        return
+
+    await run_unlock_workflow(qr_code.result)
+    await UniMessage([At(flag="user", target=user_id), "解锁成功！"]).finish()
 
 
 @alconna_unbind.handle()

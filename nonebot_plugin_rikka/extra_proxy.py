@@ -50,6 +50,15 @@ async def run_extend_ticket_workflow(qr_code: str) -> None:
         await result
 
 
+async def run_unlock_workflow(qr_code: str) -> None:
+    """Proxy to nonebot-plugin-rikka-extra.unlock_all.run_workflow"""
+
+    workflow = _load_extra_attr("unlock_all", "run_workflow")
+    result = workflow(qr_code)
+    if inspect.isawaitable(result):
+        await result
+
+
 async def run_extent_force_logout(qr_code: str):
     func = _load_extra_attr("logout", "force_logout")
     result = func(qr_code)
