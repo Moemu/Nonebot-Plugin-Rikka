@@ -23,7 +23,7 @@ class Config(BaseModel):
     arcade_provider_http_proxy: Optional[str] = None
     """机台源的代理地址"""
 
-    maistatus_url: Optional[str] = None
+    maistatus_url: Optional[str] = "https://status.snowy.moe/status/maimai"
     """舞萌状态页地址，用于渲染 .maistatus """
 
     scorelist_bg: Optional[str] = None

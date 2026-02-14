@@ -88,8 +88,6 @@
 
 7. （可选）如果需要支持乐曲标签，您需要自行获取来自 [DXRating](https://dxrating.net/search) 的 `combined_tags.json` 并放置在 `static` 文件夹中
 
-8. （可选）如果需要支持舞萌状态的获取，您需要自己搭建 Uptime kuma 服务或借助外部状态页
-
 ## 配置⚙️
 
 使用 `.env` 文件中配置以下内容
@@ -137,8 +135,6 @@
 - 说明: 能够显示舞萌服务器状态的外部状态服务页面
 
 - 类型: Optional[str]
-
-- 默认值: None
 
 ## 关于🎗️
 
