@@ -16,7 +16,7 @@ dependencies = [
     "async-lru>=2.0.5",
     "numpy>=1.26,<2.4",
     "matplotlib>=3.9.4",
-    "nonebot-plugin-rikka-extra>=0.1.3",
+    "nonebot-plugin-rikka-extra>=0.3.2",
 ]
 
 [project.optional-dependencies]
