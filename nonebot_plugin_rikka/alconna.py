@@ -8,7 +8,7 @@ from typing import Literal
 
 from aiohttp.client_exceptions import ClientResponseError
 from arclet.alconna import Alconna, AllParam, Args
-from maimai_py import LXNSProvider, PlayerIdentifier
+from maimai_py import LXNSProvider
 from nonebot import get_driver, logger
 from nonebot.adapters import Event
 from nonebot.exception import FinishedException
@@ -207,7 +207,6 @@ alconna_bind = on_alconna(
         Subcommand(
             "divingfish", Args["token", str], help_text=".bind divingfish <水鱼查分器的成绩导入密钥> 绑定水鱼查分器"
         ),
-        Subcommand("maimai", Args["token", str], help_text=".bind maimai <玩家二维码内容> 绑定官方游戏账号"),
         meta=CommandMeta("[查分器相关]绑定游戏账号/查分器"),
     ),
     priority=10,
@@ -520,7 +519,7 @@ async def handle_help(event: Event):
         ".ap50 获取玩家 ALL PERFECT 50\n"
         ".r50 获取玩家 Recent 50 (需绑定落雪查分器)\n"
         ".n50 获取玩家拟合系数 Top-50"
-        f".pc50 生成玩家游玩次数 Top50 （{'当前不可用' if not config.enable_arcade_provider else '需绑定游戏账号'})\n"
+        f".pc50 生成玩家游玩次数 Top50 （{'当前不可用' if not config.enable_arcade_provider else '需通过 `.import` 导入游戏成绩'})\n"
         ".random 随机获取一首乐曲（可选难度、等级、定数）\n"
         ".minfo <乐曲ID/别名> 获取乐曲信息\n"
         ".alias 管理乐曲别名（添加、查询、更新）\n"
@@ -528,6 +527,7 @@ async def handle_help(event: Event):
         ".scorelist <level|ach|diff> 获取指定条件的成绩列表\n"
         ".update songs 更新乐曲信息数据库\n"
         ".update alias 更新乐曲别名列表\n"
+        ".trend 获取玩家的 DX Rating 趋势 （需绑定落雪查分器）\n"
         f".成分分析 根据 B100 获取玩家成分分析 {'(当前不可用)' if not SONG_TAGS_DATA_AVAILABLE else ''}\n"
         ".今日舞萌 获取今日出勤运势\n"
         ".舞萌状态 检测服务器状态\n"
@@ -630,77 +630,6 @@ async def handle_bind_divingfish(
     ).finish()
 
 
-@alconna_bind.assign("maimai")
-async def handle_bind_maimai(
-    event: Event,
-    db_session: async_scoped_session,
-    score_provider: MaimaiPyScoreProvider = Depends(get_maimaipy_provider),
-    token: Match[str] = AlconnaMatch("token"),
-):
-    user_id = event.get_user_id()
-
-    if not config.enable_arcade_provider:
-        await UniMessage(
-            [
-                At(flag="user", target=user_id),
-                "管理员未启用机台源查询，无法绑定喵",
-            ]
-        ).finish()
-        return
-
-    if not token.available:
-        await UniMessage(
-            [
-                At(flag="user", target=user_id),
-                "请输入有效的玩家二维码内容",
-            ]
-        ).finish()
-        return
-
-    qr_code_data = token.result
-
-    logger.debug("1/2 尝试验证玩家二维码是否正确")
-    try:
-        identifier = await score_provider.get_player_identifier(qr_code_data)
-    except Exception as e:
-        logger.error(f"验证玩家二维码时发生异常: {e}")
-        await UniMessage(
-            [
-                At(flag="user", target=user_id),
-                "玩家二维码无效或者可能已经过期，请再次尝试绑定",
-            ]
-        ).finish()
-        return
-
-    # 测试鉴权凭证有效性
-    logger.debug("2/2 尝试验证获取的凭证是否有效")
-    try:
-        from .score.providers.maimai import _arcade_provider
-
-        player_identifier = PlayerIdentifier(credentials=identifier)
-        params = MaimaiPyParams(score_provider=_arcade_provider, identifier=player_identifier)
-        player_info = await score_provider.fetch_player_info(params=params)
-    except Exception as e:
-        logger.error(f"通过机台接口获取玩家信息时遇到问题: {e}")
-
-        await UniMessage(
-            [
-                At(flag="user", target=user_id),
-                f"获取玩家信息时遇到问题: {e}",
-            ]
-        ).finish()
-        return
-
-    await UserBindInfoORM.set_maimaipy_identifier(db_session, user_id, identifier)
-
-    await UniMessage(
-        [
-            At(flag="user", target=user_id),
-            f"已绑定至游戏账号: {player_info.name} ⭐",
-        ]
-    ).finish()
-
-
 @alconna_bind.assign("help")
 async def handle_bind_help(event: Event):
     user_id = event.get_user_id()
@@ -709,8 +638,6 @@ async def handle_bind_help(event: Event):
         "查分器绑定帮助:\n"
         ".bind lxns <落雪咖啡屋的个人 API 密钥> 绑定落雪咖啡屋查分器\n"
         ".bind divingfish <水鱼查分器的成绩导入密钥> 绑定水鱼查分器\n"
-        ".bind maimai <舞萌|中二公众号二维码内容> 绑定官方游戏账号"
-        f"{'(当前不可用)' if not config.enable_arcade_provider else ''}"
     )
 
     await UniMessage(
