@@ -23,7 +23,7 @@
 
 ## 功能🪄
 
-✅ 支持游戏: 舞萌DX(Ver.CN 1.5x), ~~中二节奏(Not Plan yet.)~~
+✅ 支持游戏: 舞萌DX(Ver.CN 1.53+), ~~中二节奏(Not Plan yet.)~~
 
 ✅ 支持数据源: [落雪咖啡屋(未绑定的首选)](https://maimai.lxns.net/), [水鱼查分器](https://www.diving-fish.com/maimaidx/prober/)
 
@@ -40,25 +40,26 @@
 | `.source lxns\|divingfish`          | [查分器相关]设置默认查分器                             |
 | `.b50`                              | [舞萌DX]生成玩家 Best50                                |
 | `.r50`                              | [舞萌DX]生成玩家 Recent 50（需绑定落雪查分器）         |
-| `.ap50`                             | [舞萌DX]生成玩家 ALL PERFECT 50                        |
+| `.n50`                              | [舞萌DX]获取玩家拟合系数 Top-50                        |
+| `.ap50`                             | 🚧[舞萌DX]生成玩家 ALL PERFECT 50                       |
 | `.pc50`                             | [舞萌DX]生成玩家游玩次数 Top50                         |
 | `.minfo <id\|乐曲名称\|别名>`       | [舞萌DX]获取乐曲信息                                   |
+| `.random`                           | [舞萌DX]随机获取一首乐曲                               |
 | `.alias add <song_id> <别名>`       | [舞萌DX]添加乐曲别名（不会被 update 操作覆盖）         |
 | `.alias update`                     | [舞萌DX]从落雪查分器更新乐曲别名数据库                 |
 | `.alias query <id\|乐曲名称\|别名>` | [舞萌DX]查询该歌曲有什么别名                           |
 | `.score <id\|乐曲名称\|别名>`       | [舞萌DX]获取玩家游玩该乐曲的成绩                       |
 | `.scorelist <level\|achXX.X>`       | [舞萌DX]获取玩家对应等级/达成率的成绩列表              |
-| `.update maisong\|alias`            | [舞萌DX]更新乐曲或别名数据库                           |
+| `.update songs\|alias`              | [舞萌DX]更新乐曲或别名数据库                           |
 | `.今日舞萌`                         | [舞萌DX]获取今日舞萌运势                               |
 | `.成分分析`                         | [舞萌DX]获取基于 B100 的玩家成分分析                   |
 | `.舞萌状态`                         | [舞萌DX]获取舞萌服务器状态                             |
 | `.推分推荐`                         | [舞萌DX]生成随机推分曲目                               |
 | `.trend`                            | [舞萌DX]获取玩家的 DX Rating 趋势 （需绑定落雪查分器） |
 | `.import <玩家二维码>`              | [舞萌DX]导入玩家 PC 数信息                             |
-| `.ticket <玩家二维码>`              | [舞萌DX]发送 6 倍票                                    |
-| `.logout <玩家二维码>`              | [舞萌DX]尝试强制登出                                   |
-
-
+| `.ticket <玩家二维码>`              | 🚧[舞萌DX]发送 6 倍票                                   |
+| `.logout <玩家二维码>`              | 🚧[舞萌DX]尝试强制登出                                  |
+| `.unlock <玩家二维码>`              | 🚧[舞萌DX]解锁全部 DX 紫铺                              |
 
 ## 安装🪄
 
