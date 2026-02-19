@@ -649,7 +649,33 @@ async def handle_bind_help(event: Event):
 
 
 @alconna_bind.assign("$main")
-async def handle_bind_main(event: Event):
+async def handle_bind_main(event: Event, db_session: async_scoped_session):
+    user_id = event.get_user_id()
+    user_bind_info = await UserBindInfoORM.get_user_bind_info(db_session, user_id)
+    lxns_binded = False
+    divingfish_binded = False
+    default_source = "未设置"
+    if user_bind_info:
+        if user_bind_info.lxns_api_key and user_bind_info.friend_code:
+            lxns_binded = True
+        if user_bind_info.diving_fish_import_token:
+            divingfish_binded = True
+        if user_bind_info.default_provider:
+            default_source = "落雪" if user_bind_info.default_provider == "lxns" else "水鱼"
+
+    lxns = "已绑定" if lxns_binded else "未绑定"
+    divingfish = "已绑定" if divingfish_binded else "未绑定"
+    user_bind_detail = (
+        f"查分器绑定情况:\n- 落雪查分器: {lxns}\n - 水鱼查分器: {divingfish}\n\n当前默认查分源: {default_source}"
+    )
+
+    await UniMessage(
+        [
+            At(flag="user", target=user_id),
+            user_bind_detail,
+        ]
+    ).send()
+
     return await handle_bind_help(event)
 
 
