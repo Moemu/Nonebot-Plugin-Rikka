@@ -10,6 +10,7 @@ from maimai_py import (
     DivingFishPlayer,
     DivingFishProvider,
     FCType,
+    InvalidPlayerIdentifierError,
     LXNSPlayer,
     LXNSProvider,
     MaimaiClient,
@@ -147,10 +148,11 @@ class MaimaiPyScoreProvider(BaseScoreProvider[MaimaiPyParams]):
                     identifier = PlayerIdentifier(qq=int(user_id))
                     player_obj = await score_provider.get_player(identifier, client=maimai_client)
                     new_player_friend_code = player_obj.friend_code
-                except HTTPStatusError as e:
-                    logger.warning(
-                        f"[{user_id}] 无法通过 QQ 号请求玩家数据: {e.response.status_code}: {e.response.text}"
-                    )
+                except (HTTPStatusError, InvalidPlayerIdentifierError) as e:
+                    if isinstance(e, HTTPStatusError) and e.response.status_code == 404:
+                        logger.warning(f"[{user_id}] 无法通过 QQ 号请求玩家数据: 玩家不存在")
+                    else:
+                        logger.warning(f"[{user_id}] 无法通过 QQ 号请求玩家数据: {e}")
 
                     await UniMessage(
                         [
