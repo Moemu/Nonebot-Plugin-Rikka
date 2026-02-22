@@ -25,6 +25,8 @@ class DrawBest(ScoreBaseImage):
         :param best50: 玩家 Best 50 数据
         :return: 绘制完成的图片
         """
+        self.reset_im()
+
         all_clear_rank = find_all_clear_rank(best50.standard + best50.dx)
         self.draw_profile(player_info, all_clear_rank)
 

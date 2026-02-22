@@ -56,6 +56,8 @@ class DrawScores(ScoreBaseImage):
         :param page_size: 每个页码展示的成绩长度
         :return: 绘制后的图片
         """
+        self.reset_im()
+
         all_clear_rank = find_all_clear_rank(scores)
         self.draw_profile(player_info, all_clear_rank)
 

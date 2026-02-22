@@ -47,6 +47,7 @@ class ScoreBaseImage:
 
         :param image: 可选的 PIL Image 对象，如果提供则在其上绘图
         """
+        self.bg = image
         self._diff = [
             self._with_opacity(Image.open(PIC_DIR / "b50_score_basic.png")),
             self._with_opacity(Image.open(PIC_DIR / "b50_score_advanced.png")),
@@ -58,8 +59,12 @@ class ScoreBaseImage:
         self.design_bg = Image.open(PIC_DIR / "design.png")
         self.id_diff = [Image.new("RGBA", (55, 10), color) for color in self.bg_color]
 
+        self.reset_im()
+
+    def reset_im(self):
+        """重置当前图像内容为纯背景图"""
         bg_path = config.scorelist_bg or PIC_DIR / "b50_bg.png"
-        self._im = image or Image.open(bg_path).convert("RGBA").resize((1400, 1600))
+        self._im = self.bg or Image.open(bg_path).convert("RGBA").resize((1400, 1600))
         dr = ImageDraw.Draw(self._im)
         self._sy = DrawText(dr, FONT_MAIN)
         self._tb = DrawText(dr, FONT_NUM)
