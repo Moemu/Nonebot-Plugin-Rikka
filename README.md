@@ -9,6 +9,7 @@
   <a href="https://pypi.org/project/Nonebot-Plugin-Rikka/"><img src="https://img.shields.io/pypi/dm/Nonebot-Plugin-Rikka" alt="PyPI Downloads" ></a>
   <a href="https://nonebot.dev/"><img src="https://img.shields.io/badge/nonebot-2-red" alt="nonebot2"></a>
   <a href="#"><img src="https://img.shields.io/badge/Code%20Style-Black-121110.svg" alt="codestyle"></a>
+  <a href="https://qm.qq.com/q/y1gC9PU4IU"><img src="https://img.shields.io/badge/QQ群-26時聊天室-purple" alt="QQ Group"></a>
 </div>
 
 > [!NOTE]
