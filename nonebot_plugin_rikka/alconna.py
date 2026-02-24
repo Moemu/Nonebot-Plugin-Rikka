@@ -738,6 +738,10 @@ async def handle_import_divingfish(
 ):
     user_id = event.get_user_id()
 
+    if not config.enable_arcade_provider:
+        await UniMessage([At(flag="user", target=user_id), "机台源不可用，无法执行该操作"]).finish()
+        return
+
     if not qr_code.available or not qr_code.result:
         await UniMessage(
             [
