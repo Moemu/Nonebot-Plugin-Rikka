@@ -1,8 +1,7 @@
-from pathlib import Path
 from typing import Optional
 
 from nonebot import get_plugin_config
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, Field
 
 
 class Config(BaseModel):
@@ -37,12 +36,13 @@ class Config(BaseModel):
     scorelist_element_opacity: float = Field(1.0, le=1.0, ge=0.0)
     """成绩图元素不透明度"""
 
-    @field_validator("static_resource_path")
-    def validate_static_resource_path(cls, v: str) -> str:
-        p = Path(v)
-        if not p.exists() or not p.is_dir():
-            raise ValueError(f"资源文件夹: {v} 不存在！请下载静态资源文件或者重新配置静态资源文件路径")
-        return str(p.resolve())
+    # 发布商店的时候不需要验证静态资源文件夹，所以先注释掉这个验证器
+    # @field_validator("static_resource_path")
+    # def validate_static_resource_path(cls, v: str) -> str:
+    #     p = Path(v)
+    #     if not p.exists() or not p.is_dir():
+    #         raise ValueError(f"资源文件夹: {v} 不存在！请下载静态资源文件或者重新配置静态资源文件路径")
+    #     return str(p.resolve())
 
 
 config = get_plugin_config(Config)
