@@ -495,6 +495,8 @@ class MaiPlayCountORM:
         for song_id, difficulty, play_count in records:
             unique_map[(song_id, difficulty)] = play_count
 
+        updated = len(unique_map)
+
         song_ids = [key[0] for key in unique_map]
         result = await session.execute(
             select(MaiPlayCount).where(MaiPlayCount.user_id == user_id, MaiPlayCount.song_id.in_(song_ids))
@@ -504,9 +506,9 @@ class MaiPlayCountORM:
 
         for (song_id, difficulty), play_count in unique_map.items():
             row = existing_map.get((song_id, difficulty))
-            if row:
+            if row and row.play_count != play_count:
                 row.play_count = play_count
-            else:
+            elif not row:
                 session.add(
                     MaiPlayCount(
                         user_id=user_id,
@@ -515,9 +517,11 @@ class MaiPlayCountORM:
                         play_count=play_count,
                     )
                 )
+            else:
+                updated -= 1
 
         await session.commit()
-        return len(unique_map)
+        return updated
 
     @staticmethod
     async def get_user_play_count_map(
@@ -534,3 +538,12 @@ class MaiPlayCountORM:
         )
         rows = result.scalars().all()
         return {(row.song_id, row.difficulty): row.play_count for row in rows}
+
+    @staticmethod
+    async def get_all_user_play_counts(session: async_scoped_session, user_id: str) -> Sequence[MaiPlayCount]:
+        """
+        获取用户所有游玩次数记录
+        """
+        result = await session.execute(select(MaiPlayCount).where(MaiPlayCount.user_id == user_id))
+        rows = result.scalars().all()
+        return rows
