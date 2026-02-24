@@ -21,27 +21,30 @@ class DrawScores(ScoreBaseImage):
         :param image: 基础图片对象
         """
         super().__init__(image)
-        self.aurora_bg = Image.open(PIC_DIR / "aurora.png").convert("RGBA").resize((1400, 220))
-        self.shines_bg = Image.open(PIC_DIR / "bg_shines.png").convert("RGBA")
-        self.rainbow_bg = Image.open(PIC_DIR / "rainbow.png").convert("RGBA")
-        self.rainbow_bottom_bg = Image.open(PIC_DIR / "rainbow_bottom.png").convert("RGBA").resize((1200, 200))
-        self.pattern_bg = Image.open(PIC_DIR / "pattern.png")
-        self.title_bg = Image.open(PIC_DIR / "title-lengthen.png")
 
-        self._im.alpha_composite(self.aurora_bg)
-        self._im.alpha_composite(self.shines_bg, (34, 0))
-        self._im.alpha_composite(self.rainbow_bg, (319, self._im.size[1] - 643))
-        self._im.alpha_composite(self.rainbow_bottom_bg, (100, self._im.size[1] - 343))
+    def _draw_score_background(self) -> None:
+        self._im.alpha_composite(self._get_image(PIC_DIR / "aurora.png", size=(1400, 220), convert_rgba=True))
+        self._im.alpha_composite(self._get_image(PIC_DIR / "bg_shines.png", convert_rgba=True), (34, 0))
+        self._im.alpha_composite(
+            self._get_image(PIC_DIR / "rainbow.png", convert_rgba=True), (319, self._im.size[1] - 643)
+        )
+        self._im.alpha_composite(
+            self._get_image(PIC_DIR / "rainbow_bottom.png", size=(1200, 200), convert_rgba=True),
+            (100, self._im.size[1] - 343),
+        )
+        pattern_bg = self._get_image(PIC_DIR / "pattern.png")
         for h in range((self._im.size[1] // 358) + 1):
-            self._im.alpha_composite(self.pattern_bg, (0, (358 + 7) * h))
+            self._im.alpha_composite(pattern_bg, (0, (358 + 7) * h))
 
-        self._rise = [
-            Image.open(PIC_DIR / "rise_score_basic.png"),
-            Image.open(PIC_DIR / "rise_score_advanced.png"),
-            Image.open(PIC_DIR / "rise_score_expert.png"),
-            Image.open(PIC_DIR / "rise_score_master.png"),
-            Image.open(PIC_DIR / "rise_score_remaster.png"),
+    def _get_rise_bg(self, level_index: int) -> Image.Image:
+        rise_paths = [
+            PIC_DIR / "rise_score_basic.png",
+            PIC_DIR / "rise_score_advanced.png",
+            PIC_DIR / "rise_score_expert.png",
+            PIC_DIR / "rise_score_master.png",
+            PIC_DIR / "rise_score_remaster.png",
         ]
+        return self._get_image(rise_paths[level_index])
 
     def draw_scorelist(
         self, player_info: PlayerMaiInfo, scores: List[PlayerMaiScore], title: str, page: int = 1, page_size: int = 50
@@ -57,6 +60,7 @@ class DrawScores(ScoreBaseImage):
         :return: 绘制后的图片
         """
         self.reset_im()
+        self._draw_score_background()
 
         all_clear_rank = find_all_clear_rank(scores)
         self.draw_profile(player_info, all_clear_rank)
@@ -89,7 +93,7 @@ class DrawScores(ScoreBaseImage):
             x = sv(550) if isdx else sv(50)
             y += sv(150) if index != 0 else 0
 
-            rise_bg = self._rise[data.level_index]
+            rise_bg = self._get_rise_bg(data.level_index)
             rise_bg = rise_bg.resize((sv(rise_bg.size[0]), sv(rise_bg.size[1])))
             self._im.alpha_composite(rise_bg, (x + sv(30), y))
 
@@ -158,7 +162,7 @@ class DrawScores(ScoreBaseImage):
         """
         绘制上分数据表
         """
-        title_bg = self.title_bg.copy().resize((450, 100))
+        title_bg = self.title_lengthen_bg.copy().resize((450, 100))
         self._im.alpha_composite(title_bg, (150, 30))
         self._sy.draw(375, 75, 30, "旧版本谱面推荐", self.text_color, "mm")
         self.whilerisepic(songs.old_version, min_dx_rating, False)

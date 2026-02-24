@@ -1,3 +1,4 @@
+from pathlib import Path
 from typing import List, Optional
 
 from PIL import Image, ImageDraw
@@ -48,18 +49,49 @@ class ScoreBaseImage:
         :param image: 可选的 PIL Image 对象，如果提供则在其上绘图
         """
         self.bg = image
-        self._diff = [
-            self._with_opacity(Image.open(PIC_DIR / "b50_score_basic.png")),
-            self._with_opacity(Image.open(PIC_DIR / "b50_score_advanced.png")),
-            self._with_opacity(Image.open(PIC_DIR / "b50_score_expert.png")),
-            self._with_opacity(Image.open(PIC_DIR / "b50_score_master.png")),
-            self._with_opacity(Image.open(PIC_DIR / "b50_score_remaster.png")),
+        self._image_cache: dict[tuple[str, Optional[tuple[int, int]], bool, bool], Image.Image] = {}
+        self._diff_paths = [
+            PIC_DIR / "b50_score_basic.png",
+            PIC_DIR / "b50_score_advanced.png",
+            PIC_DIR / "b50_score_expert.png",
+            PIC_DIR / "b50_score_master.png",
+            PIC_DIR / "b50_score_remaster.png",
         ]
-        self.title_lengthen_bg = Image.open(PIC_DIR / "title-lengthen.png")
-        self.design_bg = Image.open(PIC_DIR / "design.png")
         self.id_diff = [Image.new("RGBA", (55, 10), color) for color in self.bg_color]
 
-        self.reset_im()
+    def _get_image(
+        self,
+        path: Path,
+        size: Optional[tuple[int, int]] = None,
+        with_opacity: bool = False,
+        convert_rgba: bool = False,
+    ) -> Image.Image:
+        key = (str(path), size, with_opacity, convert_rgba)
+        cached = self._image_cache.get(key)
+        if cached is not None:
+            return cached
+
+        img = Image.open(path)
+        if convert_rgba:
+            img = img.convert("RGBA")
+        if size is not None:
+            img = img.resize(size)
+        if with_opacity:
+            img = self._with_opacity(img)
+
+        self._image_cache[key] = img
+        return img
+
+    @property
+    def title_lengthen_bg(self) -> Image.Image:
+        return self._get_image(PIC_DIR / "title-lengthen.png")
+
+    @property
+    def design_bg(self) -> Image.Image:
+        return self._get_image(PIC_DIR / "design.png")
+
+    def _get_diff_bg(self, index: int) -> Image.Image:
+        return self._get_image(self._diff_paths[index], with_opacity=True)
 
     def reset_im(self):
         """重置当前图像内容为纯背景图"""
@@ -257,7 +289,7 @@ class ScoreBaseImage:
                 )
                 max_dx_score = diff.notes.total * 3
 
-            self._im.alpha_composite(self._diff[info.song_difficulty.value], (x, y))
+            self._im.alpha_composite(self._get_diff_bg(info.song_difficulty.value), (x, y))
             self._im.alpha_composite(cover, (x + 12, y + 12))
             self._im.alpha_composite(version, (x + 51, y + 91))
             self._im.alpha_composite(rate, (x + 92, y + 78))
