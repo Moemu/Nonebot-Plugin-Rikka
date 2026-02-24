@@ -27,6 +27,8 @@ async def update_local_chart_file():
     """
     从水鱼更新 `music_chart.json` 文件
     """
+    _MUSIC_CHART_PATH.parent.mkdir(parents=True, exist_ok=True)
+
     async with ClientSession() as session:
         async with session.get(_DIVING_FISH_CHART_STATS_URL, headers={"User-Agent": USER_AGENT}) as resp:
             resp.raise_for_status()

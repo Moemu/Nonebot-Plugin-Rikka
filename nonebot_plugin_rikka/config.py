@@ -1,3 +1,4 @@
+from pathlib import Path
 from typing import Optional
 
 from nonebot import get_plugin_config
@@ -9,7 +10,7 @@ class Config(BaseModel):
     """日志等级"""
     add_alias_need_admin: bool = True
     """添加别名需要管理员权限"""
-    static_resource_path: str = "static"
+    static_resource_path: str = str(Path(__file__).parent.parent / "static")
     """静态资源路径"""
 
     lxns_developer_api_key: Optional[str] = None
