@@ -13,7 +13,7 @@ class Config(BaseModel):
     static_resource_path: str = "static"
     """静态资源路径"""
 
-    lxns_developer_api_key: str
+    lxns_developer_api_key: Optional[str] = None
     """落雪咖啡屋开发者密钥"""
     divingfish_developer_api_key: Optional[str] = None
     """水鱼查分器开发者密钥"""
@@ -21,7 +21,7 @@ class Config(BaseModel):
     enable_arcade_provider: bool = False
     """启用 Maimai.py 的机台源查询"""
     arcade_provider_http_proxy: Optional[str] = None
-    """机台源的代理地址"""
+    """机台源的代理地址（当前不可用）"""
 
     maistatus_url: Optional[str] = "https://status.snowy.moe/status/maimai"
     """舞萌状态页地址，用于渲染 .maistatus """

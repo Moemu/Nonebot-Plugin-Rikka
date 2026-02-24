@@ -106,8 +106,18 @@ class MaimaiPyScoreProvider(BaseScoreProvider[MaimaiPyParams]):
     async def auto_get_score_provider(session: async_scoped_session, user_id: str) -> _SUPPORT_PROVIDER:
         """
         根据用户绑定情况自动获取合适的查分器
+
+        选择逻辑如下：
+        1. 如果仅配置了一个查分器的开发者密钥，则使用该查分器
+        2. 如果用户未绑定任何查分器，默认使用 LXNS 查分器
+        3. 如果用户绑定了查分器但未设置默认查分器，优先使用水鱼查分器（如果有绑定水鱼查分器），否则使用 LXNS 查分器
         """
         bind_info = await UserBindInfoORM.get_user_bind_info(session, user_id)
+
+        if config.lxns_developer_api_key and not config.divingfish_developer_api_key:
+            return _lxns_provider
+        if config.divingfish_developer_api_key and not config.lxns_developer_api_key:
+            return _divingfish_provider
 
         if not bind_info:
             return _lxns_provider
