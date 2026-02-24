@@ -1,11 +1,11 @@
 [project]
 name = "nonebot-plugin-rikka"
 dynamic = ["version"]
-description = "一个简简单单的舞萌机器人插件"
+description = "一个简单的舞萌成绩查询Bot插件，同时支持落雪咖啡屋和水鱼查分器"
 readme = "README.md"
 requires-python = ">=3.9, <4.0"
 dependencies = [
-    "nonebot2>=2.4.3",
+    "nonebot2>=2.0.0",
     "nonebot-adapter-onebot>=2.4.6",
     "aiohttp>=3.13.1",
     "nonebot-plugin-alconna>=0.59.4",

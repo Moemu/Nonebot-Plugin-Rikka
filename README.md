@@ -25,9 +25,14 @@
 
 ✅ 支持游戏: 舞萌DX(Ver.CN 1.53+), ~~中二节奏(Not Plan yet.)~~
 
-✅ 支持数据源: [落雪咖啡屋(未绑定的首选)](https://maimai.lxns.net/), [水鱼查分器](https://www.diving-fish.com/maimaidx/prober/)
+✅ 支持数据源: [落雪咖啡屋](https://maimai.lxns.net/), [水鱼查分器](https://www.diving-fish.com/maimaidx/prober/)
 
-✅ 支持功能: 基础查分功能、拟合系数查询、曲目标签查询
+✅ 支持功能:
+  - 基础查分功能：Best 50, Recent 50, 指定条件下的乐曲列表，牌子进度等...
+  - 曲目信息查询：包括但不限于拟合系数和乐曲标签（乐曲标签需要额外配置实现）
+  - 玄学功能实现：今日运势、计算推分推荐、玩家成分分析
+  - 自定义成绩图：自定义背景图、字体等
+  - 更新水鱼查分器
 
 ## 指令列表🕹️
 
@@ -41,7 +46,7 @@
 | `.b50`                              | [舞萌DX]生成玩家 Best50                                |
 | `.r50`                              | [舞萌DX]生成玩家 Recent 50（需绑定落雪查分器）         |
 | `.n50`                              | [舞萌DX]获取玩家拟合系数 Top-50                        |
-| `.ap50`                             | [舞萌DX]生成玩家 ALL PERFECT 50                       |
+| `.ap50`                             | [舞萌DX]生成玩家 ALL PERFECT 50                        |
 | `.pc50`                             | [舞萌DX]生成玩家游玩次数 Top50                         |
 | `.minfo <id\|乐曲名称\|别名>`       | [舞萌DX]获取乐曲信息                                   |
 | `.random`                           | [舞萌DX]随机获取一首乐曲                               |
@@ -57,9 +62,7 @@
 | `.推分推荐`                         | [舞萌DX]生成随机推分曲目                               |
 | `.trend`                            | [舞萌DX]获取玩家的 DX Rating 趋势 （需绑定落雪查分器） |
 | `.import <玩家二维码>`              | [舞萌DX]导入玩家 PC 数信息                             |
-| `.ticket <玩家二维码>`              | 🚧[舞萌DX]发送 6 倍票                                   |
-| `.logout <玩家二维码>`              | 🚧[舞萌DX]尝试强制登出                                  |
-| `.unlock <玩家二维码>`              | 🚧[舞萌DX]解锁全部 DX 紫铺                              |
+| `.import divingfish <玩家二维码>`   | [舞萌DX]更新水鱼查分器                                 |
 
 ## 安装🪄
 
@@ -67,25 +70,38 @@
 
 1. 安装 `nonebot-plugin-rikka`:
 
-  - 使用源代码安装：
+  使用 `nb-cli` 安装(pending):
 
-    定位到插件目录，执行：
+  ```shell
+  nb plugin install nonebot-plugin-rikka
+  ```
 
-    ```bash
-    git clone https://github.com/Moemu/Nonebot-Plugin-Rikka
-    cd Nonebot-Plugin-Rikka
-    pip install .
-    ```
+  使用包管理器安装：
 
-2. 获取资源文件：下载静态资源文件，并解压到 `static` 目录中: [私人云盘](https://cloud.yuzuchan.moe/f/1bUn/Resource.7z), [OneDrive](https://yuzuai-my.sharepoint.com/:u:/g/personal/yuzu_yuzuchan_moe/EdGUKRSo-VpHjT2noa_9EroBdFZci-tqWjVZzKZRTEeZkw?e=a1TM40)
+  ```shell
+  pip install nonebot-plugin-rikka
+  ```
 
-3. 配置查分器开发者密钥，参考配置小节。
+  在 NoneBot 的项目配置文件中追加：
 
-4. 运行 `python -m playwright install chromium` 来安装 playwright 浏览器环境，用于模拟浏览器请求游戏资源和获取舞萌状态页截图
+  ```
+  plugins = ["nonebot_plugin_rikka"]
+  ```
+
+2. 获取静态资源文件：
+    本项目的渲染资源使用到了 [Yuri-YuzuChaN/maimaiDX](https://github.com/Yuri-YuzuChaN/maimaiDX) 提供到的文件。
+    从 [私人云盘](https://cloud.yuzuchan.moe/f/1bUn/Resource.7z), [OneDrive](https://yuzuai-my.sharepoint.com/:u:/g/personal/yuzu_yuzuchan_moe/EdGUKRSo-VpHjT2noa_9EroBdFZci-tqWjVZzKZRTEeZkw?e=a1TM40) 中下载静态资源文件，并解压到机器人根目录下的 `static` 文件夹中。
+    如果服务器更新了新歌但是本地不存在对应的资源文件时，插件会自动获取更新。参考第四小节。
+
+3. 配置查分器开发者密钥，参考配置小节获取配置文件格式。你至少需要配置 [落雪咖啡屋(未绑定的首选)](https://maimai.lxns.net/), [水鱼查分器](https://www.diving-fish.com/maimaidx/prober/) 任意一个开发者密钥才可正常使用插件功能。
+
+4. 运行 `python -m playwright install chromium` 来安装 playwright 浏览器环境，用于模拟浏览器请求游戏资源和获取舞萌状态页截图。
 
 5. 启动 Nonebot 项目并根据提示运行数据库迁移脚本
 
-6. 更新乐曲信息：使用 SUPERUSER 账号执行指令: `.update maisong` 和 `.alias update`
+6. 更新乐曲信息：
+    使用 SUPERUSER 账号执行指令: `.update songs`（更新本地乐曲信息）, `.update alias`（更新乐曲别名）, `.update chart`（更新乐曲拟合系数等信息）。
+    当服务器更新了新歌时建议再跑一次上面的三个指令。
 
 7. （可选）如果需要支持乐曲标签，您需要自行获取来自 [DXRating](https://dxrating.net/search) 的 `combined_tags.json` 并放置在 `static` 文件夹中
 
@@ -93,61 +109,41 @@
 
 使用 `.env` 文件中配置以下内容
 
-### lxns_developer_api_key
+| 配置项                         | 说明                                                         | 类型                        | 默认值                                   |
+| ------------------------------ | ------------------------------------------------------------ | --------------------------- | ---------------------------------------- |
+| `add_alias_need_admin`         | 添加别名需要管理员权限                                       | `bool`                      | `True`                                   |
+| `static_resource_path`         | 自定义静态资源路径（该目录下至少存在 `mai` 文件夹）          | `str`                       | `static`                                 |
+| `lxns_developer_api_key`       | 落雪咖啡屋开发者密钥（两个开发者密钥二选一）                 | `Optional[str]`             | `None`                                   |
+| `divingfish_developer_api_key` | 水鱼查分器开发者密钥                                         | `Optional[str]`             | `None`                                   |
+| `enable_arcade_provider`       | 启用 Maimai.py 的机台源查询（需要将此值设置为 True 才可以查询 PC 数） | `bool`                      | `False`                                  |
+| `maistatus_url`                | 舞萌状态页地址，用于渲染 `.maistatus`                        | `Optional[str]`             | `https://status.snowy.moe/status/maimai` |
+| `scorelist_bg`                 | 成绩图背景，建议比例 8:7                                     | `Optional[str]`             | `None`                                   |
+| `scorelist_font_main`          | 成绩图主字体文件                                             | `Optional[str]`             | `None`                                   |
+| `scorelist_font_color`         | 成绩图默认文字颜色                                           | `tuple[int, int, int, int]` | `(124, 129, 255, 255)`                   |
+| `scorelist_font_num`           | 成绩图数字字体文件                                           | `Optional[str]`             | `None`                                   |
+| `scorelist_element_opacity`    | 成绩图元素不透明度（0.0 ~ 1.0）                              | `float`                     | `1.0`                                    |
 
-- 说明: 落雪开发者密钥
-
-- 类型: str
-
-### divingfish_developer_api_key
-
-- 说明: 水鱼查分器开发者密钥
-
-- 类型: Optional[str]
-
-- 默认值: None
-
-### static_resource_path
-
-- 说明: 静态资源路径（类似于 [Yuri-YuzuChaN/maimaiDX](https://github.com/Yuri-YuzuChaN/maimaiDX) 的实现，你需要从 [此处](https://cloud.yuzuchan.moe/f/1bUn/Resource.7z) 获取游戏的资源文件，这将用于 Best 50 等的渲染）
-
-- 类型: str
-
-- 默认值: static
-
-### enable_arcade_provider
-
-- 说明: 启用 Maimai.py 的机台源查询（需要将此值设置为 True 才可以查询 PC 数）
-
-- 类型: bool
-
-- 默认值: False
-
-### arcade_provider_http_proxy
-
-- 说明: 机台源的代理地址(部分云服务器厂商的 IP 段被华立阻断，因此需要使用家用代理绕开限制)
-
-- 类型: Optional[str]
-
-- 默认值: False
-
-### maistatus_url
-
-- 说明: 能够显示舞萌服务器状态的外部状态服务页面
-
-- 类型: Optional[str]
+有关 `enable_arcade_provider` 的说明: 部分功能需要连接至游戏服务器才可使用（比如 PC 数获取和水鱼查分器更新），但由于服务器对机房 IP 做出了限制，在部分网络环境下无法与官方服务器通信（使用 `.status` 命令以确认），因此此配置项默认为 `False` 并禁用相关功能。
 
 ## 关于🎗️
 
-本项目基于 [MIT License](https://github.com/Moemu/Nonebot-Plugin-Rikka/blob/main/LICENSE) 许可证提供，涉及到再分发时请保留许可文件的副本。
+本项目基于 [MIT License](https://github.com/Moemu/Nonebot-Plugin-Rikka/blob/main/LICENSE) 许可证提供，涉及到再分发时请保留许可文件的副本。除此之外，另有 [Yuri-YuzuChaN/maimaiDX](https://github.com/Yuri-YuzuChaN/maimaiDX) 的许可证副本 [License](./nonebot_plugin_rikka/painters/LICENSE)
 
 本项目的产生离不开下列开发者的支持，感谢你们的贡献：
 
 ![[Rikka 的贡献者们](https://github.com/eryajf/Moemu/Nonebot-Plugin-Rikka/contributors)](https://contrib.rocks/image?repo=Moemu/Nonebot-Plugin-Rikka)
 
+本项目的渲染逻辑 ([painters](./nonebot_plugin_rikka/painters/)) 和资源修改或引用自 [Yuri-YuzuChaN/maimaiDX](https://github.com/Yuri-YuzuChaN/maimaiDX)，感谢上游项目的代码实现和游戏资源整理
+
+本项目的分数查询功能基于 [TrueRou/maimai.py](https://github.com/TrueRou/maimai.py) 提供的框架进行开发。
+
 本项目同样是 [MuikaAI](https://github.com/MuikaAI) 的一部分
 
 <a href="https://www.afdian.com/a/Moemu" target="_blank"><img src="https://pic1.afdiancdn.com/static/img/welcome/button-sponsorme.png" alt="afadian" style="height: 45px !important;width: 163px !important;"></a>
+
+免责声明：
+
+部分服务需要连接至游戏服务器，开发者未使用软件逆向等数据和工具对任何游戏文件进行分析。本服务可能存在未知的逻辑错误，可能会导致潜在的风险如数据丢失、系统崩溃等，由用户自行决定是否下载、使用本服务。如果启用了 `enable_arcade_provider` 并使用了相关服务，则说明您已同意这一点。
 
 Star History：
 

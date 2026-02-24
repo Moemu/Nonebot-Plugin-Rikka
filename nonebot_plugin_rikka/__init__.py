@@ -28,11 +28,10 @@ async def initialize_song_cache():
 
 __plugin_meta__ = PluginMetadata(
     name="Nonebot-Plugin-Rikka",
-    description="一个简单的舞萌成绩查询Bot插件",
-    usage="使用 `.rikka` 查看指令用法",
+    description="一个简单的舞萌成绩查询Bot插件，同时支持落雪咖啡屋和水鱼查分器",
+    usage=".rikka",
     type="application",
     config=Config,
-    homepage="https://bot.snowy.moe/",
-    extra={},
+    homepage="https://github.com/Moemu/Nonebot-Plugin-Rikka",
     supported_adapters=inherit_supported_adapters("nonebot_plugin_alconna"),
 )
