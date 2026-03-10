@@ -181,6 +181,16 @@ class MaimaiPyScoreProvider(BaseScoreProvider[MaimaiPyParams]):
                     ).finish()
 
                     return
+                except ValueError:
+                    logger.warning(f"[{user_id}] 无法通过 QQ 号请求玩家数据: QQ 号无效 & 非 QQ 平台聊天")
+                    await UniMessage(
+                        [
+                            At(flag="user", target=user_id),
+                            "你还未绑定查分器，请使用 /bind 指令进行绑定！",
+                        ]
+                    ).finish()
+
+                    return
 
             friend_code = new_player_friend_code or user_bind_info.friend_code  # type: ignore
             if not friend_code:
