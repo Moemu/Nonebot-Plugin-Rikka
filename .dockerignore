@@ -1,0 +1,59 @@
+# Python 缓存
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+.Python
+
+# 虚拟环境
+.venv/
+venv/
+env/
+
+# PDM
+.pdm-python
+.pdm-build/
+
+# 构建产物
+*.egg-info/
+dist/
+build/
+
+# 开发工具
+.git/
+.gitignore
+.pre-commit-config.yaml
+.mypy_cache/
+.ruff_cache/
+
+# 本地配置（运行时通过卷挂载或 env_file 提供）
+.env
+.env.local
+.env.*.local
+
+# 静态资源（运行时通过卷挂载）
+static/
+
+# 日志
+logs/
+
+# 数据库
+data/
+*.db
+*.sqlite3
+
+# 文档
+CODE_OF_CONDUCT.md
+CONTRIBUTING.md
+LICENSE
+assets/
+
+# 子包源码（nonebot-plugin-rikka-extra 从 PyPI 安装）
+nonebot-plugin-rikka-extra/
+
+# 脚本
+scripts/
+
+# 临时文件
+*.tmp
+*.bak
