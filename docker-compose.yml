@@ -6,11 +6,13 @@ services:
     ports:
       - "${PORT:-8080}:8080"
     volumes:
-      # 静态资源（封面、图标等），只读挂载
-      - ./static:/app/static:ro
+      # 挂载静态资源（封面、图标等）
+      - ./static:/app/static
       # 日志文件持久化
       - ./logs:/app/logs
-      # SQLite 数据库持久化
+      # SQLite 数据库存储目录持久化
       - ./data:/app/data
     env_file:
       - .env
+    environment:
+      SQLALCHEMY_DATABASE_URL: sqlite+aiosqlite:////app/data/rikka.db
