@@ -1,6 +1,7 @@
 import os
 from tempfile import TemporaryFile
 
+import matplotlib.font_manager as fm
 import matplotlib.pyplot as plt
 import numpy as np
 from matplotlib.gridspec import GridSpec
@@ -9,7 +10,24 @@ from PIL import Image
 from ..config import config
 from ..functions.analysis import PlayerStrength
 
-_DEFAULT_FONT = "SimHei"
+
+def _find_cjk_font() -> str:
+    """按优先级选取可用的 CJK 字体，兼容 Windows 和 Linux 容器环境。"""
+    candidates = [
+        "SimHei",  # Windows
+        "Noto Sans CJK SC",  # Debian/Ubuntu fonts-noto-cjk
+        "Noto Sans CJK",
+        "WenQuanYi Micro Hei",
+        "AR PL UMing CN",
+    ]
+    available = {f.name for f in fm.fontManager.ttflist}
+    for font in candidates:
+        if font in available:
+            return font
+    return "DejaVu Sans"  # 最终回退（无 CJK 字形，但不会崩溃）
+
+
+_DEFAULT_FONT = _find_cjk_font()
 plt.rcParams["font.sans-serif"] = [_DEFAULT_FONT]
 plt.rcParams["axes.unicode_minus"] = False
 
