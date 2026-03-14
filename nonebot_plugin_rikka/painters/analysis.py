@@ -1,6 +1,7 @@
 import os
 from tempfile import TemporaryFile
 
+import matplotlib.font_manager as fm
 import matplotlib.pyplot as plt
 import numpy as np
 from matplotlib.gridspec import GridSpec
@@ -9,8 +10,62 @@ from PIL import Image
 from ..config import config
 from ..functions.analysis import PlayerStrength
 
-_DEFAULT_FONT = "SimHei"
+
+def _load_cjk_font_from_static() -> str | None:
+    """优先从 static 目录加载项目自带字体，保证容器与本地渲染一致。"""
+    static_candidates = [
+        "ShangguMonoSC-Regular.otf",
+        "ResourceHanRoundedCN-Bold.ttf",
+    ]
+    for filename in static_candidates:
+        font_path = os.path.join(config.static_resource_path, filename)
+        if not os.path.exists(font_path):
+            continue
+        try:
+            fm.fontManager.addfont(font_path)
+            return fm.FontProperties(fname=font_path).get_name()
+        except Exception:
+            continue
+    return None
+
+
+def _find_cjk_font() -> str:
+    """按优先级选取可用的 CJK 字体，兼容 Windows 和 Linux 容器环境。"""
+    static_font = _load_cjk_font_from_static()
+    if static_font:
+        return static_font
+
+    exact_candidates = [
+        "SimHei",  # Windows
+        "Noto Sans CJK SC",  # Debian/Ubuntu fonts-noto-cjk
+        "Noto Sans CJK JP",
+        "Noto Sans CJK TC",
+        "Noto Sans CJK KR",
+        "Noto Sans CJK",
+        "Noto Serif CJK SC",
+        "Noto Serif CJK JP",
+        "WenQuanYi Micro Hei",
+        "AR PL UMing CN",
+        "Noto Sans CJK",
+        "Noto Serif CJK",
+        "WenQuanYi",
+        "Source Han Sans",
+        "Source Han Serif",
+    ]
+
+    available = sorted({f.name for f in fm.fontManager.ttflist})
+
+    for font in exact_candidates:
+        if font in available:
+            return font
+
+    return "DejaVu Sans"  # 最终回退（无 CJK 字形，但不会崩溃）
+
+
+_DEFAULT_FONT = _find_cjk_font()
+_FONT_KWARGS = {"fontfamily": _DEFAULT_FONT}
 plt.rcParams["font.sans-serif"] = [_DEFAULT_FONT]
+plt.rcParams["font.family"] = [_DEFAULT_FONT]
 plt.rcParams["axes.unicode_minus"] = False
 
 
@@ -39,7 +94,7 @@ def draw_player_strength_analysis(data: PlayerStrength) -> Image.Image:
 
     ax1.plot(angles, values, "o-", color="#4ECDC4", linewidth=2, label="强度")
     ax1.fill(angles, values, color="#4ECDC4", alpha=0.25)
-    ax1.set_thetagrids(np.degrees(angles[:-1]), categories, fontsize=10, color="#444444")  # type: ignore
+    ax1.set_thetagrids(np.degrees(angles[:-1]), categories, fontsize=10, color="#444444", **_FONT_KWARGS)  # type: ignore  # noqa: E501
     ax1.set_ylim(0, max(values) * 1.1 if values else 1)
     ax1.grid(True, linestyle="--", alpha=0.3, color="#CCCCCC")
     ax1.spines["polar"].set_color("#88CCDD")
@@ -61,7 +116,13 @@ def draw_player_strength_analysis(data: PlayerStrength) -> Image.Image:
 
     # 设置 y 轴刻度和标签
     ax2.set_yticks(y_pos)
-    ax2.set_yticklabels(labels, fontsize=12, color="#444444", ha="right")
+    ax2.set_yticklabels(
+        labels,
+        fontsize=12,
+        color="#444444",
+        ha="right",
+        fontdict={"family": _DEFAULT_FONT},
+    )
 
     # 让第一项（最大值）显示在最上方
     ax2.invert_yaxis()
@@ -106,7 +167,7 @@ def draw_player_strength_analysis(data: PlayerStrength) -> Image.Image:
 
     ax3.plot(angles, values, "o-", color="#4ECDC4", linewidth=2, label="强度")
     ax3.fill(angles, values, color="#4ECDC4", alpha=0.25)
-    ax3.set_thetagrids(np.degrees(angles[:-1]), categories, fontsize=10, color="#444444")  # type: ignore
+    ax3.set_thetagrids(np.degrees(angles[:-1]), categories, fontsize=10, color="#444444", **_FONT_KWARGS)  # type: ignore # noqa: E501
     ax3.set_ylim(0, max(values) * 1.1 if values else 1)
     ax3.grid(True, linestyle="--", alpha=0.3, color="#CCCCCC")
     ax3.spines["polar"].set_color("#88CCDD")
