@@ -520,7 +520,7 @@ async def handle_help(event: Event):
         ".b50 获取玩家 Best 50\n"
         ".ap50 获取玩家 ALL PERFECT 50\n"
         ".r50 获取玩家 Recent 50 (需绑定落雪查分器)\n"
-        ".n50 获取玩家拟合系数 Top-50"
+        ".n50 获取玩家拟合系数 Top-50\n"
         f".pc50 生成玩家游玩次数 Top50 （{'当前不可用' if not config.enable_arcade_provider else '需通过 `.import` 导入游戏成绩'})\n"
         ".random 随机获取一首乐曲（可选难度、等级、定数）\n"
         ".minfo <乐曲ID/别名> 获取乐曲信息\n"
@@ -534,6 +534,10 @@ async def handle_help(event: Event):
         ".今日舞萌 获取今日出勤运势\n"
         ".舞萌状态 检测服务器状态\n"
         f".推分推荐 生成随机推分曲目 {'(当前不可用)' if not SONG_TAGS_DATA_AVAILABLE else ''}\n"
+        f".import [divingfish] <qr_code> 导入游玩次数或同步到水鱼 {'当前不可用' if not config.enable_arcade_provider else ''}\n"
+        f".ticket <qr_code> 发送六倍票 {'当前不可用' if not config.enable_arcade_provider else ''}\n"
+        f".logout <qr_code> 尝试强制登出 {'当前不可用' if not config.enable_arcade_provider else ''}\n"
+        f".unlock <qr_code> 解锁新框紫铺 {'当前不可用' if not config.enable_arcade_provider else ''}\n"
     )
 
     await UniMessage(
