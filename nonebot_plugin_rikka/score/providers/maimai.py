@@ -316,6 +316,7 @@ class MaimaiPyScoreProvider(BaseScoreProvider[MaimaiPyParams]):
         self,
         params: MaimaiPyParams,
         level: Optional[str] = None,
+        level_value: Optional[float] = None,
         ach: Optional[float] = None,
         diff: Optional[Literal["BASIC", "ADVANCED", "EXPERT", "MASTER", "REMASTER"]] = None,
     ) -> list[PlayerMaiScore]:
@@ -326,6 +327,8 @@ class MaimaiPyScoreProvider(BaseScoreProvider[MaimaiPyParams]):
         :type params: MaimaiPyParams
         :param level: 曲目等级，如 `11`, `12+`
         :type level: str
+        :param level_value: 曲目等级值，如 `11.5`
+        :type level_value: float
         :param ach: 达成率，精确一位小数
         :type ach: float
         :param diff: 铺面难度分类
@@ -343,6 +346,8 @@ class MaimaiPyScoreProvider(BaseScoreProvider[MaimaiPyParams]):
 
         if level:
             matched_scores = cast(list[ScoreExtend], scores.filter(level=level))
+        elif level_value:
+            matched_scores = cast(list[ScoreExtend], scores.filter(level_value=level_value))
         elif ach:
             for score in scores.scores:
                 if score.achievements and trunc_1(score.achievements) == trunc_1(ach):

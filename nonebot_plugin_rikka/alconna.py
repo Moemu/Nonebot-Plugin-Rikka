@@ -4,7 +4,7 @@ from pathlib import Path
 from random import choice
 from time import perf_counter
 from traceback import format_exc
-from typing import Literal
+from typing import Literal, Optional
 
 from aiohttp.client_exceptions import ClientResponseError
 from arclet.alconna import Alconna, AllParam, Args
@@ -1436,11 +1436,13 @@ async def handle_scorelist(
                 (
                     ".scorelist 使用帮助\n"
                     ".scorelist <level> 获取指定等级的成绩列表\n"
+                    ".scorelist <level_value> 获取指定等级（定数）的成绩列表\n"
                     ".scorelist ach<float> 获取指定达成率的成绩列表\n"
                     ".scorelist <diff> 获取指定铺面难度的成绩列表\n"
                     "eg.\n"
                     ".scorelist 12+\n"
-                    ".scorelist ach100.8"
+                    ".scorelist 12.7\n"
+                    ".scorelist ach100.8\n"
                     ".scorelist expert"
                 ),
             ]
@@ -1448,12 +1450,16 @@ async def handle_scorelist(
 
     raw_query = arg.result
     logger.info(f"[{user_id}] 查询指定条件的成绩列表, 查询内容: {raw_query}")
-    level = None
-    ach = None
-    diff = None
+    level: Optional[str] = None
+    level_value: Optional[float] = None
+    ach: Optional[float] = None
+    diff: Optional[str] = None
     if raw_query.isdigit() or (raw_query.endswith("+") and raw_query[:-1].isdigit()):
         level = raw_query
         title = f"{level} 成绩列表"
+    elif is_float(raw_query):
+        level_value = float(raw_query)
+        title = f"{level_value} 成绩列表"
     elif raw_query.startswith("ach") and is_float(raw_query[3:]):
         ach = float(raw_query[3:])
         title = f"达成率 {ach} 成绩列表"
@@ -1477,7 +1483,7 @@ async def handle_scorelist(
     player_info = await score_provider.fetch_player_info(params)
 
     logger.debug(f"[{user_id}] 3/4 发起 API 请求玩家全部成绩...")
-    scores = await score_provider.fetch_player_scoreslist(params, level, ach, diff)  # type: ignore
+    scores = await score_provider.fetch_player_scoreslist(params, level, level_value, ach, diff)  # type: ignore
 
     if not scores:
         await UniMessage(
