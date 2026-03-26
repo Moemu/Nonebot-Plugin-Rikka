@@ -66,7 +66,11 @@ from .score import (
     get_maimaipy_provider,
 )
 from .score.providers.maimai import MaimaiPyParams
-from .updater.songs import update_song_alias_list
+from .updater.songs import (
+    update_local_chart_file,
+    update_song_alias_list,
+    update_song_database,
+)
 from .utils import get_song_by_id_or_alias, is_float
 
 renderer = PicRenderer()
@@ -1623,8 +1627,6 @@ async def handle_update_songs(
 
     logger.info(f"[{user_id}] 更新乐曲信息数据库")
 
-    from .updater.songs import update_song_database
-
     updated_count = await update_song_database(db_session)
 
     logger.info(f"[{user_id}] 乐曲信息数据库更新完成，共更新 {updated_count} 首乐曲")
@@ -1647,14 +1649,39 @@ async def handle_update_aliases(
 
 @alconna_update.assign("chart")
 async def handle_update_chart(event: Event):
-    from .updater.songs import update_local_chart_file
-
     await update_local_chart_file()
 
     await UniMessage(
         [
             At(flag="user", target=event.get_user_id()),
             "music_chart.json 文件已更新完成⭐",
+        ]
+    ).finish()
+
+
+@alconna_update.assign("$main")
+async def handle_update_main(event: Event, db_session: async_scoped_session):
+    user_id = event.get_user_id()
+    nb_config = get_driver().config
+
+    if user_id not in nb_config.superusers:
+        await UniMessage("更新乐曲信息需要管理员权限哦").finish()
+
+    logger.info(f"[{event.get_user_id()}] 未提供 update 参数，默认执行全量更新")
+
+    logger.debug(f"[{event.get_user_id()}] 1/3 更新 music_chart.json 文件")
+    await update_local_chart_file()
+    logger.debug(f"[{event.get_user_id()}] 2/3 更新乐曲数据库")
+    updated_count = await update_song_database(db_session)
+    logger.debug(f"[{event.get_user_id()}] 3/3 更新数据库中的乐曲别名列表")
+    await update_song_alias_list(db_session)
+
+    logger.info(f"[{event.get_user_id()}] 全量更新完成，共更新 {updated_count} 首乐曲")
+
+    await UniMessage(
+        [
+            At(flag="user", target=event.get_user_id()),
+            f"全量更新已完成，共更新 {updated_count} 首乐曲 ⭐",
         ]
     ).finish()
 
