@@ -55,7 +55,6 @@ from .painters import (
     draw_player_strength_analysis,
     image_to_bytes,
 )
-from .painters.process import ProcessPainter
 from .renderer import PicRenderer
 from .score import (
     DivingFishScoreProvider,
@@ -1557,9 +1556,31 @@ async def handle_plate_process(
         await UniMessage([At(flag="user", target=user_id), str(e)]).finish()
         return
 
-    logger.debug(f"[{user_id}] 3/3 渲染玩家数据...")
-    img = ProcessPainter(data).draw_plate(use_difficult=use_difficult)
-    await UniMessage([At(flag="user", target=user_id), UniImage(raw=img.getvalue())]).finish()
+    diff_names = ["Basic", "Advanced", "Expert", "Master", "Re:MASTER"]
+    is_dx = ver_char in ["熊", "华", "華", "爽", "煌", "宙", "星", "祭", "祝", "双", "宴", "镜", "彩"]
+    song_type = "DX" if is_dx else "SD"
+
+    total_left = data.total_left
+    percentage = f"{data.played_count / data.total_count * 100:.2f}%" if total_left > 0 else "已完成"
+
+    unfinished_list = data.basic_left + data.advanced_left + data.expert_left + data.master_left + data.remaster_left
+    if use_difficult:
+        unfinished_list = data.difficult_left
+    unfinished_list.sort(key=lambda x: x.level_value, reverse=True)
+
+    text = (
+        f"{ver_char}{plan}进度 - {percentage}\n"
+        f"铺面总数: {data.total_count}\n"
+        f"剩余进度: 绿铺：{len(data.basic_left)}首; 黄铺: {len(data.advanced_left)}首; "
+        f"红铺: {len(data.expert_left)}首; 紫铺: {len(data.master_left)}首; 白铺: {len(data.remaster_left)}首\n"
+        f"预计剩余时间: {total_left * 2 / 60:.1f} 小时（单刷预计 {(total_left + 2) // 3}pc; 拼机预计 {(total_left + 3) // 4}pc）\n"
+        f"未完成铺面列表：\n"
+    )
+
+    for item in unfinished_list[:10]:
+        text += f"[{diff_names[item.difficulty]} {item.level_value}] {item.song.title}[{song_type}]\n"
+
+    await UniMessage([At(flag="user", target=user_id), text.strip()]).finish()
 
 
 @alconna_level_process.handle()
@@ -1577,13 +1598,19 @@ async def handle_level_process(
             raw_text = raw_text[len(p) :]
             break
 
-    m = re.match(r"^([0-9]+\+?)\s?([abcdsfxp\+]+)\s?([\u4e00-\u9fa5]+)?进度\s?([0-9]+)?\s?(.+)?$", raw_text)
+    m = re.match(
+        r"^([0-9]+\+?)\s?([abcdsfxp\+A-Za-z]+|[\u4e00-\u9fa5]+)\s?([\u4e00-\u9fa5]+)?进度\s?([0-9]+)?\s?(.+)?$",
+        raw_text,
+    )
     if not m:
         await UniMessage([At(flag="user", target=user_id), "命令解析失败，请检查输入格式"]).finish()
         return
 
     raw_level = m.group(1)
     raw_plan = m.group(2)
+
+    plan_map = {"极": "FC", "極": "FC", "神": "AP", "将": "SSS"}
+    raw_plan = plan_map.get(raw_plan, raw_plan)
 
     logger.info(f"[{user_id}] 查询等级进度: {raw_level} {raw_plan}")
 
@@ -1608,9 +1635,57 @@ async def handle_level_process(
         await UniMessage([At(flag="user", target=user_id), str(e)]).finish()
         return
 
-    logger.debug(f"[{user_id}] 3/3 渲染玩家数据...")
-    img = ProcessPainter(data).draw_level()
-    await UniMessage([At(flag="user", target=user_id), UniImage(raw=img.getvalue())]).finish()
+    diff_names = ["Basic", "Advanced", "Expert", "Master", "Re:MASTER"]
+
+    total_left = data.counts["unfinished"] + data.counts["not_played"]
+    total_count = data.counts["total"]
+    percentage = f"{data.counts['completed'] / total_count * 100:.2f}%" if total_left > 0 else "已完成"
+
+    unfinished_items = []
+    counts_by_diff = [0, 0, 0, 0, 0]
+
+    for song, _, diff_idx in data.unfinished:
+        counts_by_diff[diff_idx] += 1
+        level_val = 0.0
+        is_dx = False
+        for d in song.difficulties.standard:
+            if d.difficulty == diff_idx and d.level == raw_level:
+                level_val = d.level_value
+        for d in song.difficulties.dx:
+            if d.difficulty == diff_idx and d.level == raw_level:
+                level_val = d.level_value
+                is_dx = True
+        unfinished_items.append((song, diff_idx, level_val, is_dx))
+
+    for song, diff_idx in data.not_played:
+        counts_by_diff[diff_idx] += 1
+        level_val = 0.0
+        is_dx = False
+        for d in song.difficulties.standard:
+            if d.difficulty == diff_idx and d.level == raw_level:
+                level_val = d.level_value
+        for d in song.difficulties.dx:
+            if d.difficulty == diff_idx and d.level == raw_level:
+                level_val = d.level_value
+                is_dx = True
+        unfinished_items.append((song, diff_idx, level_val, is_dx))
+
+    unfinished_items.sort(key=lambda x: x[2], reverse=True)
+
+    text = (
+        f"{raw_level}{raw_plan}进度 - {percentage}\n"
+        f"铺面总数: {total_count}\n"
+        f"剩余进度: 绿铺: {counts_by_diff[0]}首; 黄铺: {counts_by_diff[1]}首; "
+        f"红铺: {counts_by_diff[2]}首; 紫铺: {counts_by_diff[3]}首; 白铺: {counts_by_diff[4]}首\n"
+        f"预计剩余时间: {total_left * 2 / 60:.1f} 小时（单刷预计 {(total_left + 2) // 3}pc; 拼机预计 {(total_left + 3) // 4}pc）\n"
+        f"未完成铺面列表: \n"
+    )
+
+    for song, diff_idx, level_val, is_dx in unfinished_items[:10]:
+        song_type = "DX" if is_dx else "SD"
+        text += f"[{diff_names[diff_idx]} {level_val}] {song.title}[{song_type}]\n"
+
+    await UniMessage([At(flag="user", target=user_id), text.strip()]).finish()
 
 
 @alconna_update.assign("songs")
