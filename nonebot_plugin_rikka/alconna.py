@@ -776,7 +776,7 @@ async def handle_import_divingfish(
     await UniMessage([At(flag="user", target=user_id), "水鱼查分器更新成功！"]).finish()
 
 
-@alconna_ticket.handle()
+# @alconna_ticket.handle()
 @catch_exception("发票失败")
 async def handle_ticket(
     event: Event,
@@ -798,7 +798,7 @@ async def handle_ticket(
     await UniMessage([At(flag="user", target=user_id), "已成功发送了 6 倍票"]).finish()
 
 
-@alconna_logout.handle()
+# @alconna_logout.handle()
 @catch_exception(reply_prefix="强制登出失败")
 async def handle_logout(
     event: Event,
@@ -819,7 +819,7 @@ async def handle_logout(
     await UniMessage([At(flag="user", target=user_id), "已尝试强制登出，请尝试重新登录"]).finish()
 
 
-@alconna_unlock.handle()
+# @alconna_unlock.handle()
 @catch_exception()
 async def handle_rikka_unlock(
     event: Event,
