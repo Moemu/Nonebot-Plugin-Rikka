@@ -31,13 +31,13 @@ from .constants import _MAI_VERSION_MAP
 from .database import MaiPlayCountORM, MaiSongAliasORM, MaiSongORM, UserBindInfoORM
 from .extra_proxy import (
     get_maistatus,
-    run_divingfish_import_workflow,
     run_extend_score_workflow,
     run_extend_ticket_workflow,
     run_extent_force_logout,
     run_unlock_workflow,
 )
 from .functions.analysis import get_player_strength
+from .functions.diving_fish import convert_to_diving_fish_format, upload_to_diving_fish
 from .functions.fortunate import generate_today_fortune
 from .functions.maistatus import capture_maimai_status_png
 from .functions.n50 import get_players_n50
@@ -771,9 +771,29 @@ async def handle_import_divingfish(
 
     import_token = bind_info.diving_fish_import_token
 
-    await run_divingfish_import_workflow(qr_code.result, import_token)
+    workflow_result = await run_extend_score_workflow(qr_code.result)
+    if not workflow_result:
+        await UniMessage([At(flag="user", target=user_id), "未获取到可用的游玩次数数据"]).finish()
+        return
 
-    await UniMessage([At(flag="user", target=user_id), "水鱼查分器更新成功！"]).finish()
+    divingfish_scores = convert_to_diving_fish_format(workflow_result)
+    await upload_to_diving_fish(import_token, divingfish_scores)
+
+    # 同时更新本地游玩次数数据库
+    records: list[tuple[int, int, int]] = []
+    for item in workflow_result:
+        if not isinstance(item, dict):
+            continue
+        try:
+            song_id = int(item["musicId"])
+            difficulty = int(item["level"])
+            play_count = int(item["playCount"])
+        except (KeyError, TypeError, ValueError):
+            continue
+        records.append((song_id, difficulty, play_count))
+    imported = await MaiPlayCountORM.upsert_user_play_counts(db_session, user_id, records)
+
+    await UniMessage([At(flag="user", target=user_id), f"水鱼查分器更新成功！共更新了 {imported} 条记录"]).finish()
 
 
 # @alconna_ticket.handle()
