@@ -56,6 +56,27 @@ class MaimaiPyParams:
     score_provider: _SUPPORT_PROVIDER
     identifier: PlayerIdentifier
 
+    @staticmethod
+    def _hash_identifier(identifier: PlayerIdentifier) -> int:
+        return hash(
+            (
+                identifier.qq,
+                identifier.friend_code,
+                identifier.username,
+                identifier.credentials,
+            )
+        )
+
+    def __hash__(self) -> int:
+        return hash((id(self.score_provider), self._hash_identifier(self.identifier)))
+
+    def __eq__(self, other: object) -> bool:
+        if not isinstance(other, MaimaiPyParams):
+            return False
+        return id(self.score_provider) == id(other.score_provider) and self._hash_identifier(
+            self.identifier
+        ) == self._hash_identifier(other.identifier)
+
 
 class MaimaiPyScoreProvider(BaseScoreProvider[MaimaiPyParams]):
     provider = "maimai_py"
@@ -218,6 +239,10 @@ class MaimaiPyScoreProvider(BaseScoreProvider[MaimaiPyParams]):
 
         return identifier
 
+    @alru_cache(maxsize=128, ttl=10 * 60)
+    async def _fetch_maimai_scores(self, params: MaimaiPyParams) -> MaimaiScores:
+        return await maimai_client.scores(params.identifier, params.score_provider)
+
     async def fetch_player_info(self, params: MaimaiPyParams) -> PlayerMaiInfo:
         player_info = await maimai_client.players(params.identifier, params.score_provider)
 
@@ -239,7 +264,7 @@ class MaimaiPyScoreProvider(BaseScoreProvider[MaimaiPyParams]):
         """
         logger.debug("1/2 获取完整游玩记录")
 
-        scores = await maimai_client.scores(params.identifier, params.score_provider)
+        scores = await self._fetch_maimai_scores(params)
 
         ap_records = scores.filter(fc=FCType.AP) + scores.filter(fc=FCType.APP)
 
@@ -341,7 +366,7 @@ class MaimaiPyScoreProvider(BaseScoreProvider[MaimaiPyParams]):
         def trunc_1(x):
             return Decimal(str(x)).quantize(Decimal("0.0"), rounding=ROUND_DOWN)
 
-        scores = await maimai_client.scores(params.identifier, params.score_provider)
+        scores = await self._fetch_maimai_scores(params)
         matched_scores: list[ScoreExtend] = []
 
         if level:
