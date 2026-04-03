@@ -387,9 +387,11 @@ alconna_scorelist = on_alconna(
     Alconna(
         COMMAND_PREFIXES,
         "scorelist",
-        Args["arg", str],
+        Args["arg", AllParam(str)],
         meta=CommandMeta(
-            "[舞萌DX]获取指定条件的成绩列表", usage=".scorelist <level|ach|diff>", example=".scorelist ach100.4"
+            "[舞萌DX]获取指定条件的成绩列表",
+            usage=".scorelist <level|ach|diff> [page]",
+            example=".scorelist ach100.4 2",
         ),
     ),
     aliases={"scoreslist"},
@@ -529,7 +531,7 @@ async def handle_help(event: Event):
         ".minfo <乐曲ID/别名> 获取乐曲信息\n"
         ".alias 管理乐曲别名（添加、查询、更新）\n"
         ".score <乐曲ID/别名> 获取单曲游玩情况\n"
-        ".scorelist <level|ach|diff> 获取指定条件的成绩列表\n"
+        ".scorelist <level|ach|diff> [页码] 获取指定条件的成绩列表\n"
         ".update songs 更新乐曲信息数据库\n"
         ".update alias 更新乐曲别名列表\n"
         ".trend 获取玩家的 DX Rating 趋势 （需绑定落雪查分器）\n"
@@ -1447,7 +1449,7 @@ async def handle_score(
 async def handle_scorelist(
     event: Event,
     db_session: async_scoped_session,
-    arg: Match[str] = AlconnaMatch("arg"),
+    arg: Match[UniMessage] = AlconnaMatch("arg"),
     score_provider: MaimaiPyScoreProvider = Depends(get_maimaipy_provider),
 ):
     user_id = event.get_user_id()
@@ -1462,16 +1464,36 @@ async def handle_scorelist(
                     ".scorelist <level_value> 获取指定等级（定数）的成绩列表\n"
                     ".scorelist ach<float> 获取指定达成率的成绩列表\n"
                     ".scorelist <diff> 获取指定铺面难度的成绩列表\n"
+                    ".scorelist <条件> [page] 获取指定页（每页 50 条）\n"
                     "eg.\n"
                     ".scorelist 12+\n"
                     ".scorelist 12.7\n"
                     ".scorelist ach100.8\n"
-                    ".scorelist expert"
+                    ".scorelist expert\n"
+                    ".scorelist ach100.8 2"
                 ),
             ]
         ).finish()
 
-    raw_query = arg.result
+    raw_input = arg.result.extract_plain_text().strip()
+    query_parts = raw_input.split()
+
+    if not query_parts:
+        await UniMessage([At(flag="user", target=user_id), "命令格式错误，请检查后重新输入！"]).finish()
+        return
+
+    raw_query = query_parts[0]
+    page = 1
+    if len(query_parts) >= 2:
+        if not query_parts[1].isdigit() or int(query_parts[1]) <= 0:
+            await UniMessage([At(flag="user", target=user_id), "页码必须是大于 0 的整数"]).finish()
+            return
+        page = int(query_parts[1])
+
+    if len(query_parts) > 2:
+        await UniMessage([At(flag="user", target=user_id), "命令格式错误，请检查后重新输入！"]).finish()
+        return
+
     logger.info(f"[{user_id}] 查询指定条件的成绩列表, 查询内容: {raw_query}")
     level: Optional[str] = None
     level_value: Optional[float] = None
@@ -1517,8 +1539,25 @@ async def handle_scorelist(
         ).finish()
         return
 
+    page_size = 50
+    total_pages = (len(scores) + page_size - 1) // page_size
+    start = (page - 1) * page_size
+    end = start + page_size
+    page_scores = scores[start:end]
+
+    if not page_scores:
+        await UniMessage(
+            [
+                At(flag="user", target=user_id),
+                f"页码超出范围，当前共 {total_pages} 页，请输入 1~{total_pages} 之间的页码",
+            ]
+        ).finish()
+        return
+
+    title = f"{title} - 第 {page}/{total_pages} 页"
+
     logger.debug(f"[{user_id}] 4/4 渲染玩家数据...")
-    pic = await renderer.render_mai_player_scores(scores[:50], player_info, title)
+    pic = await renderer.render_mai_player_scores(page_scores, player_info, title)
 
     await UniMessage([At(flag="user", target=user_id), UniImage(raw=pic)]).finish()
 
