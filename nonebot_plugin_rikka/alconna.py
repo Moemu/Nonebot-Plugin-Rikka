@@ -39,6 +39,11 @@ from .extra_proxy import (
 from .functions.analysis import get_player_strength
 from .functions.diving_fish import convert_to_diving_fish_format, upload_to_diving_fish
 from .functions.fortunate import generate_today_fortune
+from .functions.lxns import (
+    convert_to_lxns_maimai_format,
+    get_updated_score,
+    upload_to_lxns_maimai,
+)
 from .functions.maistatus import capture_maimai_status_png
 from .functions.n50 import get_players_n50
 from .functions.process import (
@@ -223,8 +228,10 @@ alconna_import = on_alconna(
         COMMAND_PREFIXES,
         "import",
         Subcommand("divingfish", help_text="导入成绩到水鱼查分器"),
+        Subcommand("lxns", help_text="导入成绩到落雪查分器"),
+        Subcommand("all", help_text="同时导入成绩到落雪和水鱼查分器"),
         Args["qr_code", str],
-        meta=CommandMeta("[舞萌DX]导入游玩次数或同步成绩到查分器", usage=".import [divingfish] <qr_code>"),
+        meta=CommandMeta("[舞萌DX]导入游玩次数或同步成绩到查分器", usage=".import [divingfish|lxns|all] <qr_code>"),
     ),
     priority=10,
     block=True,
@@ -796,6 +803,149 @@ async def handle_import_divingfish(
     imported = await MaiPlayCountORM.upsert_user_play_counts(db_session, user_id, records)
 
     await UniMessage([At(flag="user", target=user_id), f"水鱼查分器更新成功！共更新了 {imported} 条记录"]).finish()
+
+
+@alconna_import.assign("lxns")
+@catch_exception()
+async def handle_import_lxns(
+    event: Event, db_session: async_scoped_session, qr_code: Match[str] = AlconnaMatch("qr_code")
+):
+    user_id = event.get_user_id()
+
+    if not config.enable_arcade_provider:
+        await UniMessage([At(flag="user", target=user_id), "机台源不可用，无法执行该操作"]).finish()
+        return
+
+    if not qr_code.available or not qr_code.result:
+        await UniMessage(
+            [
+                At(flag="user", target=user_id),
+                "请提供二维码内容: .import <qr_code>",
+            ]
+        ).finish()
+        return
+
+    # 检查是否绑定了落雪查分器
+    bind_info = await UserBindInfoORM.get_user_bind_info(db_session, user_id)
+    if not bind_info or not bind_info.lxns_api_key:
+        await UniMessage(
+            [
+                At(flag="user", target=user_id),
+                "未绑定落雪查分器，请使用 .bind lxns <API密钥> 命令绑定",
+            ]
+        ).finish()
+        return
+    user_token = bind_info.lxns_api_key
+
+    try:
+        all_scores = await run_extend_score_workflow(qr_code.result)
+    except RuntimeError as e:
+        logger.error(f"登录失败: {e}")
+        await UniMessage([At(flag="user", target=user_id), f"登录失败: {e}"]).finish()
+        return
+
+    if not all_scores:
+        await UniMessage([At(flag="user", target=user_id), "未获取到可用的游玩次数数据"]).finish()
+        return
+    logger.debug(f"获取到的成绩数量: {len(all_scores)}")
+
+    updated_scores = await get_updated_score(all_scores, user_token)  # type: ignore
+    logger.debug(f"需要更新的成绩数量: {len(updated_scores)}")
+    if not updated_scores:
+        await UniMessage([At(flag="user", target=user_id), "没有需要更新的成绩"]).finish()
+        return
+
+    logger.debug("尝试上传至落雪服务器...")
+    upload_scores = convert_to_lxns_maimai_format(updated_scores)
+    await upload_to_lxns_maimai(user_token, upload_scores)
+
+    # 同时更新本地游玩次数数据库
+    records: list[tuple[int, int, int]] = []
+    for item in all_scores:
+        if not isinstance(item, dict):
+            continue
+        try:
+            song_id = int(item["musicId"])
+            difficulty = int(item["level"])
+            play_count = int(item["playCount"])
+        except (KeyError, TypeError, ValueError):
+            continue
+        records.append((song_id, difficulty, play_count))
+    await MaiPlayCountORM.upsert_user_play_counts(db_session, user_id, records)
+
+    await UniMessage(
+        [At(flag="user", target=user_id), f"落雪查分器更新成功！共更新了 {len(updated_scores)} 条记录"]
+    ).finish()
+
+
+@alconna_import.assign("all")
+@catch_exception()
+async def handle_import_all(
+    event: Event,
+    db_session: async_scoped_session,
+    qr_code: Match[str] = AlconnaMatch("qr_code"),
+):
+    user_id = event.get_user_id()
+
+    if not config.enable_arcade_provider:
+        await UniMessage([At(flag="user", target=user_id), "机台源不可用，无法执行该操作"]).finish()
+        return
+
+    if not qr_code.available or not qr_code.result:
+        await UniMessage(
+            [
+                At(flag="user", target=user_id),
+                "请提供二维码内容: .import <qr_code>",
+            ]
+        ).finish()
+        return
+
+    # 检查是否绑定了落雪查分器和水鱼查分器
+    bind_info = await UserBindInfoORM.get_user_bind_info(db_session, user_id)
+    if not bind_info or not bind_info.lxns_api_key or not bind_info.diving_fish_import_token:
+        await UniMessage(
+            [
+                At(flag="user", target=user_id),
+                "未同时绑定落雪和水鱼查分器，请使用 .bind 命令绑定",
+            ]
+        ).finish()
+        return
+    divingfish_import_token = bind_info.diving_fish_import_token
+    lxns_user_token = bind_info.lxns_api_key
+
+    all_scores = await run_extend_score_workflow(qr_code.result)
+    if not all_scores:
+        await UniMessage([At(flag="user", target=user_id), "未获取到可用的游玩次数数据"]).finish()
+        return
+    logger.debug(f"获取到的成绩数量: {len(all_scores)}")
+
+    # divingfish
+    logger.debug("更新水鱼查分器...")
+    divingfish_scores = convert_to_diving_fish_format(all_scores)
+    await upload_to_diving_fish(divingfish_import_token, divingfish_scores)
+
+    # lxns
+    logger.debug("更新落雪查分器...")
+    updated_scores = await get_updated_score(all_scores, lxns_user_token)  # type: ignore
+    logger.debug(f"更新的成绩数量: {len(all_scores) - len(updated_scores)}")
+    lxns_scores = convert_to_lxns_maimai_format(updated_scores)
+    await upload_to_lxns_maimai(lxns_user_token, lxns_scores)
+
+    # 同时更新本地游玩次数数据库
+    records: list[tuple[int, int, int]] = []
+    for item in all_scores:
+        if not isinstance(item, dict):
+            continue
+        try:
+            song_id = int(item["musicId"])
+            difficulty = int(item["level"])
+            play_count = int(item["playCount"])
+        except (KeyError, TypeError, ValueError):
+            continue
+        records.append((song_id, difficulty, play_count))
+    imported = await MaiPlayCountORM.upsert_user_play_counts(db_session, user_id, records)
+
+    await UniMessage([At(flag="user", target=user_id), f"查分器更新成功！共更新了 {imported} 条记录"]).finish()
 
 
 # @alconna_ticket.handle()
