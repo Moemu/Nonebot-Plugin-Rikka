@@ -175,7 +175,6 @@ class ScoreBaseImage:
                 plate = Image.open(PIC_DIR / "UI_Plate_300501.png").resize((800, 130))
         else:
             plate = Image.open(PIC_DIR / "UI_Plate_300501.png").resize((800, 130))
-        plate = self._with_opacity(plate)
         self._im.alpha_composite(plate, (300, 60))
 
         # Icon
