@@ -162,6 +162,8 @@ class DrawScores(ScoreBaseImage):
         """
         绘制上分数据表
         """
+        self.reset_im()
+
         title_bg = self.title_lengthen_bg.copy().resize((450, 100))
         self._im.alpha_composite(title_bg, (150, 30))
         self._sy.draw(375, 75, 30, "旧版本谱面推荐", self.text_color, "mm")

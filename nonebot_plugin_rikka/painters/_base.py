@@ -59,6 +59,8 @@ class ScoreBaseImage:
         ]
         self.id_diff = [Image.new("RGBA", (55, 10), color) for color in self.bg_color]
 
+        self.reset_im()
+
     def _get_image(
         self,
         path: Path,
