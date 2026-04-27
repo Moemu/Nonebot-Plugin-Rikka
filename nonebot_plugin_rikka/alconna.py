@@ -1,4 +1,6 @@
 import re
+from asyncio import TimeoutError
+from datetime import datetime, timedelta
 from functools import wraps
 from pathlib import Path
 from random import choice
@@ -69,6 +71,7 @@ from .score import (
     get_lxns_provider,
     get_maimaipy_provider,
 )
+from .score.providers.lxns import LXNSRatingTrend
 from .score.providers.maimai import MaimaiPyParams
 from .updater.songs import (
     update_local_chart_file,
@@ -173,6 +176,10 @@ def catch_exception(reply_prefix: str = "发生了未知错误", reply_error: bo
                 return await func(*args, **kwargs)
             except FinishedException:
                 raise
+            except TimeoutError:
+                logger.error(format_exc())
+                reply_message = f"{reply_prefix}: 上游服务请求超时，或许等一下再试试？" if reply_error else reply_prefix
+                await UniMessage(reply_message).finish()
             except Exception as exc:
                 logger.error(format_exc())
                 reply_message = f"{reply_prefix}: {str(exc)}" if reply_error else reply_prefix
@@ -181,6 +188,40 @@ def catch_exception(reply_prefix: str = "发生了未知错误", reply_error: bo
         return wrapper
 
     return decorator
+
+
+def _parse_trend_time_window(raw_time_range: str) -> tuple[int | None, str | None]:
+    """将时间入参解析为天数窗口。"""
+
+    text = raw_time_range.strip().lower()
+    if not text:
+        return None, None
+
+    normalized = text
+    for token in ("以内", "之内", "内", "最近", "近"):
+        normalized = normalized.replace(token, "")
+    normalized = normalized.strip()
+
+    match = re.fullmatch(
+        r"(\d+)(天|日|周|星期|个月|個月|月|d|day|days|w|week|weeks|month|months)",
+        normalized,
+    )
+    if not match:
+        return None, None
+
+    value = int(match.group(1))
+    unit = match.group(2)
+    if value <= 0:
+        return None, None
+
+    if unit in {"天", "日", "d", "day", "days"}:
+        return value, f"近{value}天"
+    if unit in {"周", "星期", "w", "week", "weeks"}:
+        return value * 7, f"近{value}周"
+    if unit in {"个月", "個月", "月", "month", "months"}:
+        return value * 30, f"近{value}个月"
+
+    return None, None
 
 
 COMMAND_PREFIXES = [".", "/"]
@@ -477,7 +518,12 @@ alconna_trend = on_alconna(
     Alconna(
         COMMAND_PREFIXES,
         "trend",
-        meta=CommandMeta("[舞萌DX]生成玩家 DX Rating 趋势（需绑定落雪查分器）"),
+        Args["time_range?", str],
+        Args["render_mode?", Literal["simple", "detailed"]],
+        meta=CommandMeta(
+            "[舞萌DX]生成玩家 DX Rating 趋势（需绑定落雪查分器）",
+            usage=".trend [7天|1个月] [simple|detailed]",
+        ),
     ),
     priority=10,
     block=True,
@@ -541,7 +587,7 @@ async def handle_help(event: Event):
         ".scorelist <level|ach|diff> [页码] 获取指定条件的成绩列表\n"
         ".update songs 更新乐曲信息数据库\n"
         ".update alias 更新乐曲别名列表\n"
-        ".trend 获取玩家的 DX Rating 趋势 （需绑定落雪查分器）\n"
+        ".trend [时间范围] [simple|detailed] 获取玩家的 DX Rating 趋势（默认 simple；detailed 显示新旧版本分数）\n"
         f".成分分析 根据 B100 获取玩家成分分析 {'(当前不可用)' if not SONG_TAGS_DATA_AVAILABLE else ''}\n"
         ".今日舞萌 获取今日出勤运势\n"
         ".舞萌状态 检测服务器状态\n"
@@ -2038,18 +2084,50 @@ async def handle_trend(
     db_session: async_scoped_session,
     event: Event,
     score_provider: LXNSScoreProvider = Depends(get_lxns_provider),
+    time_range: Match[str] = AlconnaMatch("time_range"),
+    raw_render_mode: Match[str] = AlconnaMatch("render_mode"),
 ):
     user_id = event.get_user_id()
+    raw_time_range = time_range.result.strip() if time_range.available else ""
+    render_mode = raw_render_mode.result.strip() if raw_render_mode.available else "simple"
 
-    logger.info(f"[{user_id}] 获取玩家 Rating 趋势, 查分器类型: {type(score_provider)}")
-    logger.debug(f"[{user_id}] 1/3 获得用户鉴权凭证...")
+    range_days: int | None = None
+    range_desc: str | None = None
+
+    if raw_time_range:
+        parsed_days, parsed_range_desc = _parse_trend_time_window(raw_time_range)
+        if parsed_days is not None:
+            range_days = parsed_days
+            range_desc = parsed_range_desc
+        else:
+            await UniMessage(
+                [
+                    At(flag="user", target=user_id),
+                    "时间范围参数格式错误，请使用如 `.trend 7天` 或 `.trend 1个月`（不支持 `1 个月` 这种带空格写法）",
+                ]
+            ).finish()
+            return
+
+    if render_mode not in ["simple", "detailed"]:
+        await UniMessage(
+            [
+                At(flag="user", target=user_id),
+                "渲染模式参数格式错误，请使用 `simple` 或 `detailed`",
+            ]
+        ).finish()
+        return
+
+    logger.info(
+        f"[{user_id}] 获取玩家 Rating 趋势, 查分器类型: {type(score_provider)}, 时间范围={range_desc}, 渲染模式={render_mode}"
+    )
+    logger.debug(f"[{user_id}] 1/4 获得用户鉴权凭证...")
 
     user_bind_info = await UserBindInfoORM.get_user_bind_info(db_session, user_id)
 
     new_player_friend_code = None
     if user_bind_info is None:
         logger.warning(f"[{user_id}] 未能获取玩家码，数据库中不存在绑定的玩家数据")
-        logger.debug(f"[{user_id}] 1/3 尝试通过 QQ 请求玩家数据")
+        logger.debug(f"[{user_id}] 1/4 尝试通过 QQ 请求玩家数据")
         try:
             player_info = await score_provider.fetch_player_info_by_qq(user_id)
             new_player_friend_code = player_info.friend_code
@@ -2076,20 +2154,44 @@ async def handle_trend(
         ).finish()
         return
 
-    logger.debug(f"[{user_id}] 2/3 发起 API 请求玩家 Trend 趋势")
+    logger.debug(f"[{user_id}] 2/4 发起 API 请求玩家 Trend 趋势")
 
     trends = await score_provider.fetch_player_trend(friend_code)
+
+    if range_days is not None:
+        logger.debug(f"[{user_id}] 3/4 按时间窗口过滤 Trend 数据: {range_desc}")
+        dated_trends: list[tuple[datetime, LXNSRatingTrend]] = []
+        for trend in trends:
+            date_text = str(trend.get("date", ""))
+            try:
+                trend_date = datetime.fromisoformat(date_text.replace("Z", "+00:00"))
+            except ValueError:
+                continue
+            dated_trends.append((trend_date, trend))
+
+        if not dated_trends:
+            await UniMessage([At(flag="user", target=user_id), "趋势数据时间格式异常，暂时无法按时间范围筛选"]).finish()
+            return
+
+        latest_date = max(item[0] for item in dated_trends)
+        start_date = latest_date - timedelta(days=range_days - 1)
+        trends = [item[1] for item in dated_trends if item[0] >= start_date]
 
     if len(trends) < 5:
         await UniMessage(
             [
                 At(flag="user", target=user_id),
-                "玩家 Rating 记录数据太少，无法进行渲染",
+                (
+                    f"{range_desc}内的玩家 Rating 记录数据太少，无法进行渲染"
+                    if range_desc
+                    else "玩家 Rating 记录数据太少，无法进行渲染"
+                ),
             ]
         ).finish()
+        return
 
-    logger.debug(f"[{user_id}] 3/3 渲染玩家数据...")
-    pic = draw_player_rating_trend(trends)
+    logger.debug(f"[{user_id}] 4/4 渲染玩家数据...")
+    pic = draw_player_rating_trend(trends, show_standard_dx=(render_mode == "detailed"))
     byte = image_to_bytes(pic)
 
     await UniMessage([At(flag="user", target=user_id), UniImage(raw=byte)]).finish()
