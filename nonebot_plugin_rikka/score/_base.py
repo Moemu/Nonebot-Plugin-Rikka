@@ -1,7 +1,7 @@
 from abc import ABC, abstractmethod
 from typing import Any, ClassVar, Generic, Optional, Type, TypeVar
 
-from aiohttp import ClientResponseError, ClientSession
+from aiohttp import ClientResponseError, ClientSession, ClientTimeout
 
 from ._schema import PlayerMaiB50, PlayerMaiInfo
 
@@ -23,7 +23,7 @@ class BaseScoreProvider(ABC, Generic[P]):
     async def _get_session(self) -> ClientSession:
         """获取或创建共享的 aiohttp 会话"""
         if self._session is None or self._session.closed:
-            self._session = ClientSession()
+            self._session = ClientSession(timeout=ClientTimeout(total=60))
         return self._session
 
     def _build_headers(self, auth_token: Optional[str]) -> dict:
