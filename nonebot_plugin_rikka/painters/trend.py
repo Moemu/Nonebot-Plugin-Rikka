@@ -104,7 +104,7 @@ def draw_player_rating_trend(
     ax = fig.add_subplot(111)
 
     # 先给一个基础边距；后面会根据 y 轴数值位数自适应加大 left，避免刻度数字被裁剪。
-    fig.subplots_adjust(left=0.06, right=0.98, top=0.92, bottom=0.18)
+    fig.subplots_adjust(left=0.06, right=0.98, top=0.85, bottom=0.10)
 
     if title:
         ax.set_title(title, fontsize=18, fontweight="bold", color="#000000", family=_DEFAULT_FONT, pad=14)
@@ -124,8 +124,8 @@ def draw_player_rating_trend(
     # 不使用 bbox_inches='tight' 保存时，超出画布的 ticklabel 会被裁剪。
     # 这里根据 y 轴数值位数动态加大 left 边距（常见 5 位数时会被截断最后一位）。
     y_digits = max(len(str(abs(int(y_base)))), len(str(abs(int(y_max + pad)))))
-    extra_left = max(0.0, (y_digits - 4) * 0.02)
-    fig.subplots_adjust(left=min(0.18, 0.06 + extra_left), right=0.98, top=0.92, bottom=0.18)
+    extra_left = max(0.0, (y_digits - 4) * 0.05)
+    fig.subplots_adjust(left=min(0.18, 0.06 + extra_left), right=0.98, top=0.85, bottom=0.10)
 
     # 带填充的折线图：数据多时不绘制端点（无 marker）
     ax.fill_between(x_values, totals, y_base, color=c_total, alpha=0.18, linewidth=0)

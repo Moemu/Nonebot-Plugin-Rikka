@@ -331,7 +331,7 @@ class ScoreBaseImage:
             )
             if max_dx_score is not None:
                 self._tb.draw(
-                    x + 209,
+                    x + 211,
                     y + 65,
                     15,
                     f"{info.dx_score}/{max_dx_score}",
