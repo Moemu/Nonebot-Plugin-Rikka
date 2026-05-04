@@ -14,7 +14,7 @@ repos:
         args: ["--max-line-length=120", "--extend-ignore=W503,E203"]
 
   - repo: https://github.com/pre-commit/mirrors-mypy
-    rev: v1.20.0
+    rev: v1.20.2
     hooks:
       - id: mypy # mypy 类型检查
         args: ["--install-types", "--non-interactive", "--ignore-missing-imports"]
@@ -27,7 +27,7 @@ repos:
         args: ["--config=./pyproject.toml"]
 
   - repo: https://github.com/PyCQA/isort
-    rev: 8.0.1
+    rev: 9.0.0a3
     hooks:
       - id: isort
         args: ["--profile", "black"]
