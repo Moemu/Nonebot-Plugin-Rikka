@@ -9,13 +9,9 @@
   <a href="https://pypi.org/project/Nonebot-Plugin-Rikka/"><img src="https://img.shields.io/pypi/dm/Nonebot-Plugin-Rikka" alt="PyPI Downloads" ></a>
   <a href="https://nonebot.dev/"><img src="https://img.shields.io/badge/nonebot-2-red" alt="nonebot2"></a>
   <a href="#"><img src="https://img.shields.io/badge/Code%20Style-Black-121110.svg" alt="codestyle"></a>
-  <a href="https://qm.qq.com/q/y1gC9PU4IU"><img src="https://img.shields.io/badge/QQ群-26時聊天室-purple" alt="QQ Group"></a>
+  <a href="https://qm.qq.com/q/y1gC9PU4IU"><img src="https://img.shields.io/badge/QQ群-Nightcord-purple" alt="QQ Group"></a>
 
 </div>
-
-> [!WARNING]
->
-> 本项目将于 2026.06.10 结束维护，届时内置舞萌服务器状态页将不可用。我们会尽可能在结束维护前适配《舞萌 2026》版本
 
 ## 介绍✨
 
@@ -25,9 +21,9 @@
 
 ## 功能🪄
 
-✅ 支持游戏: 舞萌DX(Ver.CN 1.53+), ~~中二节奏(Not Plan yet.)~~
+✅ 支持游戏: 舞萌DX(Ver.CN 1.53+), 中二节奏(开发中), Project Sekai(计划中)
 
-✅ 支持数据源: [落雪咖啡屋](https://maimai.lxns.net/), [水鱼查分器](https://www.diving-fish.com/maimaidx/prober/)
+✅ 支持数据源: [落雪咖啡屋(舞萌DX, 中二节奏)](https://maimai.lxns.net/), [水鱼查分器(舞萌DX)](https://www.diving-fish.com/maimaidx/prober/)
 
 ✅ 支持功能:
   - 基础查分功能：Best 50, Recent 50, 指定条件下的乐曲列表，牌子进度等...
