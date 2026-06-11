@@ -92,6 +92,7 @@
     本项目的渲染资源使用到了 [Yuri-YuzuChaN/maimaiDX](https://github.com/Yuri-YuzuChaN/maimaiDX) 提供到的文件。
     从 [私人云盘](https://cloud.yuzuchan.moe/f/1bUn/Resource.7z), [OneDrive](https://yuzuai-my.sharepoint.com/:u:/g/personal/yuzu_yuzuchan_moe/EdGUKRSo-VpHjT2noa_9EroBdFZci-tqWjVZzKZRTEeZkw?e=a1TM40) 中下载静态资源文件，并解压到机器人根目录下的 `static` 文件夹中。
     如果服务器更新了新歌但是本地不存在对应的资源文件时，插件会自动获取更新。参考第四小节。
+    （注：对于 `nb plugin install` 等非克隆方法搭建的服务，你可能需要复制仓库目录下的 `static` 文件夹到你的机器人根目录下）
 
 3. 配置查分器开发者密钥，参考配置小节获取配置文件格式。你至少需要配置 [落雪咖啡屋(未绑定的首选)](https://maimai.lxns.net/), [水鱼查分器](https://www.diving-fish.com/maimaidx/prober/) 任意一个开发者密钥才可正常使用插件功能。
 

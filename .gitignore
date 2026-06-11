@@ -142,10 +142,32 @@ dmypy.json
 # vscode
 .vscode/
 
-# template
-pages/
-static/
-!static/mai/pic/fcfs_score.png
+# static files
+# ignore everything under static
+static/*
+
+# allow chu
+!static/chu/
+
+# ignore subdirs
+static/chu/*
+
+# allow these dirs
+!static/chu/icon/
+!static/chu/cover/
+!static/chu/plate/
+!static/chu/pic/
+!static/chu/font/
+
+# ignore contents
+static/chu/icon/*
+static/chu/cover/*
+static/chu/plate/*
+
+# keep these files
+!static/chu/icon/CHU_UI_Character_0000_00_02.png
+!static/chu/cover/CHU_UI_Jacket_0000.png
+!static/chu/plate/CHU_UI_NamePlate_00000001.png
 
 # Node.js
 node_modules/
