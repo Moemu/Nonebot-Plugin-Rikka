@@ -1,7 +1,7 @@
 <div align=center>
   <img width=200 src="./assets/RikkaLogo.webp"  alt="image"/>
   <h1 align="center">Nonebot-Plugin-Rikka</h1>
-  <p align="center">一个简单的 NoneBot2 舞萌查询成绩插件</p>
+  <p align="center">一个简单的 NoneBot2 舞萌DX / 中二节奏查询成绩插件</p>
 </div>
 <div align=center>
   <a href="#关于️"><img src="https://img.shields.io/github/stars/Moemu/Nonebot-Plugin-Rikka" alt="Stars"></a>
@@ -15,52 +15,61 @@
 
 ## 介绍✨
 
-基于 [Nonebot2](https://nonebot.dev/) 的舞萌DX的查分插件
+基于 [Nonebot2](https://nonebot.dev/) 的舞萌DX / 中二节奏查分插件
 
 看板娘: [Rikka](https://bot.snowy.moe/about/Rikka)
 
 ## 功能🪄
 
-✅ 支持游戏: 舞萌DX(Ver.CN 1.53+), 中二节奏(开发中), Project Sekai(计划中)
+✅ 支持游戏: 舞萌DX(Ver.CN 1.53+), 中二节奏, Project Sekai(计划中)
 
 ✅ 支持数据源: [落雪咖啡屋(舞萌DX, 中二节奏)](https://maimai.lxns.net/), [水鱼查分器(舞萌DX)](https://www.diving-fish.com/maimaidx/prober/)
 
 ✅ 支持功能:
-  - 基础查分功能：Best 50, Recent 50, 指定条件下的乐曲列表，牌子进度等...
-  - 曲目信息查询：包括但不限于拟合系数和乐曲标签（乐曲标签需要额外配置实现）
+  - 舞萌DX: Best 50 / Recent 50 / ALL PERFECT 50 / 游玩次数 Top-50 / 拟合系数 Top-50, 指定条件下的乐曲列表，牌子进度，曲目信息查询，推分推荐，Rating 趋势等
+  - 中二节奏: Best 30 / Recent 50 / ALL PERFECT 50, 指定条件下的成绩列表，曲目信息查询
   - 玄学功能实现：今日运势、计算推分推荐、玩家成分分析
   - 自定义成绩图：自定义背景图、字体等
-  - 更新水鱼查分器
+  - 同步成绩到落雪 / 水鱼查分器
 
 ## 指令列表🕹️
 
 带有🚧标志的指令暂不可用或仍在开发中
 
-| 指令                                | 说明                                                   |
-| ----------------------------------- | ------------------------------------------------------ |
-| `.bind lxns\|divingfish`            | [查分器相关]绑定游戏账号/查分器                        |
-| `.unbind lxns\|divingfish\|all`     | [查分器相关]解绑游戏账号/查分器                        |
-| `.source lxns\|divingfish`          | [查分器相关]设置默认查分器                             |
-| `.b50`                              | [舞萌DX]生成玩家 Best50                                |
-| `.r50`                              | [舞萌DX]生成玩家 Recent 50（需绑定落雪查分器）         |
-| `.n50`                              | [舞萌DX]获取玩家拟合系数 Top-50                        |
-| `.ap50`                             | [舞萌DX]生成玩家 ALL PERFECT 50                        |
-| `.pc50`                             | [舞萌DX]生成玩家游玩次数 Top50                         |
-| `.minfo <id\|乐曲名称\|别名>`       | [舞萌DX]获取乐曲信息                                   |
-| `.random`                           | [舞萌DX]随机获取一首乐曲                               |
-| `.alias add <song_id> <别名>`       | [舞萌DX]添加乐曲别名（不会被 update 操作覆盖）         |
-| `.alias update`                     | [舞萌DX]从落雪查分器更新乐曲别名数据库                 |
-| `.alias query <id\|乐曲名称\|别名>` | [舞萌DX]查询该歌曲有什么别名                           |
-| `.score <id\|乐曲名称\|别名>`       | [舞萌DX]获取玩家游玩该乐曲的成绩                       |
-| `.scorelist <level\|achXX.X>`       | [舞萌DX]获取玩家对应等级/达成率的成绩列表              |
-| `.update songs\|alias`              | [舞萌DX]更新乐曲或别名数据库                           |
-| `.今日舞萌`                         | [舞萌DX]获取今日舞萌运势                               |
-| `.成分分析`                         | [舞萌DX]获取基于 B100 的玩家成分分析                   |
-| `.舞萌状态`                         | [舞萌DX]获取舞萌服务器状态                             |
-| `.推分推荐`                         | [舞萌DX]生成随机推分曲目                               |
-| `.trend <周期> <simple\|detailed>`  | [舞萌DX]获取玩家的 DX Rating 趋势 （需绑定落雪查分器） |
-| `.import <玩家二维码>`              | [舞萌DX]导入玩家 PC 数信息                             |
-| `.import divingfish <玩家二维码>`   | [舞萌DX]更新水鱼查分器                                 |
+| 指令                                       | 说明                                          |
+| ------------------------------------------ | --------------------------------------------- |
+| **查分器相关**                             |                                               |
+| `.bind lxns\|divingfish`                   | 绑定游戏账号/查分器                           |
+| `.unbind lxns\|divingfish\|all`            | 解绑游戏账号/查分器                           |
+| `.source lxns\|divingfish`                 | 设置默认查分器                                |
+| **舞萌DX**                                 |                                               |
+| `.mai b50`                                 | 生成玩家 Best 50                              |
+| `.mai ap50`                                | 生成玩家 ALL PERFECT 50                       |
+| `.mai r50`                                 | 生成玩家 Recent 50（需绑定落雪查分器）        |
+| `.mai n50`                                 | 获取玩家拟合系数 Top-50                       |
+| `.mai pc50`                                | 生成玩家游玩次数 Top-50                       |
+| `.mai minfo <id\|乐曲名称\|别名>`          | 获取乐曲信息                                  |
+| `.mai score <id\|乐曲名称\|别名>`          | 获取玩家游玩该乐曲的成绩                      |
+| `.mai scorelist <level\|achXX.X\|diff>`    | 获取玩家对应条件的成绩列表                    |
+| `.mai random [难度] [等级\|定数]`          | 随机获取一首乐曲（可选难度、等级、定数）      |
+| `.alias add <song_id> <别名>`              | 添加乐曲别名（不会被 update 操作覆盖）        |
+| `.alias update`                            | 从落雪查分器更新乐曲别名数据库                |
+| `.alias query <id\|乐曲名称\|别名>`        | 查询该歌曲有什么别名                          |
+| `.update songs\|alias\|chart`              | 更新乐曲 / 别名 / 拟合系数数据库              |
+| `.trend [周期] [simple\|detailed]`         | 获取玩家的 DX Rating 趋势（需绑定落雪查分器） |
+| `.import [divingfish\|lxns\|all] <二维码>` | 导入游玩次数或同步成绩到查分器                |
+| `.今日舞萌`                                | 获取今日舞萌运势                              |
+| `.成分分析`                                | 获取基于 B100 的玩家成分分析                  |
+| `.推分推荐`                                | 生成随机推分曲目                              |
+| `.舞萌状态`                                | 获取舞萌服务器状态                            |
+| **中二节奏**                               |                                               |
+| `.chu b30`                                 | 生成玩家 Best 30                              |
+| `.chu r50`                                 | 生成玩家 Recent 50                            |
+| `.chu ap30`                                | 生成玩家 ALL PERFECT 30                       |
+| `.chu minfo <id\|曲名\|别名>`              | 获取乐曲信息                                  |
+| `.chu score <id\|曲名\|别名>`              | 🚧获取玩家游玩该乐曲的成绩                     |
+| `.chu scorelist [等级\|定数] [页码]`       | 获取指定条件的成绩列表                        |
+| `.chu random`                              | 随机获取一首乐曲                              |
 
 *所有指令需 `@bot` 才可使用
 
