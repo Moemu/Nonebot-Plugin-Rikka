@@ -2,6 +2,7 @@ import logging
 from typing import Any, Dict, List, Optional
 
 import httpx
+from nonebot_plugin_alconna import UniMessage
 from typing_extensions import TypedDict
 
 from ..database import MaiSongORM
@@ -72,11 +73,12 @@ def _get_song_title(music_id: int) -> Optional[str]:
     return None
 
 
-def convert_to_diving_fish_format(
+async def convert_to_diving_fish_format(
     scores: List[Dict[str, Any]],
 ) -> List[DivingFishRecord]:
     """将 UserMusicDetail 列表转换为水鱼查分器格式"""
     df_list = []
+    send_warning_message = False
     for score in scores:
         music_id = score["musicId"]
 
@@ -86,7 +88,12 @@ def convert_to_diving_fish_format(
 
         title = _get_song_title(music_id)
         if not title:
-            # logger.warning(f"未知曲目 ID: {music_id}，已跳过")
+            logger.warning(f"未知曲目 ID: {music_id}, 已跳过")
+            if not send_warning_message:
+                await UniMessage(
+                    f"导入过程中发现了未知曲目: {music_id} 等，部分成绩可能丢失请联系管理员更新数据库"
+                ).send()
+                send_warning_message = True
             continue
 
         # 判断谱面类型 (heuristic)

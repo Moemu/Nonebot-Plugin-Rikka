@@ -21,7 +21,7 @@
 
 ## 功能🪄
 
-✅ 支持游戏: 舞萌DX(Ver.CN 1.53+), 中二节奏, Project Sekai(计划中)
+✅ 支持游戏: 舞萌DX(Ver.CN 1.55+), 中二节奏, Project Sekai(计划中)
 
 ✅ 支持数据源: [落雪咖啡屋(舞萌DX, 中二节奏)](https://maimai.lxns.net/), [水鱼查分器(舞萌DX)](https://www.diving-fish.com/maimaidx/prober/)
 

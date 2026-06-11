@@ -889,7 +889,7 @@ async def handle_import_divingfish(
         await UniMessage([At(flag="user", target=user_id), "未获取到可用的游玩次数数据"]).finish()
         return
 
-    divingfish_scores = convert_to_diving_fish_format(workflow_result)
+    divingfish_scores = await convert_to_diving_fish_format(workflow_result)
     await upload_to_diving_fish(import_token, divingfish_scores)
 
     # 同时更新本地游玩次数数据库
@@ -1025,7 +1025,7 @@ async def handle_import_all(
 
     # divingfish
     logger.debug("更新水鱼查分器...")
-    divingfish_scores = convert_to_diving_fish_format(all_scores)
+    divingfish_scores = await convert_to_diving_fish_format(all_scores)
     await upload_to_diving_fish(divingfish_import_token, divingfish_scores)
 
     # lxns
