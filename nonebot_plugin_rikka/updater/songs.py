@@ -12,11 +12,14 @@ from typing_extensions import TypedDict
 
 from ..config import config
 from ..constants import USER_AGENT
-from ..database import MaiSongORM
+from ..database import ChuSongAliasORM, ChuSongORM, MaiSongORM
+from ..models.chu_song import ChuSong, ChuSongDifficulties
 from ..models.song import MaiSong, SongDifficulties
 
 _BASE_SONG_QUERY_URL = "https://maimai.lxns.net/api/v0/maimai/song/{song_id}"
 _DIVING_FISH_CHART_STATS_URL = "https://www.diving-fish.com/api/maimaidxprober/chart_stats"
+_CHU_SONG_LIST_URL = "https://maimai.lxns.net/api/v0/chunithm/song/list"
+_CHU_ALIAS_LIST_URL = "https://maimai.lxns.net/api/v0/chunithm/alias/list"
 
 _MUSIC_CHART_PATH = Path(config.static_resource_path) / "music_chart.json"
 
@@ -178,9 +181,9 @@ async def update_song_alias_list(db_session: async_scoped_session):
     await MaiSongAliasORM.add_alias_batch(db_session, content["aliases"])
 
 
-async def update_song_database(db_session: async_scoped_session) -> int:
+async def update_maimai_song_database(db_session: async_scoped_session) -> int:
     """
-    通过落雪查分器更新曲目数据库
+    通过落雪查分器更新舞萌曲目数据库
 
     :param db_session: 数据库会话对象
     :type db_session: async_scoped_session
@@ -210,6 +213,58 @@ async def update_song_database(db_session: async_scoped_session) -> int:
         songs_obj.append(song_info)
 
     await MaiSongORM.save_song_info_batch(db_session, songs_obj)
+
+    return len(songs_obj)
+
+
+async def update_chu_song_alias_list(db_session: async_scoped_session):
+    """
+    通过落雪查分器更新中二节奏别名表
+    """
+    headers = {"User-Agent": USER_AGENT}
+    if config.lxns_developer_api_key:
+        headers["Authorization"] = config.lxns_developer_api_key
+
+    async with ClientSession() as session:
+        async with session.get(_CHU_ALIAS_LIST_URL, headers=headers) as resp:
+            resp.raise_for_status()
+            content: LXNSApiAliasResponse = await resp.json()
+
+    await ChuSongAliasORM.add_alias_batch(db_session, content["aliases"])
+
+
+async def update_chu_song_database(db_session: async_scoped_session) -> int:
+    """
+    通过落雪查分器更新中二节奏曲目数据库
+
+    :param db_session: 数据库会话对象
+    :type db_session: async_scoped_session
+
+    :return: 更新的曲目数量
+    :rtype: int
+    """
+
+    headers = {"User-Agent": USER_AGENT}
+    if config.lxns_developer_api_key:
+        headers["Authorization"] = config.lxns_developer_api_key
+
+    async with ClientSession() as session:
+        async with session.get(_CHU_SONG_LIST_URL, headers=headers) as resp:
+            resp.raise_for_status()
+            content = await resp.json()
+
+    songs = content.get("data", {}).get("songs", content.get("songs", []))
+    songs_obj = []
+    song_info_fields = {f.name for f in fields(ChuSong)}
+
+    for song in songs:
+        song_info_dict = {k: v for k, v in song.items() if k in song_info_fields}
+        song_info_dict["difficulties"] = ChuSongDifficulties.from_list(song.get("difficulties", []))
+
+        song_info = ChuSong(**song_info_dict)
+        songs_obj.append(song_info)
+
+    await ChuSongORM.save_song_info_batch(db_session, songs_obj)
 
     return len(songs_obj)
 

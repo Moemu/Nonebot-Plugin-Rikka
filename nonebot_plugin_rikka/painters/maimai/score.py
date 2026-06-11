@@ -2,11 +2,11 @@ from typing import List, Optional
 
 from PIL import Image
 
-from ..functions.recommend_songs import RecommendSong, RecommendSongs
-from ..score import PlayerMaiInfo, PlayerMaiScore
+from ...functions.recommend_songs import RecommendSong, RecommendSongs
+from ...score.maimai import PlayerMaiInfo, PlayerMaiScore
+from ..utils import change_column_width, coloum_width, find_all_clear_rank
 from ._base import ScoreBaseImage
 from ._config import COVER_DIR, PIC_DIR
-from .utils import change_column_width, coloum_width, find_all_clear_rank
 
 
 class DrawScores(ScoreBaseImage):
@@ -46,17 +46,13 @@ class DrawScores(ScoreBaseImage):
         ]
         return self._get_image(rise_paths[level_index])
 
-    def draw_scorelist(
-        self, player_info: PlayerMaiInfo, scores: List[PlayerMaiScore], title: str, page: int = 1, page_size: int = 50
-    ) -> Image.Image:
+    def draw_scorelist(self, player_info: PlayerMaiInfo, scores: List[PlayerMaiScore], title: str) -> Image.Image:
         """
         绘制分页成绩列表
 
         :param player_info: 玩家信息
         :param scores: 成绩列表
         :param title: 标题
-        :param page: 当前页码
-        :param page_size: 每个页码展示的成绩长度
         :return: 绘制后的图片
         """
         self.reset_im()
@@ -72,7 +68,7 @@ class DrawScores(ScoreBaseImage):
         else:
             self._sy.draw(700, 245, 22, title, self.text_color, "mm")
 
-        scores = scores[(page - 1) * page_size : page * page_size]
+        scores = scores[:50]
         self.whiledraw(scores, 320)
 
         self.draw_footer()

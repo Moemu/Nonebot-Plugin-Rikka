@@ -1,9 +1,9 @@
+import random
 import re
 from asyncio import TimeoutError
 from datetime import datetime, timedelta
 from functools import wraps
 from pathlib import Path
-from random import choice
 from time import perf_counter
 from traceback import format_exc
 from typing import Literal, Optional
@@ -29,8 +29,9 @@ from nonebot_plugin_alconna.uniseg import Image as UniImage
 from nonebot_plugin_orm import async_scoped_session
 
 from .config import config
-from .constants import _MAI_VERSION_MAP
+from .constants import CHU_VERSION_MAP, MAI_VERSION_MAP
 from .database import MaiPlayCountORM, MaiSongAliasORM, MaiSongORM, UserBindInfoORM
+from .database.crud import ChuSongORM
 from .extra_proxy import (
     get_maistatus,
     run_extend_score_workflow,
@@ -55,6 +56,7 @@ from .functions.process import (
 )
 from .functions.recommend_songs import get_player_raise_score_songs
 from .functions.song_tags import SONG_TAGS_DATA_AVAILABLE, get_songs_tags
+from .models.chu_song import ChuSong
 from .models.song import MaiSong
 from .painters import (
     DrawScores,
@@ -62,8 +64,14 @@ from .painters import (
     draw_player_strength_analysis,
     image_to_bytes,
 )
-from .renderer import PicRenderer
-from .score import (
+from .renderer import ChuPicRenderer, MaiPicRenderer
+from .score.chunithm import (
+    LXNSChuScoreProvider,
+    PlayerChuScore,
+    get_lxns_chu_provider,
+)
+from .score.chunithm.providers.lxns import LXNSChuParams
+from .score.maimai import (
     DivingFishScoreProvider,
     LXNSScoreProvider,
     MaimaiPyScoreProvider,
@@ -71,19 +79,21 @@ from .score import (
     get_lxns_provider,
     get_maimaipy_provider,
 )
-from .score.providers.lxns import LXNSRatingTrend
-from .score.providers.maimai import MaimaiPyParams
+from .score.maimai.providers.lxns import LXNSRatingTrend
+from .score.maimai.providers.maimai import MaimaiPyParams
 from .updater.songs import (
+    update_chu_song_database,
     update_local_chart_file,
+    update_maimai_song_database,
     update_song_alias_list,
-    update_song_database,
 )
-from .utils import get_song_by_id_or_alias, is_float
+from .utils import get_chusong_by_id_or_alias, get_maisong_by_id_or_alias, is_float
 
-renderer = PicRenderer()
+renderer = MaiPicRenderer()
+chu_renderer = ChuPicRenderer()
 
 
-def _build_song_info_message(user_id: str, song: MaiSong) -> UniMessage:
+def _build_maisong_info_message(user_id: str, song: MaiSong) -> UniMessage:
     """Reuseable builder for song info replies."""
 
     song_cover = Path(config.static_resource_path) / "mai" / "cover" / f"{song.id}.png"
@@ -161,9 +171,34 @@ def _build_song_info_message(user_id: str, song: MaiSong) -> UniMessage:
                 artist=song.artist,
                 genre=song.genre,
                 bpm=song.bpm,
-                version=_MAI_VERSION_MAP.get(song.version // 100, "未知版本"),
+                version=MAI_VERSION_MAP.get(song.version // 100, "未知版本"),
             ),
             "\n".join(response_difficulties_content),
+        ]
+    )
+
+
+def _build_chusong_info_message(user_id: str, song: ChuSong) -> UniMessage:
+    song_cover = Path(config.static_resource_path) / "chu" / "cover" / f"{song.id}.png"
+    if not song_cover.exists():
+        logger.warning(f"未找到中二节奏乐曲 {song.id} 的封面图片")
+        song_cover = Path(config.static_resource_path) / "chu" / "cover" / "CHU_UI_Jacket_0000.png"
+
+    diff_values = "/".join([str(d.level_value) for d in song.difficulties.difficulties])
+
+    return UniMessage(
+        [
+            At(flag="user", target=user_id),
+            UniImage(path=song_cover),
+            _CHU_SONG_INFO_TEMPLATE.format(
+                title=song.title,
+                id=song.id,
+                artist=song.artist,
+                genre=song.genre,
+                bpm=song.bpm,
+                version=CHU_VERSION_MAP.get(song.version, f"未知版本 ({song.version})"),
+                diff_values=diff_values,
+            ),
         ]
     )
 
@@ -232,6 +267,15 @@ _MAI_SONG_INFO_TEMPLATE = """[舞萌DX] 乐曲信息
 分类: {genre}
 BPM: {bpm}
 版本: {version}
+"""
+
+_CHU_SONG_INFO_TEMPLATE = """[中二节奏] 乐曲信息
+{title}({id})
+艺术家: {artist}
+分类: {genre}
+BPM: {bpm}
+版本: {version}
+定数: {diff_values}
 """
 
 _DIFFICULTY_VALUE_MAP = {"BASIC": 0, "ADVANCED": 1, "EXPERT": 2, "MASTER": 3, "REMASTER": 4, "RE:MASTER": 4}
@@ -340,67 +384,6 @@ alconna_source = on_alconna(
     rule=to_me(),
 )
 
-alconna_b50 = on_alconna(
-    Alconna(COMMAND_PREFIXES, "b50", meta=CommandMeta("[舞萌DX]生成玩家 Best 50")),
-    priority=10,
-    block=True,
-    rule=to_me(),
-)
-
-alconna_ap50 = on_alconna(
-    Alconna(COMMAND_PREFIXES, "ap50", meta=CommandMeta("[舞萌DX]生成玩家 ALL PERFECT 50")),
-    priority=10,
-    block=True,
-    rule=to_me(),
-)
-
-alconna_r50 = on_alconna(
-    Alconna(COMMAND_PREFIXES, "r50", meta=CommandMeta("[舞萌DX]生成玩家 Recent 50 (需绑定落雪查分器)")),
-    priority=10,
-    block=True,
-    rule=to_me(),
-)
-
-alconna_pc50 = on_alconna(
-    Alconna(
-        COMMAND_PREFIXES, "pc50", meta=CommandMeta("[舞萌DX]生成玩家游玩次数 Top-50 (需使用`.import`导入游玩次数)")
-    ),
-    priority=10,
-    block=True,
-    rule=to_me(),
-)
-
-alconna_n50 = on_alconna(
-    Alconna(COMMAND_PREFIXES, "n50", meta=CommandMeta("[舞萌DX]生成玩家基于拟合系数的 Top-50")),
-    priority=10,
-    block=True,
-    rule=to_me(),
-)
-
-alconna_minfo = on_alconna(
-    Alconna(
-        COMMAND_PREFIXES,
-        "minfo",
-        Args["name", AllParam(str)],
-        meta=CommandMeta("[舞萌DX]获取乐曲信息", usage=".minfo <id|别名>"),
-    ),
-    priority=10,
-    block=True,
-    rule=to_me(),
-)
-
-alconna_random = on_alconna(
-    Alconna(
-        COMMAND_PREFIXES,
-        "random",
-        Args["filters", AllParam(str)],
-        meta=CommandMeta("[舞萌DX]随机抽取乐曲", usage=".random [难度] [等级|定数]"),
-    ),
-    aliases={"随机乐曲", "随"},
-    priority=10,
-    block=True,
-    rule=to_me(),
-)
 
 alconna_alias = on_alconna(
     Alconna(
@@ -414,35 +397,6 @@ alconna_alias = on_alconna(
         Subcommand("query", Args["name", AllParam(str)], help_text=".alias query <id|别名> 查询该歌曲有什么别名"),
         meta=CommandMeta("[舞萌DX]乐曲别名管理"),
     ),
-    priority=10,
-    block=True,
-    rule=to_me(),
-)
-
-alconna_score = on_alconna(
-    Alconna(
-        COMMAND_PREFIXES,
-        "score",
-        Args["name", AllParam(str)],
-        meta=CommandMeta("[舞萌DX]获取单曲游玩情况", usage=".score <id|别名>"),
-    ),
-    priority=10,
-    block=True,
-    rule=to_me(),
-)
-
-alconna_scorelist = on_alconna(
-    Alconna(
-        COMMAND_PREFIXES,
-        "scorelist",
-        Args["arg", AllParam(str)],
-        meta=CommandMeta(
-            "[舞萌DX]获取指定条件的成绩列表",
-            usage=".scorelist <level|ach|diff> [page]",
-            example=".scorelist ach100.4 2",
-        ),
-    ),
-    aliases={"scoreslist"},
     priority=10,
     block=True,
     rule=to_me(),
@@ -565,6 +519,80 @@ alconna_rikka = on_alconna(
     rule=to_me(),
 )
 
+alconna_mai = on_alconna(
+    Alconna(
+        COMMAND_PREFIXES,
+        "mai",
+        Subcommand("help", help_text="[舞萌DX] 生成 mai 子指令帮助列表"),
+        Subcommand("b50", help_text="[舞萌DX] 生成玩家 Best 50"),
+        Subcommand("r50", help_text="[舞萌DX] 生成玩家 Recent 50 (需绑定落雪查分器)"),
+        Subcommand("n50", help_text="[舞萌DX] 生成玩家基于拟合系数的 Top-50"),
+        Subcommand("ap50", help_text="[舞萌DX] 生成玩家 ALL PERFECT 50"),
+        Subcommand("pc50", help_text="[舞萌DX] 生成玩家游玩次数 Top-50"),
+        Subcommand(
+            "minfo",
+            Args["name", AllParam(str)],
+            help_text="[舞萌DX]获取乐曲信息 /mai minfo <id|别名>",
+        ),
+        Subcommand(
+            "random",
+            Args["filters", AllParam(str)],
+            alias={"随机乐曲", "随"},
+            help_text="[舞萌DX]随机抽取乐曲 /mai random [难度] [等级|定数]",
+        ),
+        Subcommand(
+            "score",
+            Args["name", AllParam(str)],
+            help_text="[舞萌DX]获取单曲游玩情况 /mai score <id|别名>",
+        ),
+        Subcommand(
+            "scorelist",
+            Args["arg", AllParam(str)],
+            help_text="[舞萌DX]获取指定条件的成绩列表 /mai scorelist <level|ach|diff> [page]",
+        ),
+        meta=CommandMeta(
+            "[舞萌DX] 舞萌相关指令",
+            usage="/mai help",
+        ),
+    ),
+    priority=10,
+    block=True,
+    rule=to_me(),
+)
+
+alconna_chu = on_alconna(
+    Alconna(
+        COMMAND_PREFIXES,
+        "chu",
+        Subcommand("b30", help_text="[中二节奏]生成玩家 Best 30"),
+        Subcommand("r50", help_text="[中二节奏]生成玩家 Recent 50"),
+        Subcommand("ap50", help_text="[中二节奏]生成玩家 ALL PERFECT 30", alias={"ap30", "aj50", "aj30"}),
+        Subcommand(
+            "minfo",
+            Args["name", AllParam(str)],
+            help_text="[中二节奏]获取乐曲信息 /chu minfo <id|曲名>",
+        ),
+        Subcommand("random", help_text="[中二节奏]随机获取一首乐曲"),
+        Subcommand(
+            "score",
+            Args["name", AllParam(str)],
+            help_text="[中二节奏]获取单曲游玩情况 /chu score <id|曲名>",
+        ),
+        Subcommand(
+            "scorelist",
+            Args["arg", AllParam(str)],
+            help_text="[中二节奏]获取指定条件的成绩列表 /chu scorelist [level] [page]",
+        ),
+        meta=CommandMeta(
+            "[中二节奏]中二节奏统一命令头",
+            usage="/chu <subcommand> [args]",
+        ),
+    ),
+    priority=10,
+    block=True,
+    rule=to_me(),
+)
+
 
 @alconna_help.handle()
 async def handle_help(event: Event):
@@ -572,19 +600,22 @@ async def handle_help(event: Event):
 
     help_text = (
         "Rikka 查分器帮助:\n"
+        "--- 查分器相关 ---\n"
         ".bind <查分器名称> <API密钥> 绑定查分器账号\n"
         ".unbind <查分器名称> 解绑游戏账号/查分器\n"
         ".source <查分器名称> 设置默认查分器\n"
-        ".b50 获取玩家 Best 50\n"
-        ".ap50 获取玩家 ALL PERFECT 50\n"
-        ".r50 获取玩家 Recent 50 (需绑定落雪查分器)\n"
-        ".n50 获取玩家拟合系数 Top-50\n"
-        f".pc50 生成玩家游玩次数 Top50 （{'当前不可用' if not config.enable_arcade_provider else '需通过 `.import` 导入游戏成绩'})\n"
-        ".random 随机获取一首乐曲（可选难度、等级、定数）\n"
-        ".minfo <乐曲ID/别名> 获取乐曲信息\n"
+        "--- 舞萌DX ---\n"
+        ".mai help 获取舞萌指令列表"
+        ".mai b50 获取玩家 Best 50\n"
+        ".mai ap50 获取玩家 ALL PERFECT 50\n"
+        ".mai r50 获取玩家 Recent 50 (需绑定落雪查分器)\n"
+        ".mai n50 获取玩家拟合系数 Top-50\n"
+        f".mai pc50 生成玩家游玩次数 Top50 （{'当前不可用' if not config.enable_arcade_provider else '需通过 `.import` 导入游戏成绩'})\n"
+        ".mai minfo <乐曲ID/别名> 获取乐曲信息\n"
+        ".mai score <乐曲ID/别名> 获取单曲游玩情况\n"
+        ".mai scorelist <level|ach|diff> [页码] 获取指定条件的成绩列表\n"
+        ".mai random 随机获取一首乐曲（可选难度、等级、定数）\n"
         ".alias 管理乐曲别名（添加、查询、更新）\n"
-        ".score <乐曲ID/别名> 获取单曲游玩情况\n"
-        ".scorelist <level|ach|diff> [页码] 获取指定条件的成绩列表\n"
         ".update songs 更新乐曲信息数据库\n"
         ".update alias 更新乐曲别名列表\n"
         ".trend [时间范围] [simple|detailed] 获取玩家的 DX Rating 趋势（默认 simple；detailed 显示新旧版本分数）\n"
@@ -592,10 +623,19 @@ async def handle_help(event: Event):
         ".今日舞萌 获取今日出勤运势\n"
         ".舞萌状态 检测服务器状态\n"
         f".推分推荐 生成随机推分曲目 {'(当前不可用)' if not SONG_TAGS_DATA_AVAILABLE else ''}\n"
-        f".import [divingfish] <qr_code> 导入游玩次数或同步到水鱼 {'当前不可用' if not config.enable_arcade_provider else ''}\n"
-        f".ticket <qr_code> 发送六倍票 {'当前不可用' if not config.enable_arcade_provider else ''}\n"
-        f".logout <qr_code> 尝试强制登出 {'当前不可用' if not config.enable_arcade_provider else ''}\n"
-        f".unlock <qr_code> 解锁新框紫铺 {'当前不可用' if not config.enable_arcade_provider else ''}\n"
+        f".import [divingfish] <qr_code> 导入游玩次数或同步到水鱼 {'当前不可用' if not config.enable_arcade_provider else ''}\n\n"
+        # f".ticket <qr_code> 发送六倍票 {'当前不可用' if not config.enable_arcade_provider else ''}\n"
+        # f".logout <qr_code> 尝试强制登出 {'当前不可用' if not config.enable_arcade_provider else ''}\n"
+        # f".unlock <qr_code> 解锁新框紫铺 {'当前不可用' if not config.enable_arcade_provider else ''}\n\n"
+        "--- 中二节奏 ---\n"
+        ".chu help 获取中二相关指令列表"
+        ".chu b30 获取玩家 Best 30\n"
+        ".chu r50 获取玩家 Recent 50\n"
+        ".chu ap30 获取玩家 ALL PERFECT 30\n"
+        ".chu minfo <乐曲ID> 获取乐曲信息\n"
+        ".chu random 随机获取一首乐曲\n"
+        ".chu score <乐曲ID|曲名> 获取单曲游玩情况\n"
+        ".chu scorelist [等级] [页码] 获取成绩列表\n"
     )
 
     await UniMessage(
@@ -640,8 +680,20 @@ async def handle_bind_lxns(
         ).finish()
         return
 
-    await UserBindInfoORM.set_user_friend_code(db_session, user_id, player_info.friend_code)  # type: ignore
+    await UserBindInfoORM.set_user_mai_friend_code(db_session, user_id, player_info.friend_code)  # type: ignore
     await UserBindInfoORM.set_lxns_api_key(db_session, user_id, lxns_token)
+
+    # 同时尝试获取中二节奏好友码
+    try:
+        from .score.chunithm import get_lxns_chu_provider
+
+        chu_provider = get_lxns_chu_provider()
+        chu_info = await chu_provider.fetch_player_info_by_qq(user_id)
+        if chu_info.friend_code:
+            await UserBindInfoORM.set_user_chu_friend_code(db_session, user_id, str(chu_info.friend_code))
+            logger.debug(f"[{user_id}] 绑定时自动获取中二好友码: {chu_info.friend_code}")
+    except Exception as e:
+        logger.debug(f"[{user_id}] 绑定时获取中二好友码失败（不影响绑定）: {e}")
 
     await UniMessage(
         [
@@ -720,7 +772,7 @@ async def handle_bind_main(event: Event, db_session: async_scoped_session):
     divingfish_binded = False
     default_source = "未设置"
     if user_bind_info:
-        if user_bind_info.lxns_api_key and user_bind_info.friend_code:
+        if user_bind_info.lxns_api_key and user_bind_info.mai_friend_code:
             lxns_binded = True
         if user_bind_info.diving_fish_import_token:
             divingfish_binded = True
@@ -729,8 +781,14 @@ async def handle_bind_main(event: Event, db_session: async_scoped_session):
 
     lxns = "已绑定" if lxns_binded else "未绑定"
     divingfish = "已绑定" if divingfish_binded else "未绑定"
+    chu_binded = bool(user_bind_info and user_bind_info.chu_friend_code)
+    chu_status = f"已绑定 ({user_bind_info.chu_friend_code})" if user_bind_info and chu_binded else "未绑定"
     user_bind_detail = (
-        f"查分器绑定情况:\n- 落雪查分器: {lxns}\n - 水鱼查分器: {divingfish}\n\n当前默认查分源: {default_source}"
+        f"查分器绑定情况:\n"
+        f"- 落雪查分器: {lxns}\n"
+        f" - 水鱼查分器: {divingfish}\n"
+        f" - 中二节奏: {chu_status}\n\n"
+        f"当前默认查分源: {default_source}"
     )
 
     await UniMessage(
@@ -1135,7 +1193,7 @@ async def handle_source(
     ).finish()
 
 
-@alconna_b50.handle()
+@alconna_mai.assign("b50")
 @catch_exception()
 async def handle_mai_b50(
     event: Event,
@@ -1163,7 +1221,7 @@ async def handle_mai_b50(
     await UniMessage([At(flag="user", target=user_id), UniImage(raw=pic)]).finish()
 
 
-@alconna_ap50.handle()
+@alconna_mai.assign("ap50")
 @catch_exception()
 async def handle_mai_ap50(
     event: Event,
@@ -1200,7 +1258,7 @@ async def handle_mai_ap50(
     await UniMessage([At(flag="user", target=user_id), UniImage(raw=pic)]).finish()
 
 
-@alconna_r50.handle()
+@alconna_mai.assign("r50")
 @catch_exception()
 async def handle_mai_r50(
     event: Event, db_session: async_scoped_session, score_provider: LXNSScoreProvider = Depends(get_lxns_provider)
@@ -1231,7 +1289,7 @@ async def handle_mai_r50(
 
             return
 
-    friend_code = new_player_friend_code or user_bind_info.friend_code  # type: ignore
+    friend_code = new_player_friend_code or user_bind_info.mai_friend_code  # type: ignore
     if not friend_code:
         logger.warning(f"[{user_id}] 无法获取好友码，无法继续查询。")
         await UniMessage(
@@ -1254,7 +1312,7 @@ async def handle_mai_r50(
     await UniMessage([At(flag="user", target=user_id), UniImage(raw=pic)]).finish()
 
 
-@alconna_pc50.handle()
+@alconna_mai.assign("pc50")
 @catch_exception()
 async def handle_pc50(
     event: Event,
@@ -1300,7 +1358,7 @@ async def handle_pc50(
     await UniMessage([At(flag="user", target=user_id), UniImage(raw=pic)]).finish()
 
 
-@alconna_n50.handle()
+@alconna_mai.assign("n50")
 @catch_exception()
 async def handle_n50(
     event: Event,
@@ -1340,7 +1398,7 @@ async def handle_n50(
     await UniMessage([At(flag="user", target=user_id), UniImage(raw=pic)]).finish()
 
 
-@alconna_minfo.handle()
+@alconna_mai.assign("minfo")
 @catch_exception()
 async def handle_minfo(
     event: Event,
@@ -1355,20 +1413,20 @@ async def handle_minfo(
     raw_query = name.result.extract_plain_text()
     logger.info(f"[{user_id}] 查询乐曲信息, 查询内容: {raw_query}")
 
-    logger.debug(f"[{user_id}] 1/4 通过乐曲ID/别名查询乐曲信息...")
+    logger.debug(f"[{user_id}] 1/2 通过乐曲ID/别名查询乐曲信息...")
     try:
-        song = await get_song_by_id_or_alias(db_session, raw_query)
+        song = await get_maisong_by_id_or_alias(db_session, raw_query)
     except ValueError as e:
         await UniMessage([At(flag="user", target=user_id), str(e)]).finish()
         return
 
     logger.debug(f"[{user_id}] 2/2 构建乐曲信息模板...")
-    response_content = _build_song_info_message(user_id, song)
+    response_content = _build_maisong_info_message(user_id, song)
 
     await response_content.finish()
 
 
-@alconna_random.handle()
+@alconna_mai.assign("random")
 @catch_exception()
 async def handle_random(
     event: Event,
@@ -1457,8 +1515,8 @@ async def handle_random(
         ).finish()
         return
 
-    song = choice(filtered_songs)
-    response = _build_song_info_message(user_id, song)
+    song = random.choice(filtered_songs)
+    response = _build_maisong_info_message(user_id, song)
 
     await response.finish()
 
@@ -1532,7 +1590,7 @@ async def handle_alias_query(
 
     logger.debug(f"[{user_id}] 1/4 通过乐曲ID/别名查询乐曲信息...")
     try:
-        song = await get_song_by_id_or_alias(db_session, raw_query)
+        song = await get_maisong_by_id_or_alias(db_session, raw_query)
     except ValueError as e:
         await UniMessage([At(flag="user", target=user_id), str(e)]).finish()
         return
@@ -1584,7 +1642,7 @@ async def handle_alias_main(event: Event):
     return await handle_alias_help(event)
 
 
-@alconna_score.handle()
+@alconna_mai.assign("score")
 @catch_exception()
 async def handle_score(
     event: Event,
@@ -1602,7 +1660,7 @@ async def handle_score(
 
     logger.debug(f"[{user_id}] 1/5 通过乐曲ID/别名查询乐曲信息...")
     try:
-        song = await get_song_by_id_or_alias(db_session, raw_query)
+        song = await get_maisong_by_id_or_alias(db_session, raw_query)
     except ValueError as e:
         await UniMessage([At(flag="user", target=user_id), str(e)]).finish()
         return
@@ -1640,7 +1698,7 @@ async def handle_score(
     await UniMessage([At(flag="user", target=user_id), UniImage(raw=pic)]).finish()
 
 
-@alconna_scorelist.handle()
+@alconna_mai.assign("scorelist")
 @catch_exception()
 async def handle_scorelist(
     event: Event,
@@ -1756,6 +1814,32 @@ async def handle_scorelist(
     pic = await renderer.render_mai_player_scores(page_scores, player_info, title)
 
     await UniMessage([At(flag="user", target=user_id), UniImage(raw=pic)]).finish()
+
+
+@alconna_mai.assign("help")
+async def handle_mai_help(event: Event):
+    user_id = event.get_user_id()
+
+    msg = (
+        "--- 舞萌 DX 子指令菜单 ---\n"
+        ".mai help 获取舞萌指令列表"
+        ".mai b50 获取玩家 Best 50\n"
+        ".mai ap50 获取玩家 ALL PERFECT 50\n"
+        ".mai r50 获取玩家 Recent 50 (需绑定落雪查分器)\n"
+        ".mai n50 获取玩家拟合系数 Top-50\n"
+        f".mai pc50 生成玩家游玩次数 Top50 （{'当前不可用' if not config.enable_arcade_provider else '需通过 `.import` 导入游戏成绩'})\n"
+        ".mai minfo <乐曲ID/别名> 获取乐曲信息\n"
+        ".mai score <乐曲ID/别名> 获取单曲游玩情况\n"
+        ".mai scorelist <level|ach|diff> [页码] 获取指定条件的成绩列表\n"
+        ".mai random 随机获取一首乐曲（可选难度、等级、定数）\n"
+    )
+
+    await UniMessage([At("user", user_id), msg]).finish()
+
+
+@alconna_mai.assign("$main")
+async def handle_unified_mai_main(event: Event):
+    await handle_mai_help(event)
 
 
 @alconna_plate_process.handle()
@@ -1957,14 +2041,18 @@ async def handle_update_songs(
 
     logger.info(f"[{user_id}] 更新乐曲信息数据库")
 
-    updated_count = await update_song_database(db_session)
+    mai_updated_count = await update_maimai_song_database(db_session)
+    chu_updated_count = await update_chu_song_database(db_session)
+    updated_count = mai_updated_count + chu_updated_count
 
-    logger.info(f"[{user_id}] 乐曲信息数据库更新完成，共更新 {updated_count} 首乐曲")
+    msg = f"乐曲信息数据库已更新完成，共更新 {updated_count}(Maimai: {mai_updated_count}, Chunithm: {chu_updated_count}) 首乐曲 ⭐"
+
+    logger.info(f"[{user_id}] {msg}")
 
     await UniMessage(
         [
             At(flag="user", target=user_id),
-            f"乐曲信息数据库已更新完成，共更新 {updated_count} 首乐曲 ⭐",
+            msg,
         ]
     ).finish()
 
@@ -2002,7 +2090,9 @@ async def handle_update_main(event: Event, db_session: async_scoped_session):
     logger.debug(f"[{event.get_user_id()}] 1/3 更新 music_chart.json 文件")
     await update_local_chart_file()
     logger.debug(f"[{event.get_user_id()}] 2/3 更新乐曲数据库")
-    updated_count = await update_song_database(db_session)
+    mai_updated_count = await update_maimai_song_database(db_session)
+    chu_updated_count = await update_chu_song_database(db_session)
+    updated_count = mai_updated_count + chu_updated_count
     logger.debug(f"[{event.get_user_id()}] 3/3 更新数据库中的乐曲别名列表")
     await update_song_alias_list(db_session)
 
@@ -2143,7 +2233,7 @@ async def handle_trend(
 
             return
 
-    friend_code = new_player_friend_code or user_bind_info.friend_code  # type: ignore
+    friend_code = new_player_friend_code or user_bind_info.mai_friend_code  # type: ignore
     if not friend_code:
         logger.warning(f"[{user_id}] 无法获取好友码，无法继续查询。")
         await UniMessage(
@@ -2287,3 +2377,351 @@ async def handle_rikka(db_session: async_scoped_session, event: Event):
     await UniMessage(message).send()
 
     await handle_help(event)
+
+
+# --- 中二节奏 (CHUNITHM) handlers ---
+async def _get_chu_params(
+    db_session: async_scoped_session, user_id: str, lxns_bind_required: bool = False
+) -> LXNSChuParams:
+    """
+    根据用户绑定信息自动获取中二节奏查分参数
+
+    一般看作只要存在 friend_code 就算绑定了落雪查分器,
+    但存在一个显著的问题，开发者 API 无法获取完整的 scorelist,
+    所以当部分需要使用个人 API 查询的功能时需要要求绑定落雪查分器
+
+    :param lxns_bind_required: 使用个人 API 时强制要求绑定落雪查分器
+    """
+    bind_info = await UserBindInfoORM.get_user_bind_info(db_session, user_id)
+
+    if lxns_bind_required:
+        if (not bind_info) or (not bind_info.lxns_api_key):
+            await UniMessage(
+                "成绩的查询需要绑定落雪查分器哦, 请使用 /bind lxns <落雪查分器的成绩查询 API Key> 绑定喵~"
+            ).finish()
+
+    if (not bind_info) or (not bind_info.chu_friend_code):
+        try:
+            provider = get_lxns_chu_provider()
+            info = await provider.fetch_player_info_by_qq(user_id)
+            if info.friend_code:
+                return LXNSChuParams(friend_code=info.friend_code)
+            logger.warning(f"[{user_id}] 无法获取用户的落雪中二好友码")
+        except Exception as e:
+            logger.warning(f"[{user_id}] 中二好友码获取失败: {e}")
+
+        await UniMessage(
+            "成绩的查询需要绑定落雪查分器哦, 请使用 /bind lxns <落雪查分器的成绩查询 API Key> 绑定喵~"
+        ).finish()
+
+    assert bind_info  # shut up mypy
+    return LXNSChuParams(friend_code=int(bind_info.chu_friend_code), qq=user_id, user_key=bind_info.lxns_api_key)
+
+
+@alconna_chu.assign("b30")
+@catch_exception("获取中二节奏 Best 30 失败")
+async def handle_chu_b30(
+    event: Event,
+    db_session: async_scoped_session,
+    score_provider: LXNSChuScoreProvider = Depends(get_lxns_chu_provider),
+):
+    user_id = event.get_user_id()
+
+    logger.info(f"[{user_id}] [中二节奏] 获取玩家 Best 30")
+    logger.debug(f"[{user_id}] 1/3 获得用户鉴权凭证...")
+    params = await _get_chu_params(db_session, user_id)
+
+    logger.debug(f"[{user_id}] 2/3 发起 API 请求玩家 Best 30...")
+    player_info = await score_provider.fetch_player_info(params)
+    bests = await score_provider.fetch_player_bests(params)
+
+    logger.debug(f"[{user_id}] 3/3 渲染玩家数据...")
+    pic = await chu_renderer.render_chu_bests(player_info, bests)
+
+    await UniMessage([At(flag="user", target=user_id), UniImage(raw=pic)]).finish()
+
+
+@alconna_chu.assign("r50")
+@catch_exception("获取中二节奏 Recent 50 失败")
+async def handle_chu_r50(
+    event: Event,
+    db_session: async_scoped_session,
+    score_provider: LXNSChuScoreProvider = Depends(get_lxns_chu_provider),
+):
+    user_id = event.get_user_id()
+
+    logger.info(f"[{user_id}] [中二节奏] 获取玩家 Recent 50")
+    params = await _get_chu_params(db_session, user_id)
+
+    player_info = await score_provider.fetch_player_info(params)
+    recents = await score_provider.fetch_player_recents(params)
+
+    if not recents:
+        await UniMessage([At(flag="user", target=user_id), "暂无最近游玩记录"]).finish()
+        return
+
+    logger.debug(f"[{user_id}] 渲染玩家数据...")
+    pic = await chu_renderer.render_chu_player_scores(recents, player_info, title="Recent 50 列表")
+
+    await UniMessage([At(flag="user", target=user_id), UniImage(raw=pic)]).finish()
+
+
+@alconna_chu.assign("ap50")
+@catch_exception("获取中二节奏 AP 50 失败")
+async def handle_chu_ap30(
+    event: Event,
+    db_session: async_scoped_session,
+    score_provider: LXNSChuScoreProvider = Depends(get_lxns_chu_provider),
+):
+    user_id = event.get_user_id()
+
+    logger.info(f"[{user_id}] [中二节奏] 获取玩家 AP 50")
+    params = await _get_chu_params(db_session, user_id)
+
+    player_info = await score_provider.fetch_player_info(params)
+    bests = await score_provider.fetch_player_bests(params)
+
+    from .score.chunithm._schema import ChuFullComboType
+
+    ap_scores: list[PlayerChuScore] = []
+    for s in bests.bests + bests.selections + bests.new_bests:
+        if s.full_combo in (ChuFullComboType.AJ, ChuFullComboType.AJC):
+            ap_scores.append(s)
+
+    ap_scores.sort(key=lambda x: x.rating, reverse=True)
+
+    logger.debug(f"[{user_id}] 渲染玩家数据...")
+    pic = await chu_renderer.render_chu_player_scores(ap_scores, player_info, title="AP 50 列表")
+
+    await UniMessage([At(flag="user", target=user_id), UniImage(raw=pic)]).finish()
+
+
+@alconna_chu.assign("minfo")
+@catch_exception("获取中二节奏乐曲信息失败")
+async def handle_chu_minfo(
+    event: Event,
+    db_session: async_scoped_session,
+    name: Match[UniMessage] = AlconnaMatch("name"),
+):
+    user_id = event.get_user_id()
+
+    if not name.available:
+        await UniMessage([At(flag="user", target=user_id), "请输入有效的乐曲ID/名称/别名！"]).finish()
+
+    raw_query = name.result.extract_plain_text().strip()
+    logger.info(f"[{user_id}] [中二节奏] 查询乐曲信息, 查询内容: {raw_query}")
+
+    try:
+        song = await get_chusong_by_id_or_alias(db_session, raw_query)
+    except ValueError as e:
+        await UniMessage([At(flag="user", target=user_id), str(e)]).finish()
+        return
+
+    response = _build_chusong_info_message(user_id, song)
+    await response.finish()
+
+
+@alconna_chu.assign("random")
+@catch_exception("获取中二节奏随机乐曲失败")
+async def handle_chu_random(
+    event: Event,
+    db_session: async_scoped_session,
+):
+    user_id = event.get_user_id()
+
+    logger.info(f"[{user_id}] [中二节奏] 随机抽取乐曲")
+
+    song_ids = await ChuSongORM.get_all_song_ids(db_session)
+    if not song_ids:
+        await UniMessage([At(flag="user", target=user_id), "乐曲数据库为空，请先执行 .update songs"]).finish()
+        return
+
+    songs = await ChuSongORM.get_songs_info_by_ids(db_session, list(song_ids))
+    if not songs:
+        await UniMessage([At(flag="user", target=user_id), "获取乐曲列表失败"]).finish()
+        return
+
+    song = random.choice(songs)
+    await chu_renderer._ensure_cover(song.id)
+    response = _build_chusong_info_message(user_id, song)
+    await response.finish()
+
+
+# @alconna_chu.assign("score")
+@catch_exception("获取中二节奏单曲成绩失败")
+async def handle_chu_score(
+    event: Event,
+    db_session: async_scoped_session,
+    score_provider: LXNSChuScoreProvider = Depends(get_lxns_chu_provider),
+    name: Match[UniMessage] = AlconnaMatch("name"),
+):
+    user_id = event.get_user_id()
+
+    if not name.available:
+        await UniMessage([At(flag="user", target=user_id), "请输入有效的乐曲ID或曲名！"]).finish()
+
+    raw_query = name.result.extract_plain_text().strip()
+    logger.info(f"[{user_id}] [中二节奏] 查询单曲成绩, 查询内容: {raw_query}")
+
+    params = await _get_chu_params(db_session, user_id)
+
+    score_result = None
+    if raw_query.isdigit():
+        score_result = await score_provider.fetch_player_best_score(params, song_id=int(raw_query))
+    else:
+        score_result = await score_provider.fetch_player_best_score(params, song_name=raw_query)
+
+    if not score_result:
+        await UniMessage([At(flag="user", target=user_id), f"未找到乐曲 '{raw_query}' 的游玩记录"]).finish()
+        return
+
+    fc_str = f"\nFC: {score_result.full_combo.value}" if score_result.full_combo else ""
+    chain_str = f"\nCHAIN: {score_result.full_chain.value}" if score_result.full_chain else ""
+
+    msg = (
+        f"[中二节奏] 单曲成绩\n"
+        f"{score_result.song_name} ({score_result.song_id})\n"
+        f"难度: {score_result.song_level}\n"
+        f"分数: {score_result.score:,}\n"
+        f"Rating: {score_result.rating:.2f}\n"
+        f"评级: {score_result.rank.value if score_result.rank else '未知'}"
+        f"{fc_str}{chain_str}"
+    )
+
+    await UniMessage([At(flag="user", target=user_id), msg]).finish()
+
+
+@alconna_chu.assign("scorelist")
+@catch_exception()
+async def handle_chu_scorelist(
+    event: Event,
+    db_session: async_scoped_session,
+    arg: Match[UniMessage] = AlconnaMatch("arg"),
+    score_provider: LXNSChuScoreProvider = Depends(get_lxns_chu_provider),
+):
+    user_id = event.get_user_id()
+
+    if not arg.available or not arg.result:
+        await UniMessage(
+            [
+                At(flag="user", target=user_id),
+                (
+                    ".scorelist 使用帮助\n"
+                    ".scorelist <level> 获取指定等级的成绩列表\n"
+                    ".scorelist <level_value> 获取指定等级（定数）的成绩列表\n"
+                    ".scorelist ach<float> 获取指定分数的成绩列表\n"
+                    ".scorelist <diff> 获取指定铺面难度的成绩列表\n"
+                    ".scorelist <条件> [page] 获取指定页（每页 50 条）\n"
+                    "eg.\n"
+                    ".scorelist 12+\n"
+                    ".scorelist 12.7\n"
+                    ".scorelist ach1008000\n"
+                    ".scorelist ach1008"
+                    ".scorelist expert\n"
+                    ".scorelist 12+ 2"
+                ),
+            ]
+        ).finish()
+
+    raw_input = arg.result.extract_plain_text().strip()
+    query_parts = raw_input.split()
+
+    if not query_parts:
+        await UniMessage([At(flag="user", target=user_id), "命令格式错误，请检查后重新输入！"]).finish()
+        return
+
+    raw_query = query_parts[0]
+    page = 1
+    if len(query_parts) >= 2:
+        if not query_parts[1].isdigit() or int(query_parts[1]) <= 0:
+            await UniMessage([At(flag="user", target=user_id), "页码必须是大于 0 的整数"]).finish()
+            return
+        page = int(query_parts[1])
+
+    if len(query_parts) > 2:
+        await UniMessage([At(flag="user", target=user_id), "命令格式错误，请检查后重新输入！"]).finish()
+        return
+
+    logger.info(f"[{user_id}] 查询指定条件的成绩列表, 查询内容: {raw_query}")
+    level: Optional[str] = None
+    level_value: Optional[float] = None
+    ach: Optional[int] = None
+    diff: Optional[str] = None
+    if raw_query.isdigit() or (raw_query.endswith("+") and raw_query[:-1].isdigit()):
+        level = raw_query
+        title = f"等级 {level} 成绩列表"
+    elif is_float(raw_query):
+        level_value = float(raw_query)
+        title = f"定数 {level_value} 成绩列表"
+    elif raw_query.startswith("ach") and raw_query[3:].isnumeric():
+        ach_s = raw_query[3:]
+        while len(ach_s) < 4:
+            ach_s += "0"
+        ach_s = ach_s[:4]
+        ach = int(ach_s) * 1000
+        title = f"达成率 {ach} 成绩列表"
+    elif raw_query.upper() in ["BASIC", "ADVANCED", "EXPERT", "MASTER", "ULTIMA", "WORLDS_END", "WORLDSEND"]:
+        diff = raw_query.upper()
+        diff = "WORLDS_END" if diff == "WORLDSEND" else diff
+        title = f"铺面等级 {diff} 成绩列表"
+    else:
+        await UniMessage([At(flag="user", target=user_id), "命令格式错误，请检查后重新输入！"]).finish()
+        return
+
+    logger.debug(f"[{user_id}] 1/4 获得用户鉴权凭证...")
+    params = await _get_chu_params(db_session, user_id, lxns_bind_required=True)
+    logger.debug(f"[{user_id}] 1/4 鉴权参数: {params}")
+
+    logger.debug(f"[{user_id}] 2/4 发起 API 请求玩家信息...")
+    player_info = await score_provider.fetch_player_info(params)
+
+    logger.debug(f"[{user_id}] 3/4 发起 API 请求玩家全部成绩...")
+    scores = await score_provider.fetch_player_scores(params, use_user_api=True)
+
+    filtered_scores: list[PlayerChuScore] = []
+
+    for score in scores:
+        if (
+            (level and score.song_level == level)
+            or (ach and score.score // 1000 == ach)
+            or (diff and score.song_difficulty.name == diff)
+        ):
+            filtered_scores.append(score)
+        if level_value:
+            song_id = score.song_id
+            song = ChuSongORM.get_song_sync(song_id)
+            assert song, f"数据库中不存在乐曲 {song_id} 的数据，请联系管理员处理"
+            song_level_value = song.difficulties.difficulties[score.song_difficulty.value].level_value
+            if round(level_value, 1) == round(song_level_value, 1):
+                filtered_scores.append(score)
+
+    if not filtered_scores:
+        await UniMessage(
+            [
+                At(flag="user", target=user_id),
+                "呜呜，未找到符合条件的游玩记录喵",
+            ]
+        ).finish()
+        return
+
+    page_size = 50
+    total_pages = (len(filtered_scores) + page_size - 1) // page_size
+    start = (page - 1) * page_size
+    end = start + page_size
+    page_scores = filtered_scores[start:end]
+
+    if not page_scores:
+        await UniMessage(
+            [
+                At(flag="user", target=user_id),
+                f"页码超出范围，当前共 {total_pages} 页，请输入 1~{total_pages} 之间的页码",
+            ]
+        ).finish()
+        return
+
+    title = f"{title} - 第 {page}/{total_pages} 页"
+
+    logger.debug(f"[{user_id}] 4/4 渲染玩家数据...")
+    pic = await chu_renderer.render_chu_player_scores(page_scores, player_info, title)
+
+    await UniMessage([At(flag="user", target=user_id), UniImage(raw=pic)]).finish()

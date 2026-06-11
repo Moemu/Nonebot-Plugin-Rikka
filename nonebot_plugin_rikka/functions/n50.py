@@ -1,6 +1,6 @@
-from ..constants import _MAI_VERSION_MAP
+from ..constants import MAI_VERSION_MAP
 from ..database import MaiSongORM
-from ..score import PlayerMaiB50, PlayerMaiScore
+from ..score.maimai import PlayerMaiB50, PlayerMaiScore
 
 
 def calc_dx_rating(level_value: float, ach: float) -> int:
@@ -48,7 +48,7 @@ def get_players_n50(scores: list[PlayerMaiScore]) -> PlayerMaiB50:
     """
     获得玩家的拟合50
     """
-    current_version = list(_MAI_VERSION_MAP.keys())[-1]
+    current_version = list(MAI_VERSION_MAP.keys())[-1]
     previous_version_scores: list[PlayerMaiScore] = []
     current_version_scores: list[PlayerMaiScore] = []
 

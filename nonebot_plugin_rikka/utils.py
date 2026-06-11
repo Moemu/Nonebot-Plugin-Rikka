@@ -11,6 +11,8 @@ from nonebot_plugin_orm import async_scoped_session
 
 from .config import config
 from .database import MaiSongORM
+from .database.crud import ChuSongORM
+from .models.chu_song import ChuSong
 from .models.song import MaiSong
 
 event_context: ContextVar[Event] = ContextVar("event")
@@ -97,7 +99,7 @@ def is_float(s: str) -> bool:
         return False
 
 
-async def get_song_by_id_or_alias(session: async_scoped_session, name: str) -> MaiSong:
+async def get_maisong_by_id_or_alias(session: async_scoped_session, name: str) -> MaiSong:
     """
     通过乐曲 ID/别名 获取乐曲对象
 
@@ -141,6 +143,52 @@ async def get_song_by_id_or_alias(session: async_scoped_session, name: str) -> M
         raise ValueError("\n".join(contents))
 
     logger.debug(f"2/2 乐曲信息查询完毕，{name} -> ID {songs[0].id}")
+    return songs[0]
+
+
+async def get_chusong_by_id_or_alias(session: async_scoped_session, name: str) -> ChuSong:
+    """
+    通过乐曲 ID/别名 获取中二节奏乐曲对象
+
+    :param session: 数据库会话对象
+    :type session: async_scoped_session
+    :param name: 乐曲 ID/名称/别名
+    :type name: str
+    :return: 乐曲对象
+    :rtype: ChuSong
+
+    :raise ValueError: 未找到相关乐曲信息/找到多条乐曲信息
+    """
+    song_id = int(name) if name.isdigit() else None
+    song_name = name if song_id is None else None
+    songs = []
+
+    if song_id is not None:
+        logger.debug(f"1/2 通过乐曲ID {song_id} 查询中二节奏乐曲信息...")
+        try:
+            songs = [await ChuSongORM.get_song_info(session, song_id)]
+        except Exception:
+            logger.warning("通过乐曲ID获取中二节奏乐曲对象失败，该ID可能是乐曲标题")
+            song_name = str(song_id)
+
+    if song_name is not None and not songs:
+        logger.debug(f"1/2 通过乐曲名称/别名 {song_name} 查询中二节奏乐曲信息...")
+        songs = await ChuSongORM.get_song_info_by_name_or_alias(session, song_name)
+
+    if not songs:
+        raise ValueError(f"未找到与 '{name}' 相关的中二节奏乐曲信息！")
+
+    if len(songs) > 1:
+        logger.debug("2/2 找到多条中二节奏乐曲信息，提前返回向用户确定具体乐曲ID")
+        contents = [
+            f"找到多条与 '{name}' 相关的中二节奏乐曲信息，请指定你想查询的乐曲ID：",
+        ]
+        for song in songs:
+            contents.append(f"\nID: {song.id} 标题: {song.title} 艺术家: {song.artist}")
+
+        raise ValueError("\n".join(contents))
+
+    logger.debug(f"2/2 中二节奏乐曲信息查询完毕，{name} -> ID {songs[0].id}")
     return songs[0]
 
 

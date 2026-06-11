@@ -2,8 +2,9 @@ from typing import List
 
 from PIL import Image, ImageDraw
 
-from ..models.song import MaiSong
-from ..score import PlayerMaiScore
+from ...models.song import MaiSong
+from ...score.maimai import PlayerMaiScore
+from ..utils import DrawText, change_column_width, coloum_width, dx_score
 from ._config import (
     COVER_DIR,
     FCL,
@@ -14,7 +15,6 @@ from ._config import (
     PIC_DIR,
     SCORE_RANK_L,
 )
-from .utils import DrawText, change_column_width, coloum_width, dx_score
 
 
 def draw_music_info(song: MaiSong, scores: List[PlayerMaiScore]) -> Image.Image:

@@ -8,10 +8,10 @@ from typing import Literal, Optional, cast
 
 from nonebot import logger
 
-from ..constants import _MAI_VERSION_MAP
+from ..constants import MAI_VERSION_MAP
 from ..database.crud import MaiSongORM
 from ..models.song import MaiSong, SongDifficulty
-from ..score import PlayerMaiScore
+from ..score.maimai import PlayerMaiScore
 from .analysis import get_player_strength
 from .n50 import calc_dx_rating
 from .song_tags import SONG_TAGS_DATA_AVAILABLE, get_song_by_tags, get_songs_tags
@@ -134,7 +134,7 @@ def get_player_raise_score_songs(
     logger.debug(f"共找到 {len(total_recommended_songs)} 待定推分曲目, 筛选模式: {filter_mode}")
 
     # 筛选推荐曲目
-    current_version = sorted(_MAI_VERSION_MAP.keys())[-1]
+    current_version = sorted(MAI_VERSION_MAP.keys())[-1]
 
     recommended_songs_std: list[RecommendSong] = []
     recommended_songs_dx: list[RecommendSong] = []

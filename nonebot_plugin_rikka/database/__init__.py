@@ -1,5 +1,12 @@
-from .crud import MaiPlayCountORM, MaiSongAliasORM, MaiSongORM, UserBindInfoORM
-from .orm_models import MaiPlayCount, MaiSongAlias, UserBindInfo
+from .crud import (
+    ChuSongAliasORM,
+    ChuSongORM,
+    MaiPlayCountORM,
+    MaiSongAliasORM,
+    MaiSongORM,
+    UserBindInfoORM,
+)
+from .orm_models import ChuSongAlias, MaiPlayCount, MaiSongAlias, UserBindInfo
 
 __all__ = [
     "UserBindInfoORM",
@@ -9,4 +16,7 @@ __all__ = [
     "MaiSongAlias",
     "MaiPlayCountORM",
     "MaiPlayCount",
+    "ChuSongORM",
+    "ChuSongAliasORM",
+    "ChuSongAlias",
 ]

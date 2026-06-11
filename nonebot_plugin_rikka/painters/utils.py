@@ -4,8 +4,8 @@ from typing import Optional, Tuple, Union
 
 from PIL import Image, ImageDraw, ImageFont, ImageOps
 
-from ..score import PlayerMaiScore
-from ._config import PIC_DIR
+from ..score.maimai import PlayerMaiScore
+from .maimai._config import PIC_DIR
 
 
 def get_char_width(o: int) -> int:

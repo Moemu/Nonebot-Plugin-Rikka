@@ -7,8 +7,8 @@ import numpy as np
 from matplotlib.gridspec import GridSpec
 from PIL import Image
 
-from ..config import config
-from ..functions.analysis import PlayerStrength
+from ...config import config
+from ...functions.analysis import PlayerStrength
 
 
 def _load_cjk_font_from_static() -> str | None:

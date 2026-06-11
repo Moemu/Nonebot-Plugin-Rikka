@@ -8,8 +8,8 @@ import matplotlib.pyplot as plt
 import numpy as np
 from PIL import Image
 
-from ..config import config
-from ..score.providers.lxns import LXNSRatingTrend
+from ...config import config
+from ...score.maimai.providers.lxns import LXNSRatingTrend
 
 _DEFAULT_FONT = "SimHei"
 plt.rcParams["font.sans-serif"] = [_DEFAULT_FONT]

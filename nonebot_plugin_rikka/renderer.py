@@ -7,9 +7,22 @@ from typing_extensions import TypedDict
 
 from .database.crud import MaiSongORM
 from .models.song import MaiSong
-from .painters import DrawBest, DrawScores, draw_music_info, image_to_bytes
-from .score import PlayerMaiB50, PlayerMaiInfo, PlayerMaiScore
-from .updater.resources import download_icon, download_jacket, download_plate
+from .painters.chunithm import DrawChuBest, DrawChuScores
+from .painters.chunithm._config import COVER_DIR as CHU_COVER_DIR
+from .painters.chunithm._config import ICON_DIR as CHU_ICON_DIR
+from .painters.chunithm._config import PLATE_DIR as CHU_PLATE_DIR
+from .painters.maimai import DrawBest, DrawScores, draw_music_info
+from .painters.utils import image_to_bytes
+from .score.chunithm import PlayerChuBests, PlayerChuInfo, PlayerChuScore
+from .score.maimai import PlayerMaiB50, PlayerMaiInfo, PlayerMaiScore
+from .updater.resources import (
+    download_chu_icon,
+    download_chu_jacket,
+    download_chu_plate,
+    download_mai_icon,
+    download_mai_jacket,
+    download_mai_plate,
+)
 
 
 class ViewportDict(TypedDict):
@@ -17,7 +30,7 @@ class ViewportDict(TypedDict):
     height: int
 
 
-class PicRenderer:
+class MaiPicRenderer:
     def __init__(
         self,
         template_dir: Path = Path(__file__).parent / "templates",
@@ -61,7 +74,7 @@ class PicRenderer:
         logger.warning(f"乐曲 {song_id} 的封面不存在!尝试从服务器下载...")
 
         try:
-            await download_jacket(str(song_id))
+            await download_mai_jacket(str(song_id))
             return str(song_id)
         except Exception as e:
             logger.error(f"下载乐曲 {song_id} 封面失败: {e}")
@@ -79,7 +92,7 @@ class PicRenderer:
             if not icon_path.exists():
                 logger.warning(f"头像资源 {icon_id} 不存在!尝试从服务器下载...")
                 try:
-                    await download_icon(str(icon_id))
+                    await download_mai_icon(str(icon_id))
                 except Exception as e:
                     logger.error(f"下载头像资源 {icon_id} 失败: {e}")
                     ok = False
@@ -90,7 +103,7 @@ class PicRenderer:
             if not plate_path.exists():
                 logger.warning(f"姓名框资源 {plate_id} 不存在!尝试从服务器下载...")
                 try:
-                    await download_plate(str(plate_id))
+                    await download_mai_plate(str(plate_id))
                 except Exception as e:
                     logger.error(f"下载姓名框资源 {plate_id} 失败: {e}")
                     ok = False
@@ -185,4 +198,77 @@ class PicRenderer:
         await self._ensure_cover(song.id)
 
         img = draw_music_info(song, scores)
+        return image_to_bytes(img)
+
+
+class ChuPicRenderer:
+    def __init__(self, static_dir: str = "./static") -> None:
+        self.static_dir = Path(static_dir)
+        self.drawer_best = DrawChuBest()
+        self.drawer_score = DrawChuScores()
+
+    async def _ensure_cover(self, song_id: int) -> None:
+        """确保中二节奏封面资源存在，不存在则从 LXNS 下载。"""
+        cover = CHU_COVER_DIR / f"{song_id}.png"
+        if cover.exists():
+            return
+        logger.warning(f"乐曲 {song_id} 封面不存在，尝试下载...")
+        try:
+            await download_chu_jacket(str(song_id))
+        except Exception as e:
+            logger.error(f"下载乐曲 {song_id} 封面失败: {e}")
+
+    async def _validate_player_resources(self, player_info: PlayerChuInfo) -> None:
+        """确保玩家相关资源存在（角色图标/称号）。"""
+        if player_info.character_id:
+            character_id = player_info.character_id
+            icon = CHU_ICON_DIR / f"{character_id}.png"
+            if not icon.exists():
+                logger.warning(f"角色图标 {character_id} 不存在，尝试下载...")
+                try:
+                    await download_chu_icon(str(character_id))
+                except Exception as e:
+                    logger.error(f"下载角色图标 {character_id} 失败: {e}")
+        if player_info.name_plate_id:
+            plate_id = player_info.name_plate_id
+            plate = CHU_PLATE_DIR / f"{plate_id}.png"
+            if not plate.exists():
+                logger.warning(f"名牌版 {plate_id} 不存在，尝试下载...")
+                try:
+                    await download_chu_plate(str(plate_id))
+                except Exception as e:
+                    logger.error(f"下载名牌版 {plate_id} 失败: {e}")
+
+    async def render_chu_bests(self, player_info: PlayerChuInfo, bests: PlayerChuBests) -> bytes:
+        """
+        渲染中二节奏 Best 30 + Selection 10 + New 20
+
+        :param player_info: 玩家信息
+        :param bests: Best 30 + Selection 10 + New 20 数据
+        :return: PNG 图片字节流
+        """
+        # 确保封面资源
+        for score in bests.bests + bests.selections + bests.new_bests:
+            await self._ensure_cover(score.song_id)
+
+        # 确保玩家资源
+        await self._validate_player_resources(player_info)
+
+        img = self.drawer_best.draw(player_info, bests)
+        return image_to_bytes(img)
+
+    async def render_chu_player_scores(
+        self, scores: list[PlayerChuScore], player_info: PlayerChuInfo, title: Optional[str] = None
+    ) -> bytes:
+        """
+        渲染玩家具体成绩图
+        """
+        # Ensure player assets
+        await self._validate_player_resources(player_info)
+
+        # Ensure covers
+        for score in scores:
+            await self._ensure_cover(score.song_id)
+
+        img = self.drawer_score.draw_scorelist(player_info, scores, title or "Player Scores")
         return image_to_bytes(img)

@@ -1,22 +1,31 @@
 """
 绘图模块
-提供生成 Best 50、成绩列表、单曲详情等图片的功能
+按游戏类型拆分为子包：
+- painters.maimai: 舞萌DX
+- painters.chunithm: 中二节奏
 
-参考自: - maimaidx_draw (https://github.com/Yuri-YuzuChaN/nonebot-plugin-maimaidx)
+`painters.maimai` 参考自: - maimaidx_draw (https://github.com/Yuri-YuzuChaN/nonebot-plugin-maimaidx)
+`painters.chunithm` 参考自:
+- [NightmareDreemurr/image-generator](https://github.com/NightmareDreemurr/image-generator)
+- [StartendInfinity/CometInfinity_Bot](https://github.com/StartendInfinity/CometInfinity_Bot)
 """
 
-from .analysis import draw_player_strength_analysis
-from .b50 import DrawBest
-from .score import DrawScores
-from .song import draw_music_info
-from .trend import draw_player_rating_trend
+from .chunithm import DrawChuBest
+from .maimai import (
+    DrawBest,
+    DrawScores,
+    draw_music_info,
+    draw_player_rating_trend,
+    draw_player_strength_analysis,
+)
 from .utils import image_to_bytes
 
 __all__ = [
     "DrawBest",
     "DrawScores",
     "draw_music_info",
-    "image_to_bytes",
     "draw_player_strength_analysis",
     "draw_player_rating_trend",
+    "DrawChuBest",
+    "image_to_bytes",
 ]

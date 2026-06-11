@@ -1,7 +1,7 @@
 from dataclasses import dataclass, fields
 from typing import Any, Optional, TypedDict
 
-from ...config import config
+from ....config import config
 from .._base import BaseScoreProvider
 from .._schema import (
     PlayerMaiB50,

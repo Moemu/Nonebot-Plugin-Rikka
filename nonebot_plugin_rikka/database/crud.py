@@ -6,6 +6,12 @@ from nonebot import logger
 from nonebot_plugin_orm import async_scoped_session
 from sqlalchemy import select, update
 
+from ..models.chu_song import (
+    ChuSong,
+    ChuSongDifficulties,
+    ChuSongDifficulty,
+    ChuSongNotes,
+)
 from ..models.song import (
     MaiSong,
     SongDifficulties,
@@ -13,7 +19,8 @@ from ..models.song import (
     SongDifficultyUtage,
     SongNotes,
 )
-from .orm_models import MaiPlayCount
+from .orm_models import ChuSong as ChuSongORMModel
+from .orm_models import ChuSongAlias, MaiPlayCount
 from .orm_models import MaiSong as MaiSongORMModel
 from .orm_models import MaiSongAlias, UserBindInfo
 
@@ -29,17 +36,32 @@ class UserBindInfoORM:
         return result.scalar_one_or_none()
 
     @staticmethod
-    async def set_user_friend_code(session: async_scoped_session, user_id: str, friend_code: str) -> None:
+    async def set_user_mai_friend_code(session: async_scoped_session, user_id: str, friend_code: str) -> None:
         """
-        设置用户好友码
+        设置用户舞萌好友码
         """
         bind_info = await UserBindInfoORM.get_user_bind_info(session, user_id)
         if bind_info:
             await session.execute(
-                update(UserBindInfo).where(UserBindInfo.user_id == user_id).values(friend_code=friend_code)
+                update(UserBindInfo).where(UserBindInfo.user_id == user_id).values(mai_friend_code=friend_code)
             )
         else:
-            new_bind_info = UserBindInfo(user_id=user_id, friend_code=friend_code)
+            new_bind_info = UserBindInfo(user_id=user_id, mai_friend_code=friend_code)
+            session.add(new_bind_info)
+        await session.commit()
+
+    @staticmethod
+    async def set_user_chu_friend_code(session: async_scoped_session, user_id: str, friend_code: str) -> None:
+        """
+        设置用户中二节奏好友码
+        """
+        bind_info = await UserBindInfoORM.get_user_bind_info(session, user_id)
+        if bind_info:
+            await session.execute(
+                update(UserBindInfo).where(UserBindInfo.user_id == user_id).values(chu_friend_code=friend_code)
+            )
+        else:
+            new_bind_info = UserBindInfo(user_id=user_id, chu_friend_code=friend_code)
             session.add(new_bind_info)
         await session.commit()
 
@@ -475,6 +497,347 @@ class MaiSongAliasORM:
 
         # 批量获取已存在的记录，并保持输入顺序
         return await MaiSongORM.get_songs_info_by_ids(session, [int(sid) for sid in song_ids])
+
+
+class ChuSongORM:
+    _cache: dict[int, ChuSong] = {}
+
+    @classmethod
+    def get_song_sync(cls, song_id: int) -> Optional[ChuSong]:
+        """
+        同步获取曲目信息（仅从缓存）
+        """
+        return cls._cache.get(song_id)
+
+    @classmethod
+    def update_cache(cls, song: ChuSong) -> None:
+        cls._cache[song.id] = song
+
+    @staticmethod
+    async def refresh_cache(session: async_scoped_session) -> None:
+        """
+        刷新缓存，从数据库加载所有曲目信息
+        """
+        result = await session.execute(select(ChuSongORMModel))
+        rows = result.scalars().all()
+        for row in rows:
+            song = ChuSongORM._convert(row)
+            ChuSongORM.update_cache(song)
+
+    @staticmethod
+    def _convert(row: ChuSongORMModel) -> ChuSong:
+        """
+        反序列化 ChuSongORMModel 为 ChuSong
+        """
+
+        def convert_difficulty(diffs_data: dict) -> ChuSongDifficulty:
+            diff_note = diffs_data.get("notes", {})
+            diffs_data["notes"] = ChuSongNotes(
+                total=diff_note.get("total", 0),
+                tap=diff_note.get("tap", 0),
+                hold=diff_note.get("hold", 0),
+                slide=diff_note.get("slide", 0),
+                air=diff_note.get("air", 0),
+                flick=diff_note.get("flick", 0),
+            )
+            return ChuSongDifficulty(**diffs_data)
+
+        # 数据库存储为字符串列，需要反序列化为字典列表
+        diffs = json.loads(row.difficulties) if isinstance(row.difficulties, str) else row.difficulties
+        difficulties = [convert_difficulty(d) for d in diffs]
+        return ChuSong(
+            id=row.id,
+            title=row.title,
+            artist=row.artist,
+            genre=row.genre,
+            bpm=row.bpm,
+            version=row.version,
+            difficulties=ChuSongDifficulties(difficulties=difficulties),
+        )
+
+    @staticmethod
+    async def save_song_info(session: async_scoped_session, song: ChuSong) -> None:
+        """
+        保存曲目信息到数据库
+        """
+        difficulties_list = [asdict(d) for d in song.difficulties.difficulties]
+        song_obj = ChuSongORMModel(
+            id=song.id,
+            title=song.title,
+            artist=song.artist,
+            genre=song.genre,
+            bpm=song.bpm,
+            version=song.version,
+            # ORM 列为 String，这里序列化为 JSON 字符串
+            difficulties=json.dumps(difficulties_list, ensure_ascii=False),
+        )
+        session.add(song_obj)
+        await session.commit()
+        ChuSongORM.update_cache(song)
+
+    @staticmethod
+    async def save_song_info_batch(session: async_scoped_session, songs: list[ChuSong]) -> None:
+        """
+        批量保存曲目信息到数据库，如果存在则更新
+        """
+        if not songs:
+            return
+
+        # 查询已存在的记录
+        song_ids = [song.id for song in songs]
+        result = await session.execute(select(ChuSongORMModel).where(ChuSongORMModel.id.in_(song_ids)))
+        existing_map = {s.id: s for s in result.scalars().all()}
+
+        for song in songs:
+            difficulties_list = [asdict(d) for d in song.difficulties.difficulties]
+            difficulties_json = json.dumps(difficulties_list, ensure_ascii=False)
+
+            if song.id in existing_map:
+                # 更新现有记录
+                existing_obj = existing_map[song.id]
+                existing_obj.title = song.title
+                existing_obj.artist = song.artist
+                existing_obj.genre = song.genre
+                existing_obj.bpm = song.bpm
+                existing_obj.version = song.version
+                existing_obj.difficulties = difficulties_json  # type: ignore
+            else:
+                # 插入新记录
+                song_obj = ChuSongORMModel(
+                    id=song.id,
+                    title=song.title,
+                    artist=song.artist,
+                    genre=song.genre,
+                    bpm=song.bpm,
+                    version=song.version,
+                    difficulties=difficulties_json,
+                )
+                session.add(song_obj)
+
+        await session.commit()
+        for song in songs:
+            ChuSongORM.update_cache(song)
+
+    @staticmethod
+    async def get_song_info(session: async_scoped_session, song_id: int) -> ChuSong:
+        """
+        获取曲目信息，如果数据库中不存在则从远程获取并保存
+
+        :param song_id: 曲目 ID
+        """
+        if song_id in ChuSongORM._cache:
+            return ChuSongORM._cache[song_id]
+
+        result = await session.execute(select(ChuSongORMModel).where(ChuSongORMModel.id == song_id))
+        song_row = result.scalar_one_or_none()
+        if song_row:
+            return ChuSongORM._convert(song_row)
+
+        logger.warning(f"中二节奏曲目 ID {song_id} 不存在于数据库，正在从远程获取...")
+        from ..score.chunithm import get_lxns_chu_provider
+
+        provider = get_lxns_chu_provider()
+        raw = await provider.fetch_song_info(song_id)
+        song_info = _parse_chu_song_from_api(raw)
+        await ChuSongORM.save_song_info(session, song_info)
+        return song_info
+
+    @staticmethod
+    async def get_songs_info_by_ids(session: async_scoped_session, song_ids: list[int]) -> list[ChuSong]:
+        """
+        批量获取曲目信息：
+        - 先用 IN 查询一次性取回数据库中已有的记录；
+        - 对缺失的 ID 再调用远程接口获取并落库；
+        - 返回顺序与传入的 song_ids 一致，并去重。
+        """
+        if not song_ids:
+            return []
+
+        # 去重但保持原始顺序
+        ordered_unique_ids: list[int] = []
+        seen_ids: set[int] = set()
+        for sid in song_ids:
+            sid_int = int(sid)
+            if sid_int not in seen_ids:
+                seen_ids.add(sid_int)
+                ordered_unique_ids.append(sid_int)
+
+        result = await session.execute(select(ChuSongORMModel).where(ChuSongORMModel.id.in_(ordered_unique_ids)))
+        rows = result.scalars().all()
+
+        # 已有记录映射
+        id_to_song: dict[int, ChuSong] = {row.id: ChuSongORM._convert(row) for row in rows}
+
+        # 远程补齐缺失记录
+        missing_ids = [sid for sid in ordered_unique_ids if sid not in id_to_song]
+        for mid in missing_ids:
+            logger.warning(f"中二节奏曲目 ID {mid} 不存在于数据库，正在从远程获取...")
+            from ..score.chunithm import get_lxns_chu_provider
+
+            provider = get_lxns_chu_provider()
+            raw = await provider.fetch_song_info(mid)
+            fetched = _parse_chu_song_from_api(raw)
+            await ChuSongORM.save_song_info(session, fetched)
+            id_to_song[mid] = fetched
+
+        return [id_to_song[sid] for sid in ordered_unique_ids if sid in id_to_song]
+
+    @staticmethod
+    async def get_song_info_by_name_or_alias(session: async_scoped_session, name_or_alias: str) -> list[ChuSong]:
+        """
+        通过乐曲名称或别名获取曲目信息
+
+        :param name_or_alias: 乐曲名称或别名
+        :return: 匹配的曲目列表
+        """
+        # 先尝试通过乐曲名称查找
+        result = await session.execute(select(ChuSongORMModel).where(ChuSongORMModel.title.ilike(f"%{name_or_alias}%")))
+        song_rows = result.scalars().all()
+        songs = []
+        if song_rows:
+            songs = [ChuSongORM._convert(row) for row in song_rows]
+        else:
+            # 如果名称查找失败，则通过别名查找
+            songs = await ChuSongAliasORM.find_song_by_alias(session, name_or_alias)
+
+        for song in songs:
+            # 如果存在精确匹配的结果，直接忽略别的模糊匹配结果
+            if song.title == name_or_alias:
+                return [song]
+
+        return songs
+
+    @staticmethod
+    async def get_all_song_ids(session: async_scoped_session) -> Sequence[int]:
+        """
+        获取数据库中所有曲目的 ID 列表
+        """
+        result = await session.execute(select(ChuSongORMModel.id))
+        song_ids = result.scalars().all()
+        return song_ids
+
+
+class ChuSongAliasORM:
+    @staticmethod
+    async def get_aliases(session: async_scoped_session, song_id: int) -> list[str]:
+        """
+        获取曲目的所有别名
+
+        :param song_id: 曲目 ID
+        """
+        result = await session.execute(
+            select(ChuSongAlias.alias, ChuSongAlias.custom_alias).where(ChuSongAlias.song_id == song_id)
+        )
+        alias_row = result.one_or_none()
+        if not alias_row:
+            return []
+        aliases = json.loads(alias_row[0]) if alias_row[0] else []
+        custom_aliases = json.loads(alias_row[1]) if alias_row[1] else []
+        return list(set(aliases + custom_aliases))
+
+    @staticmethod
+    async def update_aliases(
+        session: async_scoped_session, song_id: int, aliases: list[str], commit: bool = True
+    ) -> None:
+        """
+        更新曲目的别名列表
+
+        :param song_id: 曲目 ID
+        :param aliases: 新的别名列表
+        :param commit: 是否在更新后提交事务
+        """
+        await session.execute(
+            update(ChuSongAlias)
+            .where(ChuSongAlias.song_id == song_id)
+            .values(alias=json.dumps(aliases, ensure_ascii=False))
+        )
+
+        if commit:
+            await session.commit()
+
+    @staticmethod
+    async def add_custom_alias(session: async_scoped_session, song_id: int, custom_alias: str) -> None:
+        """
+        添加自定义别名到曲目
+
+        :param song_id: 曲目 ID
+        :param custom_alias: 自定义别名
+        """
+        result = await session.execute(select(ChuSongAlias).where(ChuSongAlias.song_id == song_id))
+        alias_entry = result.scalar_one_or_none()
+        if alias_entry:
+            current_custom_aliases = json.loads(alias_entry.custom_alias) if alias_entry.custom_alias else []
+            if custom_alias not in current_custom_aliases:
+                current_custom_aliases.append(custom_alias)
+                alias_entry.custom_alias = json.dumps(current_custom_aliases, ensure_ascii=False)
+                session.add(alias_entry)
+        else:
+            new_alias_entry = ChuSongAlias(
+                song_id=song_id, alias="[]", custom_alias=json.dumps([custom_alias], ensure_ascii=False)
+            )
+            session.add(new_alias_entry)
+        await session.commit()
+
+    @staticmethod
+    async def add_alias_batch(session: async_scoped_session, song_to_aliases: "list[MusicAliasResponseItem]") -> None:
+        """
+        批量添加曲目别名
+
+        :param song_to_aliases: 曲目 ID 到别名列表的映射
+        """
+        for item in song_to_aliases:
+            song_id = item["song_id"]
+            aliases = item["aliases"]
+            if not aliases:
+                continue
+
+            # 如果已有记录则更新别名列表
+            if (
+                await session.execute(select(ChuSongAlias).where(ChuSongAlias.song_id == song_id))
+            ).scalar_one_or_none():
+                await ChuSongAliasORM.update_aliases(session, song_id, aliases, commit=False)
+                continue
+
+            alias_entry = ChuSongAlias(song_id=song_id, alias=json.dumps(aliases, ensure_ascii=False))
+            session.add(alias_entry)
+
+        await session.commit()
+
+    @staticmethod
+    async def find_song_by_alias(session: async_scoped_session, alias: str) -> list[ChuSong]:
+        """
+        通过别名查找曲目信息
+
+        :param alias: 曲目别名
+        :return: 匹配的曲目列表
+        """
+        # 仅选择需要的列，避免在异步环境中触发 ORM 懒加载（MissingGreenlet）
+        result = await session.execute(select(ChuSongAlias.song_id).where(ChuSongAlias.alias.like(f"%{alias}%")))
+        song_ids = result.scalars().all()
+        if not song_ids:
+            return []
+
+        # 批量获取已存在的记录，并保持输入顺序
+        return await ChuSongORM.get_songs_info_by_ids(session, [int(sid) for sid in song_ids])
+
+
+def _parse_chu_song_from_api(raw: dict) -> ChuSong:
+    """
+    将 LXNS API 返回的原始曲目数据解析为 ChuSong。
+
+    :param raw: API 返回的 data 字段
+    """
+    raw_difficulties = raw.get("difficulties", [])
+    difficulties = ChuSongDifficulties.from_list(raw_difficulties)
+    return ChuSong(
+        id=raw["id"],
+        title=raw["title"],
+        artist=raw["artist"],
+        genre=raw["genre"],
+        bpm=raw["bpm"],
+        version=raw["version"],
+        difficulties=difficulties,
+    )
 
 
 class MaiPlayCountORM:

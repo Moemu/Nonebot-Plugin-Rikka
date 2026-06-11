@@ -26,8 +26,8 @@ from nonebot.internal.matcher import current_event
 from nonebot_plugin_alconna import At, UniMessage
 from nonebot_plugin_orm import async_scoped_session, get_scoped_session
 
-from ...config import config
-from ...database import MaiPlayCountORM, UserBindInfo, UserBindInfoORM
+from ....config import config
+from ....database import MaiPlayCountORM, UserBindInfo, UserBindInfoORM
 from .._base import BaseScoreProvider
 from .._schema import (
     PlayerMaiB50,
@@ -211,7 +211,7 @@ class MaimaiPyScoreProvider(BaseScoreProvider[MaimaiPyParams]):
 
                     return
 
-            friend_code = new_player_friend_code or user_bind_info.friend_code  # type: ignore
+            friend_code = new_player_friend_code or user_bind_info.mai_friend_code  # type: ignore
             if not friend_code:
                 logger.warning(f"[{user_id}] 无法获取好友码，无法继续查询。")
                 await UniMessage(

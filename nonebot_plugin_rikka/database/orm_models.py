@@ -18,7 +18,8 @@ class SongDifficulties(TypedDict):
 class UserBindInfo(Model):
     user_id: Mapped[str] = mapped_column(primary_key=True)
     default_provider: Mapped[Literal["lxns", "divingfish"]] = mapped_column(String, nullable=True, default="lxns")
-    friend_code: Mapped[str] = mapped_column(String, nullable=True, default="")
+    mai_friend_code: Mapped[str] = mapped_column(String, nullable=True, default="")
+    chu_friend_code: Mapped[Optional[str]] = mapped_column(String, nullable=True, default="")
     lxns_api_key: Mapped[Optional[str]] = mapped_column(String, nullable=True, default="")
     diving_fish_import_token: Mapped[Optional[str]] = mapped_column(String, nullable=True, default="")
     diving_fish_username: Mapped[Optional[str]] = mapped_column(String, nullable=True, default="")
@@ -59,3 +60,29 @@ class MaiPlayCount(Model):
     song_id: Mapped[int] = mapped_column(Integer, primary_key=True)
     difficulty: Mapped[int] = mapped_column(Integer, primary_key=True)
     play_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+
+
+class ChuSong(Model):
+    """中二节奏曲目"""
+
+    __tablename__ = "nonebot_plugin_rikka_chusong"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    title: Mapped[str] = mapped_column(String, nullable=False)
+    artist: Mapped[str] = mapped_column(String, nullable=False)
+    genre: Mapped[str] = mapped_column(String, nullable=False)
+    bpm: Mapped[int] = mapped_column(Integer, nullable=False)
+    version: Mapped[int] = mapped_column(Integer, nullable=False)
+    difficulties: Mapped[str] = mapped_column(String, nullable=False)
+
+    alias_entry: Mapped["ChuSongAlias"] = relationship("ChuSongAlias", back_populates="song", uselist=False)
+
+
+class ChuSongAlias(Model):
+    """中二节奏曲目别名"""
+
+    song_id: Mapped[int] = mapped_column(ForeignKey("nonebot_plugin_rikka_chusong.id"), primary_key=True)
+    alias: Mapped[str] = mapped_column(String, nullable=True, default="[]")
+    custom_alias: Mapped[str] = mapped_column(String, nullable=True, default="[]")
+
+    song: Mapped["ChuSong"] = relationship("ChuSong", back_populates="alias_entry")

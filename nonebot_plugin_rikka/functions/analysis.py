@@ -4,7 +4,7 @@
 
 from dataclasses import dataclass
 
-from ..score import PlayerMaiScore
+from ..score.maimai import PlayerMaiScore
 from .song_tags import get_songs_tags
 
 

@@ -3,9 +3,10 @@ from typing import List, Optional
 
 from PIL import Image, ImageDraw
 
-from ..config import config
-from ..database.crud import MaiSongORM
-from ..score import PlayerMaiInfo, PlayerMaiScore
+from ...config import config
+from ...database.crud import MaiSongORM
+from ...score.maimai import PlayerMaiInfo, PlayerMaiScore
+from ..utils import DrawText, change_column_width, coloum_width
 from ._config import (
     COVER_DIR,
     FCL,
@@ -17,7 +18,6 @@ from ._config import (
     PLATE_DIR,
     SCORE_RANK_L,
 )
-from .utils import DrawText, change_column_width, coloum_width
 
 
 class ScoreBaseImage:

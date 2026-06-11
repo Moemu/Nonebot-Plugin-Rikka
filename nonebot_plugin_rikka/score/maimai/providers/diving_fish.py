@@ -4,8 +4,8 @@ from typing import Optional, TypedDict
 from nonebot import logger
 from nonebot_plugin_orm import get_scoped_session
 
-from ...constants import _MAI_VERSION_MAP
-from ...database import MaiSongORM
+from ....constants import MAI_VERSION_MAP
+from ....database import MaiSongORM
 from .._base import BaseScoreProvider
 from .._schema import (
     PlayerMaiB50,
@@ -150,7 +150,7 @@ class DivingFishScoreProvider(BaseScoreProvider[DivingFishParams]):
         if params.import_token is None:
             raise ValueError("必须提供 import_token")
 
-        _CURRENT_VERSION = list(_MAI_VERSION_MAP.keys())[-1]
+        _CURRENT_VERSION = list(MAI_VERSION_MAP.keys())[-1]
 
         logger.debug("通过水鱼查分器间接查询 AP 50...")
         logger.debug("1/2 获取完整游玩记录")

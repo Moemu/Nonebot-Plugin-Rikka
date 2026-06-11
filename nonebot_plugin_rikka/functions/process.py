@@ -6,8 +6,8 @@ from typing import Dict, List, Optional, Tuple
 from nonebot import logger
 
 from ..models.song import MaiSong, SongDifficulty
-from ..score import PlayerMaiScore
-from ..score._schema import SongType
+from ..score.maimai import PlayerMaiScore
+from ..score.maimai._schema import SongType
 
 plate_json_file = Path("static/maimaidxplate.json")
 

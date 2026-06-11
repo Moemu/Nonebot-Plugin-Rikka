@@ -6,7 +6,7 @@
 from pathlib import Path
 from typing import Dict
 
-from ..config import config
+from ...config import config
 
 # Configuration
 STATIC_DIR = Path(config.static_resource_path)
