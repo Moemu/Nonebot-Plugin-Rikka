@@ -11,17 +11,25 @@ from ...config import config
 # Configuration
 STATIC_DIR = Path(config.static_resource_path)
 MAI_DIR = STATIC_DIR / "mai"
+FONT_DIR = STATIC_DIR / "font"
 PIC_DIR = MAI_DIR / "pic"
 COVER_DIR = MAI_DIR / "cover"
 PLATE_DIR = MAI_DIR / "plate"
 ICON_DIR = MAI_DIR / "icon"
 
 # Fonts
-# Adjust these paths if necessary based on your actual font files
+
+# 舞萌 2026 之前的静态资源文件
+if not FONT_DIR.exists():
+    FONT_DIR = STATIC_DIR
+
+if not (FONT_DIR / "ResourceHanRoundedCN-Bold.ttf").exists() and not config.scorelist_font_main:
+    raise FileExistsError("无法找到有效的字体文件，请检查静态资源目录和相关配置")
+
 FONT_MAIN = (
-    STATIC_DIR / "ResourceHanRoundedCN-Bold.ttf" if not config.scorelist_font_main else Path(config.scorelist_font_main)
+    FONT_DIR / "ResourceHanRoundedCN-Bold.ttf" if not config.scorelist_font_main else Path(config.scorelist_font_main)
 )
-FONT_NUM = STATIC_DIR / "Torus SemiBold.otf" if not config.scorelist_font_num else Path(config.scorelist_font_num)
+FONT_NUM = FONT_DIR / "Torus SemiBold.otf" if not config.scorelist_font_num else Path(config.scorelist_font_num)
 
 # Colors
 TEXT_COLOR = (124, 129, 255, 255)

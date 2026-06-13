@@ -9,6 +9,7 @@ from PIL import Image
 
 from ...config import config
 from ...functions.analysis import PlayerStrength
+from ._config import FONT_DIR
 
 
 def _load_cjk_font_from_static() -> str | None:
@@ -18,8 +19,8 @@ def _load_cjk_font_from_static() -> str | None:
         "ResourceHanRoundedCN-Bold.ttf",
     ]
     for filename in static_candidates:
-        font_path = os.path.join(config.static_resource_path, filename)
-        if not os.path.exists(font_path):
+        font_path = FONT_DIR / filename
+        if not font_path.exists():
             continue
         try:
             fm.fontManager.addfont(font_path)

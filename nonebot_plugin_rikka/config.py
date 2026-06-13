@@ -10,7 +10,7 @@ class Config(BaseModel):
     """日志等级"""
     add_alias_need_admin: bool = True
     """添加别名需要管理员权限"""
-    static_resource_path: str = str(Path(__file__).parent.parent / "static")
+    static_resource_path: str = str(Path() / "static")
     """静态资源路径"""
 
     lxns_developer_api_key: Optional[str] = None
@@ -37,7 +37,6 @@ class Config(BaseModel):
     scorelist_element_opacity: float = Field(1.0, le=1.0, ge=0.0)
     """成绩图元素不透明度"""
 
-    # 发布商店的时候不需要验证静态资源文件夹，所以先注释掉这个验证器
     @validator("static_resource_path")
     def validate_static_resource_path(cls, v: str) -> str:
         p = Path(v)
