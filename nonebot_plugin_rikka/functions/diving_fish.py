@@ -83,7 +83,7 @@ async def convert_to_diving_fish_format(
         music_id = score["musicId"]
 
         # 跳过很多万以上的 ID (通常是宴谱或其他特殊谱面)
-        if music_id >= 100000:
+        if music_id >= 100000 or music_id == 11407:
             continue
 
         title = _get_song_title(music_id)
