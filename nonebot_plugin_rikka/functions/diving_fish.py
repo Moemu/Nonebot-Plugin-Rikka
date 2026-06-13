@@ -32,7 +32,7 @@ async def upload_to_diving_fish(token: str, payload: List[DivingFishRecord]) -> 
 
     logger.info(f"准备上传 {len(payload)} 条记录到水鱼查分器...")
 
-    async with httpx.AsyncClient() as client:
+    async with httpx.AsyncClient(timeout=30) as client:
         try:
             resp = await client.post(
                 f"{BASE_URL}/player/update_records",
