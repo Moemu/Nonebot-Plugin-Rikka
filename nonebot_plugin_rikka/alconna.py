@@ -10,7 +10,8 @@ from typing import Literal, Optional
 
 from aiohttp.client_exceptions import ClientResponseError
 from arclet.alconna import Alconna, AllParam, Args
-from maimai_py import LXNSProvider
+from maimai_py import InvalidPlateError, LevelIndex, LXNSProvider
+from maimai_py import SongType as MaimaiPySongType
 from nonebot import get_driver, logger
 from nonebot.adapters import Event
 from nonebot.exception import FinishedException
@@ -52,7 +53,6 @@ from .functions.n50 import get_players_n50
 from .functions.process import (
     ProcessDataError,
     get_level_process_data,
-    get_plate_process_data,
 )
 from .functions.recommend_songs import get_player_raise_score_songs
 from .functions.song_tags import SONG_TAGS_DATA_AVAILABLE, get_songs_tags
@@ -80,7 +80,7 @@ from .score.maimai import (
     get_maimaipy_provider,
 )
 from .score.maimai.providers.lxns import LXNSRatingTrend
-from .score.maimai.providers.maimai import MaimaiPyParams
+from .score.maimai.providers.maimai import MaimaiPyParams, maimai_client
 from .updater.songs import (
     update_chu_song_database,
     update_local_chart_file,
@@ -405,7 +405,7 @@ alconna_alias = on_alconna(
 alconna_plate_process = on_alconna(
     Alconna(
         COMMAND_PREFIXES,
-        r"re:([真超檄橙暁晓桃櫻樱紫菫堇白雪輝辉舞霸熊華华爽煌星宙祭祝双宴镜彩])([極极将舞神者]舞?)进度\s?(.+)?",
+        r"re:(.+)进度\s?(.+)?",
         meta=CommandMeta(
             "[舞萌DX]牌子进度",
             usage=".真极进度 / .熊将进度 难 / .紫舞舞进度",
@@ -1857,67 +1857,81 @@ async def handle_plate_process(
             raw_text = raw_text[len(p) :]
             break
 
-    m = re.match(
-        r"^([真超檄橙暁晓桃櫻樱紫菫堇白雪輝辉舞霸熊華华爽煌星宙祭祝双宴镜彩])([極极将舞神者]舞?)进度\s?(.+)?$",
-        raw_text,
-    )
-    if not m:
+    m = re.match(r"^(.+)进度\s?(.+)?$", raw_text)
+    if not m or len(m.group(1)) < 2:
         await UniMessage([At(flag="user", target=user_id), "命令解析失败，请检查输入格式"]).finish()
         return
 
-    ver_char, plan, extra_text = m.group(1), m.group(2), (m.group(3) or "")
+    plate_name = m.group(1)
+    extra_text = m.group(2) or ""
     use_difficult = "难" in extra_text
 
-    if f"{ver_char}{plan}" == "真将":
+    if plate_name == "真将":
         await UniMessage([At(flag="user", target=user_id), "真系没有真将哦"]).finish()
         return
 
-    logger.info(f"[{user_id}] 查询牌子进度: {ver_char}{plan} {'难' if use_difficult else ''}")
+    logger.info(f"[{user_id}] 查询牌子进度: {plate_name} {'难' if use_difficult else ''}")
 
-    logger.debug(f"[{user_id}] 1/3 获得用户鉴权凭证...")
+    logger.debug(f"[{user_id}] 1/2 获得用户鉴权凭证...")
     provider = await MaimaiPyScoreProvider.auto_get_score_provider(db_session, user_id)
     identifier = await MaimaiPyScoreProvider.auto_get_player_identifier(
         db_session, user_id, provider, use_personal_api=True
     )
 
-    songs = list(MaiSongORM._cache.values())
-    if not songs:
-        await MaiSongORM.refresh_cache(db_session)
-        songs = list(MaiSongORM._cache.values())
-
-    logger.debug(f"[{user_id}] 2/3 发起 API 请求玩家所有成绩")
-    scores = await score_provider.fetch_player_scoreslist(
-        MaimaiPyParams(score_provider=provider, identifier=identifier)
-    )
+    logger.debug(f"[{user_id}] 2/2 查询牌子进度...")
     try:
-        data = get_plate_process_data(songs, scores, ver_char, plan)
-    except ProcessDataError as e:
-        await UniMessage([At(flag="user", target=user_id), str(e)]).finish()
+        plate = await maimai_client.plates(identifier, plate_name, provider)
+    except InvalidPlateError:
+        await UniMessage([At(flag="user", target=user_id), f"无效的牌子: {plate_name}"]).finish()
+        return
+    except Exception as e:
+        await UniMessage([At(flag="user", target=user_id), f"查询牌子进度失败: {e}"]).finish()
         return
 
+    remained = await plate.get_remained()
+    cleared_count = await plate.count_cleared()
+    total_count = await plate.count_all()
+
     diff_names = ["Basic", "Advanced", "Expert", "Master", "Re:MASTER"]
-    is_dx = ver_char in ["熊", "华", "華", "爽", "煌", "宙", "星", "祭", "祝", "双", "宴", "镜", "彩"]
-    song_type = "DX" if is_dx else "SD"
+    level_index_to_diff = {
+        LevelIndex.BASIC: 0,
+        LevelIndex.ADVANCED: 1,
+        LevelIndex.EXPERT: 2,
+        LevelIndex.MASTER: 3,
+        LevelIndex.ReMASTER: 4,
+    }
 
-    total_left = data.total_left
-    percentage = f"{data.played_count / data.total_count * 100:.2f}%" if total_left > 0 else "已完成"
+    counts_by_diff = [0, 0, 0, 0, 0]
+    unfinished_items = []
 
-    unfinished_list = data.basic_left + data.advanced_left + data.expert_left + data.master_left + data.remaster_left
+    for obj in remained:
+        for level_idx in obj.levels:
+            diff_idx = level_index_to_diff.get(level_idx, 0)
+            counts_by_diff[diff_idx] += 1
+            diff = obj.song.get_difficulty(plate._major_type, level_idx)
+            level_value = diff.level_value if diff else 0.0
+            song_type = "DX" if plate._major_type == MaimaiPySongType.DX else "SD"
+            unfinished_items.append((obj.song.title, diff_idx, level_value, song_type))
+
     if use_difficult:
-        unfinished_list = data.difficult_left
-    unfinished_list.sort(key=lambda x: x.level_value, reverse=True)
+        unfinished_items = [item for item in unfinished_items if item[2] > 13.6]
+
+    unfinished_items.sort(key=lambda x: x[2], reverse=True)
+
+    total_left = len(unfinished_items) if use_difficult else (total_count - cleared_count)
+    percentage = f"{cleared_count / total_count * 100:.2f}%" if total_left > 0 else "已完成"
 
     text = (
-        f"{ver_char}{plan}进度 - {percentage}\n"
-        f"铺面总数: {data.total_count}\n"
-        f"剩余进度: 绿铺：{len(data.basic_left)}首; 黄铺: {len(data.advanced_left)}首; "
-        f"红铺: {len(data.expert_left)}首; 紫铺: {len(data.master_left)}首; 白铺: {len(data.remaster_left)}首\n"
+        f"{plate_name}进度 - {percentage}\n"
+        f"铺面总数: {total_count}\n"
+        f"剩余进度: 绿铺：{counts_by_diff[0]}首; 黄铺: {counts_by_diff[1]}首; "
+        f"红铺: {counts_by_diff[2]}首; 紫铺: {counts_by_diff[3]}首; 白铺: {counts_by_diff[4]}首\n"
         f"预计剩余时间: {total_left * 2 / 60:.1f} 小时（单刷预计 {(total_left + 2) // 3}pc; 拼机预计 {(total_left + 3) // 4}pc）\n"
         f"未完成铺面列表：\n"
     )
 
-    for item in unfinished_list[:10]:
-        text += f"[{diff_names[item.difficulty]} {item.level_value}] {item.song.title}[{song_type}]\n"
+    for title, diff_idx, level_value, song_type in unfinished_items[:10]:
+        text += f"[{diff_names[diff_idx]} {level_value}] {title}[{song_type}]\n"
 
     await UniMessage([At(flag="user", target=user_id), text.strip()]).finish()
 
