@@ -5,6 +5,7 @@
 from pathlib import Path
 
 from ...config import config
+from ..maimai._config import FONT_DIR as MAI_FONT_DIR
 
 # Paths
 STATIC_DIR = Path(config.static_resource_path)
@@ -20,7 +21,9 @@ TROPHY_DIR = CHU_DIR / "trophy"
 FONT_MAIN = FONT_DIR / "FOT-RodinNTLGPro-B.otf" if not config.scorelist_font_main else Path(config.scorelist_font_main)
 FONT_NUM = FONT_DIR / "FOT-RodinNTLGPro-EB.otf" if not config.scorelist_font_num else Path(config.scorelist_font_num)
 FONT_TITLE = (
-    STATIC_DIR / "ResourceHanRoundedCN-Bold.ttf" if not config.scorelist_font_main else Path(config.scorelist_font_main)
+    MAI_FONT_DIR / "ResourceHanRoundedCN-Bold.ttf"
+    if not config.scorelist_font_main
+    else Path(config.scorelist_font_main)
 )
 
 # Rating colors

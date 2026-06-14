@@ -130,10 +130,10 @@ class PlayerChuInfo:
     """游戏内名称"""
     rating: float
     """玩家 Rating"""
+    friend_code: int
+    """好友码"""
     level: int = 0
     """玩家等级"""
-    friend_code: Optional[int] = None
-    """好友码"""
     class_emblem_base: int = 0
     """CLASS 勋章 - 缎带"""
     class_emblem_medal: int = 0

@@ -651,7 +651,8 @@ async def handle_help(event: Event):
 async def handle_bind_lxns(
     event: Event,
     db_session: async_scoped_session,
-    score_provider: LXNSScoreProvider = Depends(get_lxns_provider),
+    mai_score_provider: LXNSScoreProvider = Depends(get_lxns_provider),
+    chu_score_provider: LXNSChuScoreProvider = Depends(get_lxns_chu_provider),
     token: Match[str] = AlconnaMatch("token"),
 ):
     user_id = event.get_user_id()
@@ -666,41 +667,40 @@ async def handle_bind_lxns(
         return
 
     lxns_token = token.result
+    player_info = None
+    chu_info = None
 
     logger.debug("尝试验证玩家 API 密钥是否正确")
     try:
-        player_info = await score_provider.fetch_player_info_by_user_token(lxns_token)
+        player_info = await mai_score_provider.fetch_player_info_by_user_token(lxns_token)
+        await UserBindInfoORM.set_user_mai_friend_code(db_session, user_id, player_info.friend_code)  # type: ignore
+        await UserBindInfoORM.set_lxns_api_key(db_session, user_id, lxns_token)
     except ClientResponseError as e:
         logger.warning(f"玩家提供的 API 可能有误: {e.message}")
-        await UniMessage(
-            [
-                At(flag="user", target=user_id),
-                "请输入有效的落雪咖啡屋 API 密钥",
-            ]
-        ).finish()
-        return
-
-    await UserBindInfoORM.set_user_mai_friend_code(db_session, user_id, player_info.friend_code)  # type: ignore
-    await UserBindInfoORM.set_lxns_api_key(db_session, user_id, lxns_token)
 
     # 同时尝试获取中二节奏好友码
     try:
-        from .score.chunithm import get_lxns_chu_provider
-
-        chu_provider = get_lxns_chu_provider()
-        chu_info = await chu_provider.fetch_player_info_by_qq(user_id)
-        if chu_info.friend_code:
-            await UserBindInfoORM.set_user_chu_friend_code(db_session, user_id, str(chu_info.friend_code))
-            logger.debug(f"[{user_id}] 绑定时自动获取中二好友码: {chu_info.friend_code}")
+        chu_info = await chu_score_provider.fetch_player_info_by_user_token(lxns_token)
+        await UserBindInfoORM.set_user_chu_friend_code(db_session, user_id, str(chu_info.friend_code))
+        logger.debug(f"[{user_id}] 绑定时自动获取中二好友码: {chu_info.friend_code}")
     except Exception as e:
-        logger.debug(f"[{user_id}] 绑定时获取中二好友码失败（不影响绑定）: {e}")
+        logger.debug(f"[{user_id}] 获取中二好友码失败: {e}")
+
+    if player_info or chu_info:
+        await UniMessage(
+            [
+                At(flag="user", target=user_id),
+                "已成功绑定落雪查分器⭐",
+            ]
+        ).finish()
 
     await UniMessage(
         [
             At(flag="user", target=user_id),
-            f"已绑定至游戏账号: {player_info.name} ⭐",
+            "无法查询到有效的绑定信息，请检查 API Key 是否正确。",
         ]
     ).finish()
+    return
 
 
 @alconna_bind.assign("divingfish")
@@ -2415,12 +2415,11 @@ async def _get_chu_params(
             ).finish()
 
     if (not bind_info) or (not bind_info.chu_friend_code):
+        logger.warning("未能获取到玩家绑定信息，尝试使用 QQ 号查询...")
         try:
             provider = get_lxns_chu_provider()
             info = await provider.fetch_player_info_by_qq(user_id)
-            if info.friend_code:
-                return LXNSChuParams(friend_code=info.friend_code)
-            logger.warning(f"[{user_id}] 无法获取用户的落雪中二好友码")
+            return LXNSChuParams(friend_code=info.friend_code)
         except Exception as e:
             logger.warning(f"[{user_id}] 中二好友码获取失败: {e}")
 

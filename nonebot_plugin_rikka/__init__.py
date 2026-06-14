@@ -41,8 +41,7 @@ async def migrate_chu_friend_codes():
 
     result = await session.execute(
         select(UserBindInfo).where(
-            UserBindInfo.mai_friend_code.isnot(None),
-            UserBindInfo.mai_friend_code != "",
+            (UserBindInfo.lxns_api_key.isnot(None) | UserBindInfo.lxns_api_key != ""),
             (UserBindInfo.chu_friend_code.is_(None) | (UserBindInfo.chu_friend_code == "")),
         )
     )
@@ -57,13 +56,11 @@ async def migrate_chu_friend_codes():
     for user in users:
         uid = user.user_id  # 提前提取，避免 commit 后 ORM 属性过期
         try:
-            from .score.chunithm.providers.lxns import LXNSChuParams
-
-            info = await provider.fetch_player_info(LXNSChuParams(qq=uid))
-            if info.friend_code:
-                await UserBindInfoORM.set_user_chu_friend_code(session, uid, str(info.friend_code))
-                migrated += 1
-                logger.debug(f"[数据迁移] 用户 {uid} 中二好友码已补全: {info.friend_code}")
+            assert user.lxns_api_key
+            info = await provider.fetch_player_info_by_user_token(user.lxns_api_key)
+            await UserBindInfoORM.set_user_chu_friend_code(session, uid, str(info.friend_code))
+            migrated += 1
+            logger.debug(f"[数据迁移] 用户 {uid} 中二好友码已补全: {info.friend_code}")
         except Exception as e:
             logger.debug(f"[数据迁移] 用户 {uid} 中二好友码补全失败: {e}")
 

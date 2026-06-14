@@ -163,8 +163,8 @@ class LXNSChuScoreProvider:
         return PlayerChuInfo(
             name=raw_info["name"],
             rating=raw_info["rating"],
+            friend_code=raw_info["friend_code"],
             level=raw_info.get("level", 0),
-            friend_code=raw_info.get("friend_code"),
             class_emblem_base=class_emblem.get("base", 0),
             class_emblem_medal=class_emblem.get("medal", 0),
             over_power=raw_info.get("over_power", 0.0),
@@ -200,8 +200,7 @@ class LXNSChuScoreProvider:
             return params.friend_code
         if params.qq:
             info = await self.fetch_player_info(LXNSChuParams(qq=params.qq))
-            if info.friend_code:
-                return info.friend_code
+            return info.friend_code
 
         raise ValueError("无法自动获取 friend_code，请先绑定落雪查分器")
 
