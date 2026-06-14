@@ -1271,7 +1271,7 @@ async def handle_mai_r50(
     user_bind_info = await UserBindInfoORM.get_user_bind_info(db_session, user_id)
 
     new_player_friend_code = None
-    if user_bind_info is None:
+    if user_bind_info is None and user_id.isdigit():
         logger.warning(f"[{user_id}] 未能获取玩家码，数据库中不存在绑定的玩家数据")
         logger.debug(f"[{user_id}] 1/4 尝试通过 QQ 请求玩家数据")
         try:
@@ -2229,7 +2229,7 @@ async def handle_trend(
     user_bind_info = await UserBindInfoORM.get_user_bind_info(db_session, user_id)
 
     new_player_friend_code = None
-    if user_bind_info is None:
+    if user_bind_info is None and user_id.isdigit():
         logger.warning(f"[{user_id}] 未能获取玩家码，数据库中不存在绑定的玩家数据")
         logger.debug(f"[{user_id}] 1/4 尝试通过 QQ 请求玩家数据")
         try:
@@ -2415,13 +2415,14 @@ async def _get_chu_params(
             ).finish()
 
     if (not bind_info) or (not bind_info.chu_friend_code):
-        logger.warning("未能获取到玩家绑定信息，尝试使用 QQ 号查询...")
-        try:
-            provider = get_lxns_chu_provider()
-            info = await provider.fetch_player_info_by_qq(user_id)
-            return LXNSChuParams(friend_code=info.friend_code)
-        except Exception as e:
-            logger.warning(f"[{user_id}] 中二好友码获取失败: {e}")
+        if user_id.isdigit():
+            logger.warning("未能获取到玩家绑定信息，尝试使用 QQ 号查询...")
+            try:
+                provider = get_lxns_chu_provider()
+                info = await provider.fetch_player_info_by_qq(user_id)
+                return LXNSChuParams(friend_code=info.friend_code)
+            except Exception as e:
+                logger.warning(f"[{user_id}] 中二好友码获取失败: {e}")
 
         await UniMessage(
             "成绩的查询需要绑定落雪查分器哦, 请使用 /bind lxns <落雪查分器的成绩查询 API Key> 绑定喵~"
