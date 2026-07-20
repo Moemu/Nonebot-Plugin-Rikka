@@ -20,7 +20,7 @@ from ..models.song import (
     SongNotes,
 )
 from .orm_models import ChuSong as ChuSongORMModel
-from .orm_models import ChuSongAlias, MaiPlayCount
+from .orm_models import ChuSongAlias, LocationSubscription, MaiPlayCount
 from .orm_models import MaiSong as MaiSongORMModel
 from .orm_models import MaiSongAlias, UserBindInfo
 
@@ -910,3 +910,77 @@ class MaiPlayCountORM:
         result = await session.execute(select(MaiPlayCount).where(MaiPlayCount.user_id == user_id))
         rows = result.scalars().all()
         return rows
+
+
+class LocationSubscriptionORM:
+    """店铺变动订阅管理"""
+
+    @staticmethod
+    async def add_subscription(
+        session: async_scoped_session,
+        user_id: str,
+        game_type: str,
+        keyword: str,
+        group_id: Optional[str] = None,
+    ) -> None:
+        """添加一条订阅"""
+        from .orm_models import LocationSubscription
+
+        sub = LocationSubscription(
+            user_id=user_id,
+            game_type=game_type,
+            keyword=keyword,
+            group_id=group_id,
+        )
+        session.add(sub)
+        await session.commit()
+
+    @staticmethod
+    async def remove_subscription(
+        session: async_scoped_session,
+        user_id: str,
+        game_type: str,
+        keyword: Optional[str] = None,
+    ) -> bool:
+        """删除订阅，返回是否成功删除"""
+        from .orm_models import LocationSubscription
+
+        if keyword:
+            stmt = select(LocationSubscription).where(
+                LocationSubscription.user_id == user_id,
+                LocationSubscription.game_type == game_type,
+                LocationSubscription.keyword == keyword,
+            )
+        else:
+            stmt = select(LocationSubscription).where(
+                LocationSubscription.user_id == user_id,
+                LocationSubscription.game_type == game_type,
+            )
+        result = await session.execute(stmt)
+        sub = result.scalars().all()
+        if not sub:
+            return False
+        for item in sub:
+            await session.delete(item)
+        await session.commit()
+        return bool(sub)
+
+    @staticmethod
+    async def get_subscriptions_by_user(
+        session: async_scoped_session,
+        user_id: str,
+        game_type: Optional[str] = None,
+    ) -> list[LocationSubscription]:
+        """获取用户的所有订阅"""
+
+        stmt = select(LocationSubscription).where(LocationSubscription.user_id == user_id)
+        if game_type:
+            stmt = stmt.where(LocationSubscription.game_type == game_type)
+        result = await session.execute(stmt)
+        return list(result.scalars().all())
+
+    @staticmethod
+    async def get_all_subscriptions(session: async_scoped_session, game_type: str) -> list[LocationSubscription]:
+        """获取某游戏类型的全部订阅"""
+        result = await session.execute(select(LocationSubscription).where(LocationSubscription.game_type == game_type))
+        return list(result.scalars().all())

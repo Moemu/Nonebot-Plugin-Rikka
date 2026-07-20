@@ -13,7 +13,7 @@ from arclet.alconna import Alconna, AllParam, Args
 from maimai_py import InvalidPlateError, LevelIndex, LXNSProvider
 from maimai_py import SongType as MaimaiPySongType
 from nonebot import get_driver, logger
-from nonebot.adapters import Event
+from nonebot.adapters import Bot, Event
 from nonebot.exception import FinishedException
 from nonebot.params import Depends
 from nonebot.rule import to_me
@@ -28,10 +28,22 @@ from nonebot_plugin_alconna import (
 )
 from nonebot_plugin_alconna.uniseg import Image as UniImage
 from nonebot_plugin_orm import async_scoped_session
+from nonebot_plugin_session import (
+    EventSession,
+    SessionIdType,
+    SessionLevel,
+    extract_session,
+)
 
 from .config import config
 from .constants import CHU_VERSION_MAP, MAI_VERSION_MAP
-from .database import MaiPlayCountORM, MaiSongAliasORM, MaiSongORM, UserBindInfoORM
+from .database import (
+    LocationSubscriptionORM,
+    MaiPlayCountORM,
+    MaiSongAliasORM,
+    MaiSongORM,
+    UserBindInfoORM,
+)
 from .database.crud import ChuSongORM
 from .extra_proxy import (
     get_maistatus,
@@ -616,9 +628,23 @@ alconna_location_mai = on_alconna(
             Args["name", AllParam(str)],
             help_text=".location-mai search <name> 搜索带 name 的舞萌店铺",
         ),
+        Subcommand(
+            "subscribe",
+            Args["keyword", str],
+            help_text=".location-mai subscribe <keyword> [group_id] 订阅舞萌店铺变动提醒",
+        ),
+        Subcommand(
+            "unsubscribe",
+            Args["keyword?", str],
+            help_text=".location-mai unsubscribe [keyword] 取消订阅指定关键词的舞萌店铺变动提醒",
+        ),
+        Subcommand(
+            "subs",
+            help_text=".location-mai subs 查看当前已订阅的舞萌店铺关键词",
+        ),
         meta=CommandMeta(
             "[舞萌DX]舞萌店铺分布",
-            usage=".location-mai list [num] / .location-mai search <name>",
+            usage=".location-mai list [num] / .location-mai search <name> / .location-mai subscribe <keyword>",
         ),
     ),
     aliases={"舞萌店铺", "舞萌店铺分布"},
@@ -641,12 +667,26 @@ alconna_location_chu = on_alconna(
             Args["name", AllParam(str)],
             help_text=".location-chu search <name> 搜索带 name 的中二店铺",
         ),
+        Subcommand(
+            "subscribe",
+            Args["keyword", str],
+            help_text=".location-chu subscribe <keyword> 订阅中二店铺变动提醒",
+        ),
+        Subcommand(
+            "unsubscribe",
+            Args["keyword?", str],
+            help_text=".location-chu unsubscribe [keyword] 取消订阅指定关键词的中二店铺变动提醒",
+        ),
+        Subcommand(
+            "subs",
+            help_text=".location-chu subs 查看当前已订阅的中二店铺关键词",
+        ),
         meta=CommandMeta(
             "[中二节奏]中二店铺分布",
-            usage=".location-chu list [num] / .location-chu search <name>",
+            usage=".location-chu list [num] / .location-chu search <name> / .location-chu subscribe <keyword>",
         ),
     ),
-    aliases={"中二店铺", "舞萌店铺分布"},
+    aliases={"中二店铺", "中二店铺分布"},
     priority=10,
     block=True,
     rule=to_me(),
@@ -2863,9 +2903,80 @@ async def handle_location_mai_main(event: Event):
         "舞萌店铺分布帮助:\n"
         ".location-mai list [num = 5] 列出前 num 个舞萌店铺\n"
         ".location-mai search <name> 搜索带 name 的舞萌店铺\n"
+        ".location-mai subscribe <keyword> 订阅舞萌店铺变动提醒\n"
+        ".location-mai unsubscribe 取消订阅所有舞萌店铺变动提醒\n"
+        ".location-mai subs 查看当前已订阅的舞萌店铺关键词\n"
     )
 
     await UniMessage([At(flag="user", target=user_id), help_text]).finish()
+
+
+# --- 店铺分布订阅 handlers ---
+
+
+@alconna_location_mai.assign("subscribe")
+@catch_exception("订阅舞萌店铺变动失败")
+async def handle_location_mai_subscribe(
+    event: Event,
+    bot: Bot,
+    db_session: async_scoped_session,
+    keyword: Match[str] = AlconnaMatch("keyword"),
+):
+    user_id = event.get_user_id()
+    session = extract_session(bot, event)
+    group_id = session.get_id(SessionIdType.GROUP) if session.level != SessionLevel.LEVEL1 else None
+
+    if not keyword.available:
+        await UniMessage([At(flag="user", target=user_id), "请输入订阅关键词"]).finish()
+
+    kw = keyword.result.strip()
+    if not kw:
+        await UniMessage([At(flag="user", target=user_id), "关键词不能为空"]).finish()
+
+    logger.info(f"[{user_id}] 订阅舞萌店铺变动, 关键词: {kw}, 群组: {group_id}")
+
+    await LocationSubscriptionORM.add_subscription(db_session, user_id, "mai", kw, group_id)
+    await UniMessage(
+        [At(flag="user", target=user_id), f"✅ 已订阅舞萌店铺变动提醒，关键词: {kw}（每次数据更新时检测新增/移除店铺）"]
+    ).finish()
+
+
+@alconna_location_mai.assign("unsubscribe")
+@catch_exception("取消订阅舞萌店铺变动失败")
+async def handle_location_mai_unsubscribe(
+    event: Event,
+    db_session: async_scoped_session,
+    keyword: Match[str] = AlconnaMatch("keyword"),
+):
+    user_id = event.get_user_id()
+
+    kw = keyword.result.strip() if keyword.available else None
+    success = await LocationSubscriptionORM.remove_subscription(db_session, user_id, "mai", kw)
+    if success:
+        msg = "已取消所有舞萌店铺变动订阅" if not kw else f'已取消关键词 "{kw}" 的舞萌店铺变动订阅'
+        await UniMessage([At(flag="user", target=user_id), msg]).finish()
+    else:
+        await UniMessage([At(flag="user", target=user_id), f'未找到关键词 "{kw}" 的舞萌店铺变动订阅']).finish()
+
+
+@alconna_location_mai.assign("subs")
+@catch_exception("获取舞萌店铺订阅列表失败")
+async def handle_location_mai_subs(
+    event: Event,
+    db_session: async_scoped_session,
+):
+    user_id = event.get_user_id()
+
+    subs = await LocationSubscriptionORM.get_subscriptions_by_user(db_session, user_id, "mai")
+    if not subs:
+        await UniMessage([At(flag="user", target=user_id), "当前没有订阅舞萌店铺变动提醒"]).finish()
+
+    lines = [f"舞萌店铺变动订阅列表（共 {len(subs)} 条）:"]
+    for i, sub in enumerate(subs, 1):
+        gid = f" (群组: {sub.group_id})" if sub.group_id else ""
+        lines.append(f"  {i}. 关键词: {sub.keyword}{gid}")
+
+    await UniMessage([At(flag="user", target=user_id), "\n".join(lines)]).finish()
 
 
 @alconna_location_chu.assign("list")
@@ -2905,6 +3016,67 @@ async def handle_location_chu_search(
     await UniMessage([At(flag="user", target=user_id), result]).finish()
 
 
+@alconna_location_chu.assign("subscribe")
+@catch_exception("订阅中二店铺变动失败")
+async def handle_location_chu_subscribe(
+    event: Event,
+    db_session: async_scoped_session,
+    event_session: EventSession,
+    keyword: Match[str] = AlconnaMatch("keyword"),
+):
+    user_id = event.get_user_id()
+    group_id = event_session.get_id(SessionIdType.GROUP) if event_session.level != SessionLevel.LEVEL1 else None
+
+    if not keyword.available:
+        await UniMessage([At(flag="user", target=user_id), "请输入订阅关键词"]).finish()
+
+    kw = keyword.result.strip()
+    if not kw:
+        await UniMessage([At(flag="user", target=user_id), "关键词不能为空"]).finish()
+
+    logger.info(f"[{user_id}] 订阅中二店铺变动, 关键词: {kw}, 群组: {group_id}")
+
+    await LocationSubscriptionORM.add_subscription(db_session, user_id, "chu", kw, group_id)
+    await UniMessage([At(flag="user", target=user_id), "已订阅中二店铺变动提醒"]).finish()
+
+
+@alconna_location_chu.assign("unsubscribe")
+@catch_exception("取消订阅中二店铺变动失败")
+async def handle_location_chu_unsubscribe(
+    event: Event, db_session: async_scoped_session, keyword: Match[str] = AlconnaMatch("keyword")
+):
+    user_id = event.get_user_id()
+
+    kw = keyword.result.strip() if keyword.available else None
+
+    success = await LocationSubscriptionORM.remove_subscription(db_session, user_id, "chu", kw)
+    if success:
+        msg = "已取消所有中二店铺变动订阅" if not kw else f'已取消关键词 "{kw}" 的中二店铺变动订阅'
+        await UniMessage([At(flag="user", target=user_id), msg]).finish()
+    else:
+        await UniMessage([At(flag="user", target=user_id), f'未找到关键词 "{kw}" 的中二店铺变动订阅']).finish()
+
+
+@alconna_location_chu.assign("subs")
+@catch_exception("获取中二店铺订阅列表失败")
+async def handle_location_chu_subs(
+    event: Event,
+    db_session: async_scoped_session,
+):
+    user_id = event.get_user_id()
+
+    subs = await LocationSubscriptionORM.get_subscriptions_by_user(db_session, user_id, "chu")
+    if not subs:
+        await UniMessage([At(flag="user", target=user_id), "当前没有订阅中二店铺变动提醒"]).finish()
+
+    lines = [f"中二店铺变动订阅列表（共 {len(subs)} 条）:"]
+    for i, sub in enumerate(subs, 1):
+        gid = f" (群组: {sub.group_id})" if sub.group_id else ""
+        lines.append(f"  {i}. 关键词: {sub.keyword}{gid}")
+
+    await UniMessage([At(flag="user", target=user_id), "\n".join(lines)]).finish()
+
+
 @alconna_location_chu.assign("$main")
 async def handle_location_chu_main(event: Event):
     user_id = event.get_user_id()
@@ -2913,6 +3085,9 @@ async def handle_location_chu_main(event: Event):
         "中二店铺分布帮助:\n"
         ".location-chu list [num = 5] 列出前 num 个中二店铺\n"
         ".location-chu search <name> 搜索带 name 的中二店铺\n"
+        ".location-chu subscribe <keyword> 订阅中二店铺变动提醒\n"
+        ".location-chu unsubscribe [keyword] 取消订阅指定关键词的中二店铺变动提醒\n"
+        ".location-chu subs 查看当前已订阅的中二店铺关键词\n"
     )
 
     await UniMessage([At(flag="user", target=user_id), help_text]).finish()

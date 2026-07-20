@@ -86,3 +86,16 @@ class ChuSongAlias(Model):
     custom_alias: Mapped[str] = mapped_column(String, nullable=True, default="[]")
 
     song: Mapped["ChuSong"] = relationship("ChuSong", back_populates="alias_entry")
+
+
+class LocationSubscription(Model):
+    """店铺分布变动订阅"""
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    user_id: Mapped[str] = mapped_column(String, nullable=False)
+    game_type: Mapped[str] = mapped_column(String, nullable=False)
+    """'mai' 或 'chu'"""
+    keyword: Mapped[str] = mapped_column(String, nullable=False)
+    """订阅的关键词"""
+    group_id: Mapped[Optional[str]] = mapped_column(String, nullable=True, default=None)
+    """可选群组 ID，如果存在则向群组发送消息"""
