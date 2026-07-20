@@ -18,6 +18,7 @@ dependencies = [
     "matplotlib>=3.9.4",
     "nonebot-plugin-rikka-extra>=0.3.2",
     "pydantic<3.0.0",
+    "nonebot-plugin-session>=0.3.2",
 ]
 
 [project.optional-dependencies]
