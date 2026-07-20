@@ -149,6 +149,7 @@
 | `scorelist_font_color`         | 成绩图默认文字颜色                                           | `tuple[int, int, int, int]` | `(124, 129, 255, 255)`                   |
 | `scorelist_font_num`           | 成绩图数字字体文件                                           | `Optional[str]`             | `None`                                   |
 | `scorelist_element_opacity`    | 成绩图元素不透明度（0.0 ~ 1.0）                              | `float`                     | `1.0`                                    |
+| `enable_subscribe_function`    | 启用机厅列表更新订阅功能（需要平台支持，建议在测试后使用）   | `bool`                      | `False`                                  |
 
 有关 `enable_arcade_provider` 的说明: 部分功能需要连接至游戏服务器才可使用（比如 PC 数获取和水鱼查分器更新），但由于服务器对机房 IP 做出了限制，在部分网络环境下无法与官方服务器通信（使用 `.status` 命令以确认），因此此配置项默认为 `False` 并禁用相关功能。
 

@@ -39,6 +39,9 @@ class Config(BaseModel):
     scorelist_element_opacity: float = Field(1.0, le=1.0, ge=0.0)
     """成绩图元素不透明度"""
 
+    enable_subscribe_function: bool = False
+    """启用机厅列表更新订阅功能（需要平台支持，建议在测试后使用）"""
+
     @validator("static_resource_path")
     def validate_static_resource_path(cls, v: str) -> str:
         p = Path(v)

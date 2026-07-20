@@ -13,7 +13,7 @@ from arclet.alconna import Alconna, AllParam, Args
 from maimai_py import InvalidPlateError, LevelIndex, LXNSProvider
 from maimai_py import SongType as MaimaiPySongType
 from nonebot import get_driver, logger
-from nonebot.adapters import Bot, Event
+from nonebot.adapters import Event
 from nonebot.exception import FinishedException
 from nonebot.params import Depends
 from nonebot.rule import to_me
@@ -32,7 +32,6 @@ from nonebot_plugin_session import (
     EventSession,
     SessionIdType,
     SessionLevel,
-    extract_session,
 )
 
 from .config import config
@@ -3019,13 +3018,17 @@ async def handle_location_mai_main(event: Event):
 @catch_exception("订阅舞萌店铺变动失败")
 async def handle_location_mai_subscribe(
     event: Event,
-    bot: Bot,
     db_session: async_scoped_session,
+    event_session: EventSession,
     keyword: Match[str] = AlconnaMatch("keyword"),
 ):
+    if event_session.bot_type == "QQ":
+        await UniMessage("官Bot环境下不支持主动发送消息，因此无法使用订阅功能").finish()
+    elif not config.enable_subscribe_function:
+        await UniMessage("管理员关闭了该功能").finish()
+
     user_id = event.get_user_id()
-    session = extract_session(bot, event)
-    group_id = session.get_id(SessionIdType.GROUP) if session.level != SessionLevel.LEVEL1 else None
+    group_id = event_session.get_id(SessionIdType.GROUP) if event_session.level != SessionLevel.LEVEL1 else None
 
     if not keyword.available:
         await UniMessage([At(flag="user", target=user_id), "请输入订阅关键词"]).finish()
@@ -3125,6 +3128,11 @@ async def handle_location_chu_subscribe(
     event_session: EventSession,
     keyword: Match[str] = AlconnaMatch("keyword"),
 ):
+    if event_session.bot_type == "QQ":
+        await UniMessage("官Bot环境下不支持主动发送消息，因此无法使用订阅功能").finish()
+    elif not config.enable_subscribe_function:
+        await UniMessage("管理员关闭了该功能").finish()
+
     user_id = event.get_user_id()
     group_id = event_session.get_id(SessionIdType.GROUP) if event_session.level != SessionLevel.LEVEL1 else None
 
