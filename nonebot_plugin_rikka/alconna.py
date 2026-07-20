@@ -43,6 +43,12 @@ from .extra_proxy import (
 from .functions.analysis import get_player_strength
 from .functions.diving_fish import convert_to_diving_fish_format, upload_to_diving_fish
 from .functions.fortunate import generate_today_fortune
+from .functions.location import (
+    get_chu_locations,
+    get_mai_locations,
+    list_locations,
+    search_locations,
+)
 from .functions.lxns import (
     convert_to_lxns_maimai_format,
     get_updated_score,
@@ -596,6 +602,56 @@ alconna_chu = on_alconna(
     rule=to_me(),
 )
 
+alconna_location_mai = on_alconna(
+    Alconna(
+        COMMAND_PREFIXES,
+        "location-mai",
+        Subcommand(
+            "list",
+            Args["num?", int],
+            help_text=".location-mai list [num = 5] 列出前 num 个舞萌店铺",
+        ),
+        Subcommand(
+            "search",
+            Args["name", AllParam(str)],
+            help_text=".location-mai search <name> 搜索带 name 的舞萌店铺",
+        ),
+        meta=CommandMeta(
+            "[舞萌DX]舞萌店铺分布",
+            usage=".location-mai list [num] / .location-mai search <name>",
+        ),
+    ),
+    aliases={"舞萌店铺", "舞萌店铺分布"},
+    priority=10,
+    block=True,
+    rule=to_me(),
+)
+
+alconna_location_chu = on_alconna(
+    Alconna(
+        COMMAND_PREFIXES,
+        "location-chu",
+        Subcommand(
+            "list",
+            Args["num?", int],
+            help_text=".location-chu list [num = 5] 列出前 num 个中二店铺",
+        ),
+        Subcommand(
+            "search",
+            Args["name", AllParam(str)],
+            help_text=".location-chu search <name> 搜索带 name 的中二店铺",
+        ),
+        meta=CommandMeta(
+            "[中二节奏]中二店铺分布",
+            usage=".location-chu list [num] / .location-chu search <name>",
+        ),
+    ),
+    aliases={"中二店铺", "舞萌店铺分布"},
+    priority=10,
+    block=True,
+    rule=to_me(),
+)
+
 
 @alconna_help.handle()
 async def handle_help(event: Event):
@@ -608,7 +664,7 @@ async def handle_help(event: Event):
         ".unbind <查分器名称> 解绑游戏账号/查分器\n"
         ".source <查分器名称> 设置默认查分器\n"
         "--- 舞萌DX ---\n"
-        ".mai help 获取舞萌指令列表"
+        ".mai help 获取舞萌指令列表\n"
         ".mai b50 获取玩家 Best 50\n"
         ".mai ap50 获取玩家 ALL PERFECT 50\n"
         ".mai r50 获取玩家 Recent 50 (需绑定落雪查分器)\n"
@@ -631,14 +687,19 @@ async def handle_help(event: Event):
         f"{'.logout <qr_code> 尝试强制登出' if not config.enable_arcade_write else ''}\n"
         f"{'.unlock <qr_code> 解锁新框紫铺\n' if not config.enable_arcade_write else '\n'}\n"
         "--- 中二节奏 ---\n"
-        ".chu help 获取中二相关指令列表"
+        ".chu help 获取中二相关指令列表\n"
         ".chu b30 获取玩家 Best 30\n"
         ".chu r50 获取玩家 Recent 50\n"
         ".chu ap30 获取玩家 ALL PERFECT 30\n"
         ".chu minfo <乐曲ID> 获取乐曲信息\n"
         ".chu random 随机获取一首乐曲\n"
         ".chu score <乐曲ID|曲名> 获取单曲游玩情况\n"
-        ".chu scorelist [等级] [页码] 获取成绩列表\n"
+        ".chu scorelist [等级] [页码] 获取成绩列表\n\n"
+        "--- 店铺查询 ---\n"
+        ".location-mai list [num] 列出前 num 个舞萌店铺\n"
+        ".location-mai search <name> 搜索舞萌店铺\n"
+        ".location-chu list [num] 列出前 num 个中二店铺\n"
+        ".location-chu search <name> 搜索中二店铺\n"
     )
 
     await UniMessage(
@@ -2752,3 +2813,106 @@ async def handle_chu_scorelist(
     pic = await chu_renderer.render_chu_player_scores(page_scores, player_info, title)
 
     await UniMessage([At(flag="user", target=user_id), UniImage(raw=pic)]).finish()
+
+
+# --- 店铺分布查询 handlers ---
+
+
+@alconna_location_mai.assign("list")
+@catch_exception("获取舞萌店铺列表失败")
+async def handle_location_mai_list(
+    event: Event,
+    num: Match[int] = AlconnaMatch("num"),
+):
+    user_id = event.get_user_id()
+
+    count = num.result if num.available and num.result > 0 else 5
+    logger.info(f"[{user_id}] 查询舞萌店铺列表, 数量: {count}")
+
+    locations = await get_mai_locations()
+    result = "舞萌店铺一览:\n" + list_locations(locations, num=count)
+
+    await UniMessage([At(flag="user", target=user_id), result]).finish()
+
+
+@alconna_location_mai.assign("search")
+@catch_exception("搜索舞萌店铺失败")
+async def handle_location_mai_search(
+    event: Event,
+    name: Match[UniMessage] = AlconnaMatch("name"),
+):
+    user_id = event.get_user_id()
+
+    if not name.available:
+        await UniMessage([At(flag="user", target=user_id), "请输入搜索关键词"]).finish()
+
+    keyword = name.result.extract_plain_text().strip()
+    logger.info(f"[{user_id}] 搜索舞萌店铺, 关键词: {keyword}")
+
+    locations = await get_mai_locations()
+    result = search_locations(locations, keyword=keyword)
+
+    await UniMessage([At(flag="user", target=user_id), result]).finish()
+
+
+@alconna_location_mai.assign("$main")
+async def handle_location_mai_main(event: Event):
+    user_id = event.get_user_id()
+
+    help_text = (
+        "舞萌店铺分布帮助:\n"
+        ".location-mai list [num = 5] 列出前 num 个舞萌店铺\n"
+        ".location-mai search <name> 搜索带 name 的舞萌店铺\n"
+    )
+
+    await UniMessage([At(flag="user", target=user_id), help_text]).finish()
+
+
+@alconna_location_chu.assign("list")
+@catch_exception("获取中二店铺列表失败")
+async def handle_location_chu_list(
+    event: Event,
+    num: Match[int] = AlconnaMatch("num"),
+):
+    user_id = event.get_user_id()
+
+    count = num.result if num.available and num.result > 0 else 5
+    logger.info(f"[{user_id}] 查询中二店铺列表, 数量: {count}")
+
+    locations = await get_chu_locations()
+    result = "中二店铺一览:\n" + list_locations(locations, num=count)
+
+    await UniMessage([At(flag="user", target=user_id), result]).finish()
+
+
+@alconna_location_chu.assign("search")
+@catch_exception("搜索中二店铺失败")
+async def handle_location_chu_search(
+    event: Event,
+    name: Match[UniMessage] = AlconnaMatch("name"),
+):
+    user_id = event.get_user_id()
+
+    if not name.available:
+        await UniMessage([At(flag="user", target=user_id), "请输入搜索关键词"]).finish()
+
+    keyword = name.result.extract_plain_text().strip()
+    logger.info(f"[{user_id}] 搜索中二店铺, 关键词: {keyword}")
+
+    locations = await get_chu_locations()
+    result = search_locations(locations, keyword=keyword)
+
+    await UniMessage([At(flag="user", target=user_id), result]).finish()
+
+
+@alconna_location_chu.assign("$main")
+async def handle_location_chu_main(event: Event):
+    user_id = event.get_user_id()
+
+    help_text = (
+        "中二店铺分布帮助:\n"
+        ".location-chu list [num = 5] 列出前 num 个中二店铺\n"
+        ".location-chu search <name> 搜索带 name 的中二店铺\n"
+    )
+
+    await UniMessage([At(flag="user", target=user_id), help_text]).finish()
