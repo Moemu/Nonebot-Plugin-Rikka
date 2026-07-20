@@ -822,8 +822,14 @@ async def handle_help(event: Event):
         "--- 店铺查询 ---\n"
         ".location-mai list [num] 列出前 num 个舞萌店铺\n"
         ".location-mai search <name> 搜索舞萌店铺\n"
+        ".location-mai subscribe <keyword> [group_id] 订阅舞萌店铺变动提醒\n"
+        ".location-mai unsubscribe <keyword> 取消订阅舞萌店铺变动提醒\n"
+        ".location-mai subs 查看当前已订阅的舞萌店铺关键词\n"
         ".location-chu list [num] 列出前 num 个中二店铺\n"
         ".location-chu search <name> 搜索中二店铺\n"
+        ".location-chu subscribe <keyword> [group_id] 订阅中二店铺变动提醒\n"
+        ".location-chu unsubscribe <keyword> 取消订阅中二店铺变动提醒\n"
+        ".location-chu subs 查看当前已订阅的中二店铺关键词\n"
     )
 
     await UniMessage(
