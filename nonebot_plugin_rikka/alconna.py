@@ -581,6 +581,90 @@ alconna_mai = on_alconna(
     rule=to_me(),
 )
 
+alconna_b50 = on_alconna(
+    Alconna(COMMAND_PREFIXES, "b50", meta=CommandMeta("[舞萌DX] 生成玩家 Best 50")),
+    priority=10,
+    block=True,
+    rule=to_me(),
+)
+
+alconna_ap50 = on_alconna(
+    Alconna(COMMAND_PREFIXES, "ap50", meta=CommandMeta("[舞萌DX] 生成玩家 ALL PERFECT 50")),
+    priority=10,
+    block=True,
+    rule=to_me(),
+)
+
+alconna_r50 = on_alconna(
+    Alconna(COMMAND_PREFIXES, "r50", meta=CommandMeta("[舞萌DX] 生成玩家 Recent 50 (需绑定落雪查分器)")),
+    priority=10,
+    block=True,
+    rule=to_me(),
+)
+
+alconna_n50 = on_alconna(
+    Alconna(COMMAND_PREFIXES, "n50", meta=CommandMeta("[舞萌DX] 生成玩家基于拟合系数的 Top-50")),
+    priority=10,
+    block=True,
+    rule=to_me(),
+)
+
+alconna_pc50 = on_alconna(
+    Alconna(COMMAND_PREFIXES, "pc50", meta=CommandMeta("[舞萌DX] 生成玩家游玩次数 Top-50")),
+    priority=10,
+    block=True,
+    rule=to_me(),
+)
+
+alconna_minfo = on_alconna(
+    Alconna(
+        COMMAND_PREFIXES,
+        "minfo",
+        Args["name", AllParam(str)],
+        meta=CommandMeta("[舞萌DX]获取乐曲信息 /minfo <id|别名>"),
+    ),
+    priority=10,
+    block=True,
+    rule=to_me(),
+)
+
+alconna_random = on_alconna(
+    Alconna(
+        COMMAND_PREFIXES,
+        "random",
+        Args["filters", AllParam(str)],
+        meta=CommandMeta("[舞萌DX]随机抽取乐曲 /random [难度] [等级|定数]"),
+    ),
+    aliases={"随机乐曲", "随"},
+    priority=10,
+    block=True,
+    rule=to_me(),
+)
+
+alconna_score = on_alconna(
+    Alconna(
+        COMMAND_PREFIXES,
+        "score",
+        Args["name", AllParam(str)],
+        meta=CommandMeta("[舞萌DX]获取单曲游玩情况 /score <id|别名>"),
+    ),
+    priority=10,
+    block=True,
+    rule=to_me(),
+)
+
+alconna_scorelist = on_alconna(
+    Alconna(
+        COMMAND_PREFIXES,
+        "scorelist",
+        Args["arg", AllParam(str)],
+        meta=CommandMeta("[舞萌DX]获取指定条件的成绩列表 /scorelist <level|ach|diff> [page]"),
+    ),
+    priority=10,
+    block=True,
+    rule=to_me(),
+)
+
 alconna_chu = on_alconna(
     Alconna(
         COMMAND_PREFIXES,
@@ -1306,6 +1390,7 @@ async def handle_source(
     ).finish()
 
 
+@alconna_b50.handle()
 @alconna_mai.assign("b50")
 @catch_exception()
 async def handle_mai_b50(
@@ -1334,6 +1419,7 @@ async def handle_mai_b50(
     await UniMessage([At(flag="user", target=user_id), UniImage(raw=pic)]).finish()
 
 
+@alconna_ap50.handle()
 @alconna_mai.assign("ap50")
 @catch_exception()
 async def handle_mai_ap50(
@@ -1371,6 +1457,7 @@ async def handle_mai_ap50(
     await UniMessage([At(flag="user", target=user_id), UniImage(raw=pic)]).finish()
 
 
+@alconna_r50.handle()
 @alconna_mai.assign("r50")
 @catch_exception()
 async def handle_mai_r50(
@@ -1425,6 +1512,7 @@ async def handle_mai_r50(
     await UniMessage([At(flag="user", target=user_id), UniImage(raw=pic)]).finish()
 
 
+@alconna_pc50.handle()
 @alconna_mai.assign("pc50")
 @catch_exception()
 async def handle_pc50(
@@ -1471,6 +1559,7 @@ async def handle_pc50(
     await UniMessage([At(flag="user", target=user_id), UniImage(raw=pic)]).finish()
 
 
+@alconna_n50.handle()
 @alconna_mai.assign("n50")
 @catch_exception()
 async def handle_n50(
@@ -1511,6 +1600,7 @@ async def handle_n50(
     await UniMessage([At(flag="user", target=user_id), UniImage(raw=pic)]).finish()
 
 
+@alconna_minfo.handle()
 @alconna_mai.assign("minfo")
 @catch_exception()
 async def handle_minfo(
@@ -1539,6 +1629,7 @@ async def handle_minfo(
     await response_content.finish()
 
 
+@alconna_random.handle()
 @alconna_mai.assign("random")
 @catch_exception()
 async def handle_random(
@@ -1755,6 +1846,7 @@ async def handle_alias_main(event: Event):
     return await handle_alias_help(event)
 
 
+@alconna_score.handle()
 @alconna_mai.assign("score")
 @catch_exception()
 async def handle_score(
@@ -1811,6 +1903,7 @@ async def handle_score(
     await UniMessage([At(flag="user", target=user_id), UniImage(raw=pic)]).finish()
 
 
+@alconna_scorelist.handle()
 @alconna_mai.assign("scorelist")
 @catch_exception()
 async def handle_scorelist(
