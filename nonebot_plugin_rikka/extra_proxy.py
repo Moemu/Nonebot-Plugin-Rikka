@@ -6,7 +6,9 @@ import re
 import sys
 from dataclasses import asdict, is_dataclass
 from pathlib import Path
-from typing import Any, Mapping, Optional
+from typing import Any, Callable, Mapping, Optional
+
+from nonebot import logger
 
 DEV_MODULE_PATH = Path("./nonebot-plugin-rikka-extra")
 if DEV_MODULE_PATH.exists():
@@ -15,6 +17,10 @@ if DEV_MODULE_PATH.exists():
 
 class ExtraNotInstalledError(RuntimeError):
     """Raised when nonebot-plugin-rikka-extra is not installed."""
+
+
+class TitleServerEmptyResponseError(RuntimeError):
+    """Raised when Title Server return an empty response, the bot server may have been blocked."""
 
 
 def _load_extra_attr(module_name: str, attr: str) -> Any:
@@ -29,13 +35,23 @@ def _load_extra_attr(module_name: str, attr: str) -> Any:
         raise RuntimeError(f"nonebot-plugin-rikka-extra 缺少接口: {attr}") from e
 
 
+async def _run_extra_function(func: Callable, *args):
+    try:
+        result = func(*args)
+        if inspect.isawaitable(result):
+            result = await result
+    except AssertionError as exc:
+        logger.error(exc)
+        raise TitleServerEmptyResponseError("服务器返回空数据，可能 Bot 服务器被封锁，请联系管理员处理。")
+
+    return result
+
+
 async def run_extend_score_workflow(qr_code: str) -> list[dict[str, Any]]:
     """Proxy to nonebot-plugin-rikka-extra.score.run_workflow"""
 
     workflow = _load_extra_attr("score", "run_workflow")
-    result = workflow(qr_code)
-    if inspect.isawaitable(result):
-        result = await result
+    result = await _run_extra_function(workflow, qr_code)
     if not isinstance(result, list):
         raise RuntimeError("run_workflow 返回结果格式异常")
     return result
