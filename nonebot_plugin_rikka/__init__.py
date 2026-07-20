@@ -1,3 +1,5 @@
+from pathlib import Path
+
 from nonebot import logger, require
 
 require("nonebot_plugin_alconna")
@@ -6,7 +8,7 @@ require("nonebot_plugin_orm")
 
 from nonebot.plugin import PluginMetadata, inherit_supported_adapters  # noqa: E402
 
-from .config import Config  # noqa: E402
+from .config import Config, config  # noqa: E402
 from .utils import init_logger  # noqa: E402
 
 init_logger()
@@ -17,6 +19,24 @@ from nonebot_plugin_orm import get_scoped_session  # noqa: E402
 from . import alconna  # noqa: E402, F401
 from . import database  # noqa: E402, F401
 from .database import ChuSongORM, MaiSongORM  # noqa: E402
+
+
+@get_driver().on_startup
+async def check_static_resource():
+    """检查静态资源文件夹是否存在"""
+    from .painters.maimai._config import FONT_DIR, PLATE_DIR
+
+    if not Path(config.static_resource_path).exists():
+        raise FileNotFoundError(f"静态资源目录不存在: {config.static_resource_path}")
+
+    # 测试外部资源文件已正确配置
+    if not PLATE_DIR.exists():
+        raise FileNotFoundError(
+            f"无法找到有效的舞萌静态资源文件，你可能需要下载并正确放置静态资源文件或检查相关配置: {PLATE_DIR.parent}"
+        )
+
+    if not (FONT_DIR / "ResourceHanRoundedCN-Bold.ttf").exists() and not config.scorelist_font_main:
+        raise FileExistsError("无法找到有效的字体文件，请检查静态资源目录和相关配置")
 
 
 @get_driver().on_startup

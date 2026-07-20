@@ -23,9 +23,6 @@ ICON_DIR = MAI_DIR / "icon"
 if not FONT_DIR.exists():
     FONT_DIR = STATIC_DIR
 
-if not (FONT_DIR / "ResourceHanRoundedCN-Bold.ttf").exists() and not config.scorelist_font_main:
-    raise FileExistsError("无法找到有效的字体文件，请检查静态资源目录和相关配置")
-
 FONT_MAIN = (
     FONT_DIR / "ResourceHanRoundedCN-Bold.ttf" if not config.scorelist_font_main else Path(config.scorelist_font_main)
 )
