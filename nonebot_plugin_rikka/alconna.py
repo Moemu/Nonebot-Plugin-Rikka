@@ -333,6 +333,7 @@ alconna_ticket = on_alconna(
     priority=10,
     block=True,
     rule=to_me(),
+    permission=lambda: config.enable_arcade_write,
 )
 
 alconna_logout = on_alconna(
@@ -345,6 +346,7 @@ alconna_logout = on_alconna(
     priority=10,
     block=True,
     rule=to_me(),
+    permission=lambda: config.enable_arcade_write,
 )
 
 alconna_unlock = on_alconna(
@@ -357,6 +359,7 @@ alconna_unlock = on_alconna(
     priority=10,
     block=True,
     rule=to_me(),
+    permission=lambda: config.enable_arcade_write,
 )
 
 alconna_unbind = on_alconna(
@@ -623,10 +626,10 @@ async def handle_help(event: Event):
         ".今日舞萌 获取今日出勤运势\n"
         ".舞萌状态 检测服务器状态\n"
         f".推分推荐 生成随机推分曲目 {'(当前不可用)' if not SONG_TAGS_DATA_AVAILABLE else ''}\n"
-        f".import [divingfish] <qr_code> 导入游玩次数或同步到水鱼 {'当前不可用' if not config.enable_arcade_provider else ''}\n\n"
-        # f".ticket <qr_code> 发送六倍票 {'当前不可用' if not config.enable_arcade_provider else ''}\n"
-        # f".logout <qr_code> 尝试强制登出 {'当前不可用' if not config.enable_arcade_provider else ''}\n"
-        # f".unlock <qr_code> 解锁新框紫铺 {'当前不可用' if not config.enable_arcade_provider else ''}\n\n"
+        f".import [divingfish] <qr_code> 导入游玩次数或同步到水鱼 {'当前不可用' if not config.enable_arcade_provider else ''}\n"
+        f"{'.ticket <qr_code> 发送六倍票' if not config.enable_arcade_write else ''}\n"
+        f"{'.logout <qr_code> 尝试强制登出' if not config.enable_arcade_write else ''}\n"
+        f"{'.unlock <qr_code> 解锁新框紫铺\n' if not config.enable_arcade_write else '\n'}\n"
         "--- 中二节奏 ---\n"
         ".chu help 获取中二相关指令列表"
         ".chu b30 获取玩家 Best 30\n"
@@ -1052,13 +1055,17 @@ async def handle_import_all(
     await UniMessage([At(flag="user", target=user_id), f"查分器更新成功！共更新了 {imported} 条记录"]).finish()
 
 
-# @alconna_ticket.handle()
-@catch_exception("发票失败")
+@alconna_ticket.handle()
+@catch_exception("发送倍票失败")
 async def handle_ticket(
     event: Event,
     qr_code: Match[str] = AlconnaMatch("qr_code"),
 ):
     user_id = event.get_user_id()
+
+    if not config.enable_arcade_provider:
+        await UniMessage([At(flag="user", target=user_id), "机台源不可用，无法执行该操作"]).finish()
+        return
 
     if not qr_code.available or not qr_code.result:
         await UniMessage(
@@ -1074,13 +1081,17 @@ async def handle_ticket(
     await UniMessage([At(flag="user", target=user_id), "已成功发送了 6 倍票"]).finish()
 
 
-# @alconna_logout.handle()
+@alconna_logout.handle()
 @catch_exception(reply_prefix="强制登出失败")
 async def handle_logout(
     event: Event,
     qr_code: Match[str] = AlconnaMatch("qr_code"),
 ):
     user_id = event.get_user_id()
+
+    if not config.enable_arcade_provider:
+        await UniMessage([At(flag="user", target=user_id), "机台源不可用，无法执行该操作"]).finish()
+        return
 
     if not qr_code.available or not qr_code.result:
         await UniMessage(
@@ -1095,7 +1106,7 @@ async def handle_logout(
     await UniMessage([At(flag="user", target=user_id), "已尝试强制登出，请尝试重新登录"]).finish()
 
 
-# @alconna_unlock.handle()
+@alconna_unlock.handle()
 @catch_exception()
 async def handle_rikka_unlock(
     event: Event,
@@ -1105,6 +1116,7 @@ async def handle_rikka_unlock(
 
     if not config.enable_arcade_provider:
         await UniMessage([At(flag="user", target=user_id), "机台源不可用，无法执行该操作"]).finish()
+        return
 
     if not qr_code.available or not qr_code.result:
         await UniMessage(
@@ -2384,6 +2396,7 @@ async def handle_rikka(db_session: async_scoped_session, event: Event):
         f"插件版本: {version}\n"
         f"Bot 乐曲数量: {total_songs_count}\n"
         f"机台源支持: {'已启用' if config.enable_arcade_provider else '未启用'}\n"
+        f"机台写入支持: {'已启用' if config.enable_arcade_write else '未启用'}\n"
         f"标签数据: {'已启用' if SONG_TAGS_DATA_AVAILABLE else '未启用'}\n"
         f"状态页支持: {'已启用' if config.maistatus_url else '未启用'}\n"
     )

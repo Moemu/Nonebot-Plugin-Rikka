@@ -20,6 +20,8 @@ class Config(BaseModel):
 
     enable_arcade_provider: bool = False
     """启用 Maimai.py 的机台源查询"""
+    enable_arcade_write: bool = False
+    """启用机台写入操作（六倍票、强制登出、解锁铺面等）"""
     arcade_provider_http_proxy: Optional[str] = None
     """机台源的代理地址（当前不可用）"""
 
