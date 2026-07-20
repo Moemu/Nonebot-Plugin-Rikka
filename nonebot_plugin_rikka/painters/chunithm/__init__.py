@@ -9,5 +9,6 @@
 
 from .b30 import DrawChuBest
 from .score import DrawChuScores
+from .song import draw_music_info
 
-__all__ = ["DrawChuBest", "DrawChuScores"]
+__all__ = ["DrawChuBest", "DrawChuScores", "draw_music_info"]

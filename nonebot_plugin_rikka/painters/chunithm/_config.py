@@ -138,6 +138,16 @@ RATING_COLOR_NAME = {
     0.00: "green",
 }
 
+GENRE_MAPPING: dict[str, str] = {
+    "流行 & 动漫": "anime",
+    "niconico": "niconico",
+    "东方Project": "touhou",
+    "其他游戏": "game",
+    "彩绿": "game",
+    "音击舞萌": "maimai",
+    "原创": "ongeki",
+}
+
 
 def get_rating_color_name(rating: float) -> str:
     """根据 Rating 获取颜色名称，用于加载对应图片资源。"""

@@ -6,12 +6,15 @@ from nonebot_plugin_orm import get_scoped_session
 from typing_extensions import TypedDict
 
 from .database.crud import MaiSongORM
+from .models.chu_song import ChuSong
 from .models.song import MaiSong
 from .painters.chunithm import DrawChuBest, DrawChuScores
+from .painters.chunithm import draw_music_info as draw_chu_music_info
 from .painters.chunithm._config import COVER_DIR as CHU_COVER_DIR
 from .painters.chunithm._config import ICON_DIR as CHU_ICON_DIR
 from .painters.chunithm._config import PLATE_DIR as CHU_PLATE_DIR
-from .painters.maimai import DrawBest, DrawScores, draw_music_info
+from .painters.maimai import DrawBest, DrawScores
+from .painters.maimai import draw_music_info as draw_mai_music_info
 from .painters.utils import image_to_bytes
 from .score.chunithm import PlayerChuBests, PlayerChuInfo, PlayerChuScore
 from .score.maimai import PlayerMaiB50, PlayerMaiInfo, PlayerMaiScore
@@ -197,7 +200,7 @@ class MaiPicRenderer:
         """
         await self._ensure_cover(song.id)
 
-        img = draw_music_info(song, scores)
+        img = draw_mai_music_info(song, scores)
         return image_to_bytes(img)
 
 
@@ -271,4 +274,16 @@ class ChuPicRenderer:
             await self._ensure_cover(score.song_id)
 
         img = self.drawer_score.draw_scorelist(player_info, scores, title or "Player Scores")
+        return image_to_bytes(img)
+
+    async def render_chu_player_song_info(self, song: ChuSong, scores: list[PlayerChuScore]) -> bytes:
+        """
+        渲染单曲成绩详情图
+
+        :param song: 乐曲对象
+        :param scores: 该乐曲各难度成绩的列表
+        """
+        await self._ensure_cover(song.id)
+
+        img = draw_chu_music_info(song, scores)
         return image_to_bytes(img)

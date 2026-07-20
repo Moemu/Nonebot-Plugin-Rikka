@@ -121,7 +121,7 @@ def draw_music_info(song: MaiSong, scores: List[PlayerMaiScore]) -> Image.Image:
                         Image.open(PIC_DIR / f"UI_CHR_PlayBonus_{fs_str}.png").resize((60, 60)), (780, 258 + y * num)
                     )
 
-            im.alpha_composite(Image.open(PIC_DIR / "ra.png"), (1350, 400 + y * num))
+            # im.alpha_composite(Image.open(PIC_DIR / "ra.png"), (1350, 400 + y * num))
 
             rate_str = SCORE_RANK_L.get(score.rate.value, "D")
             im.alpha_composite(

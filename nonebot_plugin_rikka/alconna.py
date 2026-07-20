@@ -2768,48 +2768,50 @@ async def handle_chu_random(
     await response.finish()
 
 
-# @alconna_chu.assign("score")
-@catch_exception("获取中二节奏单曲成绩失败")
+@alconna_chu.assign("score")
+@catch_exception()
 async def handle_chu_score(
     event: Event,
     db_session: async_scoped_session,
-    score_provider: LXNSChuScoreProvider = Depends(get_lxns_chu_provider),
     name: Match[UniMessage] = AlconnaMatch("name"),
+    score_provider: LXNSChuScoreProvider = Depends(get_lxns_chu_provider),
 ):
     user_id = event.get_user_id()
 
     if not name.available:
-        await UniMessage([At(flag="user", target=user_id), "请输入有效的乐曲ID或曲名！"]).finish()
+        await UniMessage([At(flag="user", target=user_id), "请输入有效的乐曲ID/名称/别名！"]).finish()
 
-    raw_query = name.result.extract_plain_text().strip()
-    logger.info(f"[{user_id}] [中二节奏] 查询单曲成绩, 查询内容: {raw_query}")
+    raw_query = name.result.extract_plain_text()
+    logger.info(f"[{user_id}] 查询单曲游玩情况, 查询内容: {raw_query}")
 
-    params = await _get_chu_params(db_session, user_id)
-
-    score_result = None
-    if raw_query.isdigit():
-        score_result = await score_provider.fetch_player_best_score(params, song_id=int(raw_query))
-    else:
-        score_result = await score_provider.fetch_player_best_score(params, song_name=raw_query)
-
-    if not score_result:
-        await UniMessage([At(flag="user", target=user_id), f"未找到乐曲 '{raw_query}' 的游玩记录"]).finish()
+    logger.debug(f"[{user_id}] 1/4 通过乐曲ID/别名查询乐曲信息...")
+    try:
+        song = await get_chusong_by_id_or_alias(db_session, raw_query)
+    except ValueError as e:
+        await UniMessage([At(flag="user", target=user_id), str(e)]).finish()
         return
 
-    fc_str = f"\nFC: {score_result.full_combo.value}" if score_result.full_combo else ""
-    chain_str = f"\nCHAIN: {score_result.full_chain.value}" if score_result.full_chain else ""
+    logger.debug(f"[{user_id}] 2/4 获得用户鉴权凭证...")
+    params = await _get_chu_params(db_session, user_id, lxns_bind_required=True)
+    logger.debug(f"[{user_id}] 1/4 鉴权参数: {params}")
 
-    msg = (
-        f"[中二节奏] 单曲成绩\n"
-        f"{score_result.song_name} ({score_result.song_id})\n"
-        f"难度: {score_result.song_level}\n"
-        f"分数: {score_result.score:,}\n"
-        f"Rating: {score_result.rating:.2f}\n"
-        f"评级: {score_result.rank.value if score_result.rank else '未知'}"
-        f"{fc_str}{chain_str}"
-    )
+    logger.debug(f"[{user_id}] 3/4 发起 API 请求玩家信息...")
+    scores = await score_provider.fetch_player_scores(params)
+    scores = [s for s in scores if s.song_id == song.id]
 
-    await UniMessage([At(flag="user", target=user_id), msg]).finish()
+    if not scores:
+        await UniMessage(
+            [
+                At(flag="user", target=user_id),
+                f"未找到乐曲 '{song.title}' 的游玩记录喵~不如先去挑战一下吧~",
+            ]
+        ).finish()
+        return
+
+    logger.debug(f"[{user_id}] 4/4 渲染玩家数据...")
+    pic = await chu_renderer.render_chu_player_song_info(song, scores)
+
+    await UniMessage([At(flag="user", target=user_id), UniImage(raw=pic)]).finish()
 
 
 @alconna_chu.assign("scorelist")

@@ -42,7 +42,7 @@ class LXNSChuRatingTrend(TypedDict):
     date: str
 
 
-@dataclass
+@dataclass(unsafe_hash=True)
 class LXNSChuParams:
     """中二节奏 LXNS 查分器参数"""
 
@@ -268,6 +268,7 @@ class LXNSChuScoreProvider:
 
         return [self._score_unpack(s) for s in data]
 
+    @alru_cache(1024, ttl=60)
     async def fetch_player_scores(self, params: LXNSChuParams, use_user_api: bool = True) -> list[PlayerChuScore]:
         """
         获取玩家成绩列表
