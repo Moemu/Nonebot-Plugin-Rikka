@@ -42,51 +42,53 @@
 
 带有🚧标志的指令暂不可用或仍在开发中
 
-| 指令                                       | 说明                                          |
-| ------------------------------------------ | --------------------------------------------- |
-| **查分器相关**                             |                                               |
-| `.bind lxns\|divingfish`                   | 绑定游戏账号/查分器                           |
-| `.unbind lxns\|divingfish\|all`            | 解绑游戏账号/查分器                           |
-| `.source lxns\|divingfish`                 | 设置默认查分器                                |
-| **舞萌DX**                                 |                                               |
-| `.mai b50`                                 | 生成玩家 Best 50                              |
-| `.mai ap50`                                | 生成玩家 ALL PERFECT 50                       |
-| `.mai r50`                                 | 生成玩家 Recent 50（需绑定落雪查分器）        |
-| `.mai n50`                                 | 获取玩家拟合系数 Top-50                       |
-| `.mai pc50`                                | 生成玩家游玩次数 Top-50                       |
-| `.mai minfo <id\|乐曲名称\|别名>`          | 获取乐曲信息                                  |
-| `.mai score <id\|乐曲名称\|别名>`          | 获取玩家游玩该乐曲的成绩                      |
-| `.mai scorelist <level\|achXX.X\|diff>`    | 获取玩家对应条件的成绩列表                    |
-| `.mai random [难度] [等级\|定数]`          | 随机获取一首乐曲（可选难度、等级、定数）      |
-| `.alias add <song_id> <别名>`              | 添加乐曲别名（不会被 update 操作覆盖）        |
-| `.alias update`                            | 从落雪查分器更新乐曲别名数据库                |
-| `.alias query <id\|乐曲名称\|别名>`        | 查询该歌曲有什么别名                          |
-| `.update songs\|alias\|chart`              | 更新乐曲 / 别名 / 拟合系数数据库              |
-| `.trend [周期] [simple\|detailed]`         | 获取玩家的 DX Rating 趋势（需绑定落雪查分器） |
-| `.import [divingfish\|lxns\|all] <二维码>` | 导入游玩次数或同步成绩到查分器                |
-| `.今日舞萌`                                | 获取今日舞萌运势                              |
-| `.成分分析`                                | 获取基于 B100 的玩家成分分析                  |
-| `.推分推荐`                                | 生成随机推分曲目                              |
-| `.舞萌状态`                                | 获取舞萌服务器状态                            |
-| **中二节奏**                               |                                               |
-| `.chu b30`                                 | 生成玩家 Best 30                              |
-| `.chu r50`                                 | 生成玩家 Recent 50                            |
-| `.chu ap30`                                | 生成玩家 ALL PERFECT 30                       |
-| `.chu minfo <id\|曲名\|别名>`              | 获取乐曲信息                                  |
-| `.chu score <id\|曲名\|别名>`              | 获取玩家游玩该乐曲的成绩                     |
-| `.chu scorelist [等级\|定数] [页码]`       | 获取指定条件的成绩列表                        |
-| `.chu random`                              | 随机获取一首乐曲                              |
-| **店铺查询**                              |                                               |
-| `.location-mai list [num]`                 | 列出前 num 个舞萌店铺                         |
-| `.location-mai search <name>`              | 搜索舞萌店铺                                  |
-| `.location-mai subscribe <keyword> [group_id]` | 订阅舞萌店铺变动提醒                      |
-| `.location-mai unsubscribe <keyword>`      | 取消订阅舞萌店铺变动提醒                      |
-| `.location-mai subs`                       | 查看已订阅的舞萌关键词                        |
-| `.location-chu list [num]`                 | 列出前 num 个中二店铺                         |
-| `.location-chu search <name>`              | 搜索中二店铺                                  |
-| `.location-chu subscribe <keyword> [group_id]` | 订阅中二店铺变动提醒                      |
-| `.location-chu unsubscribe <keyword>`      | 取消订阅中二店铺变动提醒                      |
-| `.location-chu subs`                       | 查看已订阅的中二关键词                        |
+| 指令                                           | 说明                                          |
+| ---------------------------------------------- | --------------------------------------------- |
+| **查分器相关**                                 |                                               |
+| `.bind lxns\|divingfish`                       | 绑定游戏账号/查分器                           |
+| `.unbind lxns\|divingfish\|all`                | 解绑游戏账号/查分器                           |
+| `.source lxns\|divingfish`                     | 设置默认查分器                                |
+| **舞萌DX**                                     |                                               |
+| `.mai b50`                                     | 生成玩家 Best 50                              |
+| `.mai ap50`                                    | 生成玩家 ALL PERFECT 50                       |
+| `.mai r50`                                     | 生成玩家 Recent 50（需绑定落雪查分器）        |
+| `.mai n50`                                     | 获取玩家拟合系数 Top-50                       |
+| `.mai pc50`                                    | 生成玩家游玩次数 Top-50                       |
+| `.mai minfo <id\|乐曲名称\|别名>`              | 获取乐曲信息                                  |
+| `.mai score <id\|乐曲名称\|别名>`              | 获取玩家游玩该乐曲的成绩                      |
+| `.mai scorelist <level\|achXX.X\|diff>`        | 获取玩家对应条件的成绩列表                    |
+| `.mai random [难度] [等级\|定数]`              | 随机获取一首乐曲（可选难度、等级、定数）      |
+| `.alias add <song_id> <别名>`                  | 添加乐曲别名（不会被 update 操作覆盖）        |
+| `.alias update`                                | 从落雪查分器更新乐曲别名数据库                |
+| `.alias query <id\|乐曲名称\|别名>`            | 查询该歌曲有什么别名                          |
+| `.update songs\|alias\|chart`                  | 更新乐曲 / 别名 / 拟合系数数据库              |
+| `.trend [周期] [simple\|detailed]`             | 获取玩家的 DX Rating 趋势（需绑定落雪查分器） |
+| `.import [divingfish\|lxns\|all] <二维码>`     | 导入游玩次数或同步成绩到查分器                |
+| `.今日舞萌`                                    | 获取今日舞萌运势                              |
+| `.成分分析`                                    | 获取基于 B100 的玩家成分分析                  |
+| `.推分推荐`                                    | 生成随机推分曲目                              |
+| `.舞萌状态`                                    | 获取舞萌服务器状态                            |
+| **中二节奏**                                   |                                               |
+| `.chu b30`                                     | 生成玩家 Best 30                              |
+| `.chu r50`                                     | 生成玩家 Recent 50                            |
+| `.chu ap30`                                    | 生成玩家 ALL PERFECT 30                       |
+| `.chu minfo <id\|曲名\|别名>`                  | 获取乐曲信息                                  |
+| `.chu score <id\|曲名\|别名>`                  | 获取玩家游玩该乐曲的成绩                      |
+| `.chu scorelist [等级\|定数] [页码]`           | 获取指定条件的成绩列表                        |
+| `.chu random`                                  | 随机获取一首乐曲                              |
+| **店铺查询**                                   |                                               |
+| `.location-mai list [num]`                     | 列出前 num 个舞萌店铺                         |
+| `.location-mai search <name>`                  | 搜索舞萌店铺                                  |
+| `.location-mai subscribe <keyword> [group_id]` | 订阅舞萌店铺变动提醒                          |
+| `.location-mai unsubscribe <keyword>`          | 取消订阅舞萌店铺变动提醒                      |
+| `.location-mai subs`                           | 查看已订阅的舞萌关键词                        |
+| `.location-mai sync`                           | [管理员]手动同步店铺列表                      |
+| `.location-chu list [num]`                     | 列出前 num 个中二店铺                         |
+| `.location-chu search <name>`                  | 搜索中二店铺                                  |
+| `.location-chu subscribe <keyword> [group_id]` | 订阅中二店铺变动提醒                          |
+| `.location-chu unsubscribe <keyword>`          | 取消订阅中二店铺变动提醒                      |
+| `.location-chu subs`                           | 查看已订阅的中二关键词                        |
+| `.location-chu sync`                           | [管理员]手动同步店铺列表                      |
 
 *所有指令需 `@bot` 才可使用
 

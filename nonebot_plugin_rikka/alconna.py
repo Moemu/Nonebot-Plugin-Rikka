@@ -58,6 +58,7 @@ from .functions.location import (
     get_chu_locations,
     get_mai_locations,
     list_locations,
+    location_sync,
     search_locations,
 )
 from .functions.lxns import (
@@ -725,6 +726,7 @@ alconna_location_mai = on_alconna(
             "subs",
             help_text=".location-mai subs 查看当前已订阅的舞萌店铺关键词",
         ),
+        Subcommand("sync", help_text=".location-mai sync [管理员]重新同步店铺列表", alias={"reload"}),
         meta=CommandMeta(
             "[舞萌DX]舞萌店铺分布",
             usage=".location-mai list [num] / .location-mai search <name> / .location-mai subscribe <keyword>",
@@ -764,6 +766,7 @@ alconna_location_chu = on_alconna(
             "subs",
             help_text=".location-chu subs 查看当前已订阅的中二店铺关键词",
         ),
+        Subcommand("sync", help_text=".location-chu sync [管理员]重新同步店铺列表", alias={"reload"}),
         meta=CommandMeta(
             "[中二节奏]中二店铺分布",
             usage=".location-chu list [num] / .location-chu search <name> / .location-chu subscribe <keyword>",
@@ -824,11 +827,13 @@ async def handle_help(event: Event):
         ".location-mai subscribe <keyword> [group_id] 订阅舞萌店铺变动提醒\n"
         ".location-mai unsubscribe <keyword> 取消订阅舞萌店铺变动提醒\n"
         ".location-mai subs 查看当前已订阅的舞萌店铺关键词\n"
+        ".location-mai sync [管理员]重新同步店铺列表\n"
         ".location-chu list [num] 列出前 num 个中二店铺\n"
         ".location-chu search <name> 搜索中二店铺\n"
         ".location-chu subscribe <keyword> [group_id] 订阅中二店铺变动提醒\n"
         ".location-chu unsubscribe <keyword> 取消订阅中二店铺变动提醒\n"
         ".location-chu subs 查看当前已订阅的中二店铺关键词\n"
+        ".location-chu sync [管理员]重新同步店铺列表"
     )
 
     await UniMessage(
@@ -2995,6 +3000,20 @@ async def handle_location_mai_search(
     await UniMessage([At(flag="user", target=user_id), result]).finish()
 
 
+@alconna_location_mai.assign("sync")
+async def handle_location_mai_reload(event: Event):
+    user_id = event.get_user_id()
+    if user_id not in get_driver().config.superusers:
+        await UniMessage("此命令仅限管理员使用！").finish()
+
+    diff = await location_sync("mai")
+    if not diff or not diff.has_changes:
+        await UniMessage("更新完成，未检查到店铺更新").finish()
+        return
+
+    await UniMessage(f"更新成功，新增店铺 {len(diff.added)} 家，移除店铺 {len(diff.removed)} 家").finish()
+
+
 @alconna_location_mai.assign("$main")
 async def handle_location_mai_main(event: Event):
     user_id = event.get_user_id()
@@ -3006,6 +3025,7 @@ async def handle_location_mai_main(event: Event):
         ".location-mai subscribe <keyword> 订阅舞萌店铺变动提醒\n"
         ".location-mai unsubscribe 取消订阅所有舞萌店铺变动提醒\n"
         ".location-mai subs 查看当前已订阅的舞萌店铺关键词\n"
+        ".location-mai sync [管理员]重新同步店铺列表\n"
     )
 
     await UniMessage([At(flag="user", target=user_id), help_text]).finish()
@@ -3186,6 +3206,20 @@ async def handle_location_chu_subs(
     await UniMessage([At(flag="user", target=user_id), "\n".join(lines)]).finish()
 
 
+@alconna_location_chu.assign("sync")
+async def handle_location_chu_reload(event: Event):
+    user_id = event.get_user_id()
+    if user_id not in get_driver().config.superusers:
+        await UniMessage("此命令仅限管理员使用！").finish()
+
+    diff = await location_sync("chu")
+    if not diff or not diff.has_changes:
+        await UniMessage("更新完成，未检查到店铺更新").finish()
+        return
+
+    await UniMessage(f"更新成功，新增店铺 {len(diff.added)} 家，移除店铺 {len(diff.removed)} 家").finish()
+
+
 @alconna_location_chu.assign("$main")
 async def handle_location_chu_main(event: Event):
     user_id = event.get_user_id()
@@ -3197,6 +3231,7 @@ async def handle_location_chu_main(event: Event):
         ".location-chu subscribe <keyword> 订阅中二店铺变动提醒\n"
         ".location-chu unsubscribe [keyword] 取消订阅指定关键词的中二店铺变动提醒\n"
         ".location-chu subs 查看当前已订阅的中二店铺关键词\n"
+        ".location-chu sync [管理员]重新同步店铺列表\n"
     )
 
     await UniMessage([At(flag="user", target=user_id), help_text]).finish()

@@ -10,7 +10,7 @@ from __future__ import annotations
 import asyncio
 import time
 from dataclasses import dataclass, field
-from typing import Optional
+from typing import Literal, Optional
 
 import aiohttp
 from nonebot import get_bot, logger
@@ -64,9 +64,10 @@ class LocationDiff:
 class LocationCache:
     """带 TTL 的店铺数据缓存，支持差异检测和订阅通知"""
 
-    def __init__(self, game_type: str) -> None:
+    def __init__(self, game_type: str, url: str) -> None:
         self._game_type = game_type
         """游戏类型: 'mai' 或 'chu'"""
+        self._url = url
         self._locations: list[ArcadeLocation] = []
         self._last_update: float = 0.0
         self._previous_place_ids: set[str] = set()
@@ -76,17 +77,11 @@ class LocationCache:
     def is_expired(self) -> bool:
         return time.time() - self._last_update > _CACHE_TTL
 
-    async def get_locations(self, url: str) -> list[ArcadeLocation]:
-        """获取店铺列表，如果缓存过期则重新拉取"""
-        if self.is_expired or not self._locations:
-            await self._fetch(url)
-        return self._locations
-
-    async def _fetch(self, url: str) -> None:
+    async def _fetch(self) -> list[ArcadeLocation]:
         """从远程接口拉取店铺数据"""
-        logger.debug(f"[Location] 正在从 {url} 拉取店铺数据...")
+        logger.debug(f"[Location] 正在从 {self._url} 拉取店铺数据...")
         async with aiohttp.ClientSession() as session:
-            async with session.get(url, timeout=aiohttp.ClientTimeout(total=30)) as resp:
+            async with session.get(self._url, timeout=aiohttp.ClientTimeout(total=30)) as resp:
                 resp.raise_for_status()
                 data = await resp.json()
 
@@ -100,7 +95,27 @@ class LocationCache:
                 )
             )
 
+        return locations
+
+    def _compute_diff(self, new_locations: list[ArcadeLocation]) -> LocationDiff:
+        """计算新旧数据之间的差异"""
+        old_place_ids = self._previous_place_ids
+        new_place_ids = {loc.place_id for loc in new_locations}
+
+        added_ids = new_place_ids - old_place_ids
+        removed_ids = old_place_ids - new_place_ids
+
+        added = [loc for loc in new_locations if loc.place_id in added_ids]
+        removed = [loc for loc in self._locations if loc.place_id in removed_ids]
+
+        return LocationDiff(added=added, removed=removed)
+
+    async def sync(self) -> Optional[LocationDiff]:
+        """同步店铺列表"""
+        locations = await self._fetch()
+
         # 检测差异并通知订阅者
+        diff = None
         if self._previous_place_ids:
             diff = self._compute_diff(locations)
             if diff.has_changes:
@@ -116,18 +131,13 @@ class LocationCache:
         self._last_update = time.time()
         logger.debug(f"[Location] 拉取完成，共 {len(self._locations)} 家店铺")
 
-    def _compute_diff(self, new_locations: list[ArcadeLocation]) -> LocationDiff:
-        """计算新旧数据之间的差异"""
-        old_place_ids = self._previous_place_ids
-        new_place_ids = {loc.place_id for loc in new_locations}
+        return diff
 
-        added_ids = new_place_ids - old_place_ids
-        removed_ids = old_place_ids - new_place_ids
-
-        added = [loc for loc in new_locations if loc.place_id in added_ids]
-        removed = [loc for loc in self._locations if loc.place_id in removed_ids]
-
-        return LocationDiff(added=added, removed=removed)
+    async def get_locations(self) -> list[ArcadeLocation]:
+        """获取店铺列表，如果缓存过期则重新拉取"""
+        if self.is_expired or not self._locations:
+            await self.sync()
+        return self._locations
 
     async def _notify_subscribers(self, diff: LocationDiff) -> None:
         """通知所有匹配关键词的订阅者"""
@@ -212,8 +222,8 @@ class LocationCache:
 
 
 # 全局缓存实例
-_mai_cache = LocationCache("mai")
-_chu_cache = LocationCache("chu")
+_mai_cache = LocationCache("mai", _MAI_LOCATION_URL)
+_chu_cache = LocationCache("chu", _CHU_LOCATION_URL)
 
 
 def list_locations(
@@ -264,9 +274,28 @@ def search_locations(
 
 async def get_mai_locations() -> list[ArcadeLocation]:
     """获取舞萌店铺列表"""
-    return await _mai_cache.get_locations(_MAI_LOCATION_URL)
+    return await _mai_cache.get_locations()
 
 
 async def get_chu_locations() -> list[ArcadeLocation]:
     """获取中二节奏店铺列表"""
-    return await _chu_cache.get_locations(_CHU_LOCATION_URL)
+    return await _chu_cache.get_locations()
+
+
+async def location_sync(target: Optional[Literal["mai", "chu"]] = None) -> Optional[LocationDiff]:
+    """同步店铺列表"""
+    if target == "mai":
+        diff = await _mai_cache.sync()
+    elif target == "chu":
+        diff = await _chu_cache.sync()
+    else:
+        diff = LocationDiff()
+        mai_diff = await _mai_cache.sync()
+        chu_diff = await _chu_cache.sync()
+        if mai_diff:
+            diff.added += mai_diff.added
+            diff.removed += mai_diff.removed
+        if chu_diff:
+            diff.added += chu_diff.added
+            diff.removed += chu_diff.removed
+    return diff
