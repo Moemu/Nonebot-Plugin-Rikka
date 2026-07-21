@@ -1,6 +1,7 @@
 from pathlib import Path
 from typing import List, Optional
 
+from nonebot import logger
 from PIL import Image, ImageDraw
 
 from ...config import config
@@ -95,10 +96,20 @@ class ScoreBaseImage:
     def _get_diff_bg(self, index: int) -> Image.Image:
         return self._get_image(self._diff_paths[index], with_opacity=True)
 
+    def _load_bg(self) -> Image.Image:
+        if self.bg:
+            return self.bg
+
+        bg_path = config.scorelist_bg or PIC_DIR / "b50_bg.png"
+        if Path(bg_path).exists():
+            return Image.open(bg_path).convert("RGBA").resize((1400, 1600))
+
+        logger.warning("未找到 b50 背景图，将回滚到纯色背景")
+        return Image.new("RGBA", (1400, 1600), (124, 129, 255, 255))
+
     def reset_im(self):
         """重置当前图像内容为纯背景图"""
-        bg_path = config.scorelist_bg or PIC_DIR / "b50_bg.png"
-        self._im = self.bg or Image.open(bg_path).convert("RGBA").resize((1400, 1600))
+        self._im = self._load_bg()
         dr = ImageDraw.Draw(self._im)
         self._sy = DrawText(dr, FONT_MAIN)
         self._tb = DrawText(dr, FONT_NUM)
