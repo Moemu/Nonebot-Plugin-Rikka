@@ -27,7 +27,7 @@
 
 ## 功能🪄
 
-✅ 支持游戏: 舞萌DX(Ver.CN 1.55+), 中二节奏, Project Sekai(计划中)
+✅ 支持游戏: 舞萌DX(Ver.CN 1.55+), 中二节奏
 
 ✅ 支持数据源: [落雪咖啡屋(舞萌DX, 中二节奏)](https://maimai.lxns.net/), [水鱼查分器(舞萌DX)](https://www.diving-fish.com/maimaidx/prober/)
 
@@ -175,4 +175,4 @@
 
 Star History：
 
-[![Star History Chart](https://api.star-history.com/svg?repos=Moemu/Nonebot-Plugin-Rikka&type=Date)](https://star-history.com/#Moemu/Nonebot-Plugin-Rikka&Date)
+[![Star History Chart](https://api.star-history.com/chart?repos=Moemu/Nonebot-Plugin-Rikka&type=date&legend=top-left&sealed_token=0p6jT1EJyQqUZFHrr-gha-YqvkxcJtOVDJ9Os7kp9DJJRK4oJDisyrQ-ZSu6-zDzyWV2lEQ6p2aaV8QZE3U1HfCYxrslz2gm3Uij_ln7QYwQwk2Bssa6Kp3KHHJ3dV4ceL7QCqpMSR8JIytRHjBG5xo-zzqsAFzmXlJu-vsGZ4dgrjQBFwa__3-gueme)](https://www.star-history.com/?type=date&repos=Moemu%2FNonebot-Plugin-Rikka)
