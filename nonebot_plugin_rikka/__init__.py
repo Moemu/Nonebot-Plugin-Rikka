@@ -5,6 +5,7 @@ from nonebot import logger, require
 require("nonebot_plugin_alconna")
 require("nonebot_plugin_localstore")
 require("nonebot_plugin_orm")
+require("nonebot_plugin_session")
 require("nonebot_plugin_apscheduler")
 
 from nonebot.plugin import PluginMetadata, inherit_supported_adapters  # noqa: E402
