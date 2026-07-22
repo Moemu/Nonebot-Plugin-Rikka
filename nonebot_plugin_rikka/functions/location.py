@@ -15,6 +15,7 @@ from typing import Literal, Optional
 import aiohttp
 from nonebot import get_bot, logger
 from nonebot_plugin_alconna.uniseg import Target, UniMessage
+from nonebot_plugin_apscheduler import scheduler
 from nonebot_plugin_orm import get_scoped_session
 
 from ..database.crud import LocationSubscriptionORM
@@ -299,3 +300,13 @@ async def location_sync(target: Optional[Literal["mai", "chu"]] = None) -> Optio
             diff.added += chu_diff.added
             diff.removed += chu_diff.removed
     return diff
+
+
+@scheduler.scheduled_job("cron", hour="*/6", id="sync_locations")
+async def run_every_2_hour():
+    """每 6 小时同步一次店铺列表"""
+    try:
+        await location_sync()
+        logger.info("[Location] 定时同步店铺列表完成")
+    except Exception as e:
+        logger.error(f"[Location] 定时同步店铺列表失败: {e}")
