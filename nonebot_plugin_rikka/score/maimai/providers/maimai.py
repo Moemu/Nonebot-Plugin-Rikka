@@ -90,7 +90,7 @@ class MaimaiPyScoreProvider(BaseScoreProvider[MaimaiPyParams]):
             song_difficulty=SongDifficulty(score.level_index.value),
             achievements=score.achievements,  # type: ignore
             dx_score=score.dx_score or 0,
-            dx_star=0,  # unsupported.
+            dx_star=score.dx_star or 0,
             dx_rating=score.dx_rating or 0,
             rate=ScoreRateType(score.rate.name.lower()),
             fc=ScoreFCType(score.fc.name.lower()) if score.fc else None,
@@ -242,7 +242,7 @@ class MaimaiPyScoreProvider(BaseScoreProvider[MaimaiPyParams]):
         return await maimai_client.scores(params.identifier, params.score_provider)
 
     async def fetch_player_info(self, params: MaimaiPyParams) -> PlayerMaiInfo:
-        player_info = await maimai_client.players(params.identifier, params.score_provider)
+        player_info = await maimai_client.players(params.identifier, params.score_provider)  # type: ignore
 
         return self._unpack_player_mai_info(player_info)
 
