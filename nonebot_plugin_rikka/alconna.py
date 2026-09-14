@@ -3,6 +3,7 @@ import re
 from asyncio import TimeoutError
 from datetime import datetime, timedelta
 from functools import wraps
+from io import BytesIO
 from pathlib import Path
 from time import perf_counter
 from traceback import format_exc
@@ -15,6 +16,7 @@ from maimai_py import SongType as MaimaiPySongType
 from nonebot import get_driver, logger
 from nonebot.adapters import Event
 from nonebot.exception import FinishedException
+from nonebot.matcher import current_bot, current_event
 from nonebot.params import Depends
 from nonebot.rule import to_me
 from nonebot_plugin_alconna import (
@@ -32,6 +34,7 @@ from nonebot_plugin_session import (
     EventSession,
     SessionIdType,
     SessionLevel,
+    extract_session,
 )
 
 from .config import config
@@ -111,7 +114,33 @@ renderer = MaiPicRenderer()
 chu_renderer = ChuPicRenderer()
 
 
-def _build_maisong_info_message(user_id: str, song: MaiSong) -> UniMessage:
+async def _send_message(
+    target: str,
+    message: str,
+    images: Optional[list[bytes | BytesIO]] = None,
+    *,
+    finish: bool = False,
+    at: Optional[bool] = None,
+):
+    if at is None:
+        session = extract_session(current_bot.get(), current_event.get())
+        at = session.level in (SessionLevel.LEVEL2, SessionLevel.LEVEL3)
+
+    response = UniMessage()
+    if at:
+        response.append(At(flag="user", target=target))
+    if message:
+        response += message
+    for image in images or []:
+        response.append(UniImage(raw=image))
+
+    if finish:
+        await response.finish()
+    else:
+        await response.send()
+
+
+def _build_maisong_info_message(song: MaiSong) -> tuple[str, list[bytes | BytesIO]]:
     """Reuseable builder for song info replies."""
 
     song_cover = Path(config.static_resource_path) / "mai" / "cover" / f"{song.id}.png"
@@ -179,10 +208,8 @@ def _build_maisong_info_message(user_id: str, song: MaiSong) -> UniMessage:
             if song_tags_content:
                 response_difficulties_content.append("铺面标签(DX): " + "; ".join(song_tags_content))
 
-    return UniMessage(
-        [
-            At(flag="user", target=user_id),
-            UniImage(path=song_cover),
+    return (
+        (
             _MAI_SONG_INFO_TEMPLATE.format(
                 title=song.title,
                 id=song.id,
@@ -190,53 +217,59 @@ def _build_maisong_info_message(user_id: str, song: MaiSong) -> UniMessage:
                 genre=song.genre,
                 bpm=song.bpm,
                 version=MAI_VERSION_MAP.get(song.version // 100, "未知版本"),
-            ),
-            "\n".join(response_difficulties_content),
-        ]
+            )
+        )
+        + ("\n".join(response_difficulties_content)),
+        [song_cover.read_bytes()],
     )
 
 
-def _build_chusong_info_message(user_id: str, song: ChuSong) -> UniMessage:
+def _build_chusong_info_message(song: ChuSong) -> tuple[str, list[bytes | BytesIO]]:
+
     song_cover = Path(config.static_resource_path) / "chu" / "cover" / f"{song.id}.png"
+
     if not song_cover.exists():
+
         logger.warning(f"未找到中二节奏乐曲 {song.id} 的封面图片")
+
         song_cover = Path(config.static_resource_path) / "chu" / "cover" / "CHU_UI_Jacket_0000.png"
 
     diff_values = "/".join([str(d.level_value) for d in song.difficulties.difficulties])
 
-    return UniMessage(
-        [
-            At(flag="user", target=user_id),
-            UniImage(path=song_cover),
-            _CHU_SONG_INFO_TEMPLATE.format(
-                title=song.title,
-                id=song.id,
-                artist=song.artist,
-                genre=song.genre,
-                bpm=song.bpm,
-                version=CHU_VERSION_MAP.get(song.version, f"未知版本 ({song.version})"),
-                diff_values=diff_values,
-            ),
-        ]
+    return (
+        _CHU_SONG_INFO_TEMPLATE.format(
+            title=song.title,
+            id=song.id,
+            artist=song.artist,
+            genre=song.genre,
+            bpm=song.bpm,
+            version=CHU_VERSION_MAP.get(song.version, f"未知版本 ({song.version})"),
+            diff_values=diff_values,
+        ),
+        [song_cover.read_bytes()],
     )
 
 
 def catch_exception(reply_prefix: str = "发生了未知错误", reply_error: bool = True):
+
     def decorator(func):
+
         @wraps(func)
         async def wrapper(*args, **kwargs):
+
             try:
+
                 return await func(*args, **kwargs)
             except FinishedException:
                 raise
             except TimeoutError:
                 logger.error(format_exc())
                 reply_message = f"{reply_prefix}: 上游服务请求超时，或许等一下再试试？" if reply_error else reply_prefix
-                await UniMessage(reply_message).finish()
+                await _send_message(current_event.get().get_user_id(), reply_message, finish=True)
             except Exception as exc:
                 logger.error(format_exc())
                 reply_message = f"{reply_prefix}: {str(exc)}" if reply_error else reply_prefix
-                await UniMessage(reply_message).finish()
+                await _send_message(current_event.get().get_user_id(), reply_message, finish=True)
 
         return wrapper
 
@@ -836,12 +869,7 @@ async def handle_help(event: Event):
         ".location-chu sync [管理员]重新同步店铺列表"
     )
 
-    await UniMessage(
-        [
-            At(flag="user", target=user_id),
-            help_text,
-        ]
-    ).finish()
+    await _send_message(user_id, help_text, finish=True)
 
 
 @alconna_bind.assign("lxns")
@@ -856,12 +884,7 @@ async def handle_bind_lxns(
     user_id = event.get_user_id()
 
     if not token.available:
-        await UniMessage(
-            [
-                At(flag="user", target=user_id),
-                "请输入有效的落雪咖啡屋 API 密钥",
-            ]
-        ).finish()
+        await _send_message(user_id, "请输入有效的落雪咖啡屋 API 密钥", finish=True)
         return
 
     lxns_token = token.result
@@ -885,19 +908,9 @@ async def handle_bind_lxns(
         logger.debug(f"[{user_id}] 获取中二好友码失败: {e}")
 
     if player_info or chu_info:
-        await UniMessage(
-            [
-                At(flag="user", target=user_id),
-                "已成功绑定落雪查分器⭐",
-            ]
-        ).finish()
+        await _send_message(user_id, "已成功绑定落雪查分器⭐", finish=True)
 
-    await UniMessage(
-        [
-            At(flag="user", target=user_id),
-            "无法查询到有效的绑定信息，请检查 API Key 是否正确。",
-        ]
-    ).finish()
+    await _send_message(user_id, "无法查询到有效的绑定信息，请检查 API Key 是否正确。", finish=True)
     return
 
 
@@ -911,12 +924,7 @@ async def handle_bind_divingfish(
     user_id = event.get_user_id()
 
     if not token.available:
-        await UniMessage(
-            [
-                At(flag="user", target=user_id),
-                "请输入有效的水鱼查分器成绩导入密钥",
-            ]
-        ).finish()
+        await _send_message(user_id, "请输入有效的水鱼查分器成绩导入密钥", finish=True)
         return
 
     import_token = token.result
@@ -926,22 +934,12 @@ async def handle_bind_divingfish(
         player_info = await score_provider.fetch_player_records_by_import_token(import_token)
     except ClientResponseError as e:
         logger.warning(f"玩家提供的 import_token 可能有误: {e.message}")
-        await UniMessage(
-            [
-                At(flag="user", target=user_id),
-                "请输入有效的水鱼查分器成绩导入密钥",
-            ]
-        ).finish()
+        await _send_message(user_id, "请输入有效的水鱼查分器成绩导入密钥", finish=True)
         return
 
     await UserBindInfoORM.set_diving_fish_import_token(db_session, user_id, import_token, player_info["username"])
 
-    await UniMessage(
-        [
-            At(flag="user", target=user_id),
-            f"已绑定至水鱼账号: {player_info['username']} ⭐",
-        ]
-    ).finish()
+    await _send_message(user_id, f"已绑定至水鱼账号: {player_info['username']} ⭐", finish=True)
 
 
 @alconna_bind.assign("help")
@@ -954,12 +952,7 @@ async def handle_bind_help(event: Event):
         ".bind divingfish <水鱼查分器的成绩导入密钥> 绑定水鱼查分器\n"
     )
 
-    await UniMessage(
-        [
-            At(flag="user", target=user_id),
-            help_text,
-        ]
-    ).finish()
+    await _send_message(user_id, help_text, finish=True)
 
 
 @alconna_bind.assign("$main")
@@ -989,12 +982,7 @@ async def handle_bind_main(event: Event, db_session: async_scoped_session):
         f"当前默认查分源: {default_source}"
     )
 
-    await UniMessage(
-        [
-            At(flag="user", target=user_id),
-            user_bind_detail,
-        ]
-    ).send()
+    await _send_message(user_id, user_bind_detail)
 
     return await handle_bind_help(event)
 
@@ -1009,16 +997,11 @@ async def handle_import_play_count(
     user_id = event.get_user_id()
 
     if not config.enable_arcade_provider:
-        await UniMessage([At(flag="user", target=user_id), "机台源不可用，无法执行该操作"]).finish()
+        await _send_message(user_id, "机台源不可用，无法执行该操作", finish=True)
         return
 
     if not qr_code.available or not qr_code.result:
-        await UniMessage(
-            [
-                At(flag="user", target=user_id),
-                "请提供二维码内容: .import <qr_code>",
-            ]
-        ).finish()
+        await _send_message(user_id, "请提供二维码内容: .import <qr_code>", finish=True)
         return
 
     workflow_result = await run_extend_score_workflow(qr_code.result)
@@ -1036,17 +1019,12 @@ async def handle_import_play_count(
         records.append((song_id, difficulty, play_count))
 
     if not records:
-        await UniMessage([At(flag="user", target=user_id), "未获取到可用的游玩次数数据"]).finish()
+        await _send_message(user_id, "未获取到可用的游玩次数数据", finish=True)
         return
 
     imported = await MaiPlayCountORM.upsert_user_play_counts(db_session, user_id, records)
 
-    await UniMessage(
-        [
-            At(flag="user", target=user_id),
-            f"已导入 {imported} 条游玩次数记录",
-        ]
-    ).finish()
+    await _send_message(user_id, f"已导入 {imported} 条游玩次数记录", finish=True)
 
 
 @alconna_import.assign("divingfish")
@@ -1057,34 +1035,26 @@ async def handle_import_divingfish(
     user_id = event.get_user_id()
 
     if not config.enable_arcade_provider:
-        await UniMessage([At(flag="user", target=user_id), "机台源不可用，无法执行该操作"]).finish()
+        await _send_message(user_id, "机台源不可用，无法执行该操作", finish=True)
         return
 
     if not qr_code.available or not qr_code.result:
-        await UniMessage(
-            [
-                At(flag="user", target=user_id),
-                "请提供二维码内容: .import <qr_code>",
-            ]
-        ).finish()
+        await _send_message(user_id, "请提供二维码内容: .import <qr_code>", finish=True)
         return
 
     # 检查是否绑定了水鱼 Token
     bind_info = await UserBindInfoORM.get_user_bind_info(db_session, user_id)
     if not bind_info or not bind_info.diving_fish_import_token:
-        await UniMessage(
-            [
-                At(flag="user", target=user_id),
-                "未绑定水鱼查分器导入 Token，请使用 .bind divingfish <Token> 命令绑定",
-            ]
-        ).finish()
+        await _send_message(
+            user_id, "未绑定水鱼查分器导入 Token，请使用 .bind divingfish <Token> 命令绑定", finish=True
+        )
         return  # 防止 mypy 报错 bind_info 可能为 None 的情况
 
     import_token = bind_info.diving_fish_import_token
 
     workflow_result = await run_extend_score_workflow(qr_code.result)
     if not workflow_result:
-        await UniMessage([At(flag="user", target=user_id), "未获取到可用的游玩次数数据"]).finish()
+        await _send_message(user_id, "未获取到可用的游玩次数数据", finish=True)
         return
 
     divingfish_scores = await convert_to_diving_fish_format(workflow_result)
@@ -1104,7 +1074,7 @@ async def handle_import_divingfish(
         records.append((song_id, difficulty, play_count))
     imported = await MaiPlayCountORM.upsert_user_play_counts(db_session, user_id, records)
 
-    await UniMessage([At(flag="user", target=user_id), f"水鱼查分器更新成功！共更新了 {imported} 条记录"]).finish()
+    await _send_message(user_id, f"水鱼查分器更新成功！共更新了 {imported} 条记录", finish=True)
 
 
 @alconna_import.assign("lxns")
@@ -1115,27 +1085,17 @@ async def handle_import_lxns(
     user_id = event.get_user_id()
 
     if not config.enable_arcade_provider:
-        await UniMessage([At(flag="user", target=user_id), "机台源不可用，无法执行该操作"]).finish()
+        await _send_message(user_id, "机台源不可用，无法执行该操作", finish=True)
         return
 
     if not qr_code.available or not qr_code.result:
-        await UniMessage(
-            [
-                At(flag="user", target=user_id),
-                "请提供二维码内容: .import <qr_code>",
-            ]
-        ).finish()
+        await _send_message(user_id, "请提供二维码内容: .import <qr_code>", finish=True)
         return
 
     # 检查是否绑定了落雪查分器
     bind_info = await UserBindInfoORM.get_user_bind_info(db_session, user_id)
     if not bind_info or not bind_info.lxns_api_key:
-        await UniMessage(
-            [
-                At(flag="user", target=user_id),
-                "未绑定落雪查分器，请使用 .bind lxns <API密钥> 命令绑定",
-            ]
-        ).finish()
+        await _send_message(user_id, "未绑定落雪查分器，请使用 .bind lxns <API密钥> 命令绑定", finish=True)
         return
     user_token = bind_info.lxns_api_key
 
@@ -1143,18 +1103,18 @@ async def handle_import_lxns(
         all_scores = await run_extend_score_workflow(qr_code.result)
     except RuntimeError as e:
         logger.error(f"登录失败: {e}")
-        await UniMessage([At(flag="user", target=user_id), f"登录失败: {e}"]).finish()
+        await _send_message(user_id, f"登录失败: {e}", finish=True)
         return
 
     if not all_scores:
-        await UniMessage([At(flag="user", target=user_id), "未获取到可用的游玩次数数据"]).finish()
+        await _send_message(user_id, "未获取到可用的游玩次数数据", finish=True)
         return
     logger.debug(f"获取到的成绩数量: {len(all_scores)}")
 
     updated_scores = await get_updated_score(all_scores, user_token)  # type: ignore
     logger.debug(f"需要更新的成绩数量: {len(updated_scores)}")
     if not updated_scores:
-        await UniMessage([At(flag="user", target=user_id), "没有需要更新的成绩"]).finish()
+        await _send_message(user_id, "没有需要更新的成绩", finish=True)
         return
 
     logger.debug("尝试上传至落雪服务器...")
@@ -1175,9 +1135,7 @@ async def handle_import_lxns(
         records.append((song_id, difficulty, play_count))
     await MaiPlayCountORM.upsert_user_play_counts(db_session, user_id, records)
 
-    await UniMessage(
-        [At(flag="user", target=user_id), f"落雪查分器更新成功！共更新了 {len(updated_scores)} 条记录"]
-    ).finish()
+    await _send_message(user_id, f"落雪查分器更新成功！共更新了 {len(updated_scores)} 条记录", finish=True)
 
 
 @alconna_import.assign("all")
@@ -1190,34 +1148,24 @@ async def handle_import_all(
     user_id = event.get_user_id()
 
     if not config.enable_arcade_provider:
-        await UniMessage([At(flag="user", target=user_id), "机台源不可用，无法执行该操作"]).finish()
+        await _send_message(user_id, "机台源不可用，无法执行该操作", finish=True)
         return
 
     if not qr_code.available or not qr_code.result:
-        await UniMessage(
-            [
-                At(flag="user", target=user_id),
-                "请提供二维码内容: .import <qr_code>",
-            ]
-        ).finish()
+        await _send_message(user_id, "请提供二维码内容: .import <qr_code>", finish=True)
         return
 
     # 检查是否绑定了落雪查分器和水鱼查分器
     bind_info = await UserBindInfoORM.get_user_bind_info(db_session, user_id)
     if not bind_info or not bind_info.lxns_api_key or not bind_info.diving_fish_import_token:
-        await UniMessage(
-            [
-                At(flag="user", target=user_id),
-                "未同时绑定落雪和水鱼查分器，请使用 .bind 命令绑定",
-            ]
-        ).finish()
+        await _send_message(user_id, "未同时绑定落雪和水鱼查分器，请使用 .bind 命令绑定", finish=True)
         return
     divingfish_import_token = bind_info.diving_fish_import_token
     lxns_user_token = bind_info.lxns_api_key
 
     all_scores = await run_extend_score_workflow(qr_code.result)
     if not all_scores:
-        await UniMessage([At(flag="user", target=user_id), "未获取到可用的游玩次数数据"]).finish()
+        await _send_message(user_id, "未获取到可用的游玩次数数据", finish=True)
         return
     logger.debug(f"获取到的成绩数量: {len(all_scores)}")
 
@@ -1247,7 +1195,7 @@ async def handle_import_all(
         records.append((song_id, difficulty, play_count))
     imported = await MaiPlayCountORM.upsert_user_play_counts(db_session, user_id, records)
 
-    await UniMessage([At(flag="user", target=user_id), f"查分器更新成功！共更新了 {imported} 条记录"]).finish()
+    await _send_message(user_id, f"查分器更新成功！共更新了 {imported} 条记录", finish=True)
 
 
 @alconna_ticket.handle()
@@ -1259,21 +1207,16 @@ async def handle_ticket(
     user_id = event.get_user_id()
 
     if not config.enable_arcade_provider:
-        await UniMessage([At(flag="user", target=user_id), "机台源不可用，无法执行该操作"]).finish()
+        await _send_message(user_id, "机台源不可用，无法执行该操作", finish=True)
         return
 
     if not qr_code.available or not qr_code.result:
-        await UniMessage(
-            [
-                At(flag="user", target=user_id),
-                "请提供二维码内容: .ticket <qr_code>",
-            ]
-        ).finish()
+        await _send_message(user_id, "请提供二维码内容: .ticket <qr_code>", finish=True)
         return
 
     await run_extend_ticket_workflow(qr_code.result)
 
-    await UniMessage([At(flag="user", target=user_id), "已成功发送了 6 倍票"]).finish()
+    await _send_message(user_id, "已成功发送了 6 倍票", finish=True)
 
 
 @alconna_logout.handle()
@@ -1285,20 +1228,15 @@ async def handle_logout(
     user_id = event.get_user_id()
 
     if not config.enable_arcade_provider:
-        await UniMessage([At(flag="user", target=user_id), "机台源不可用，无法执行该操作"]).finish()
+        await _send_message(user_id, "机台源不可用，无法执行该操作", finish=True)
         return
 
     if not qr_code.available or not qr_code.result:
-        await UniMessage(
-            [
-                At(flag="user", target=user_id),
-                "请提供二维码内容: .logout <qr_code>",
-            ]
-        ).finish()
+        await _send_message(user_id, "请提供二维码内容: .logout <qr_code>", finish=True)
         return
 
     await run_extent_force_logout(qr_code.result)
-    await UniMessage([At(flag="user", target=user_id), "已尝试强制登出，请尝试重新登录"]).finish()
+    await _send_message(user_id, "已尝试强制登出，请尝试重新登录", finish=True)
 
 
 @alconna_unlock.handle()
@@ -1310,20 +1248,15 @@ async def handle_rikka_unlock(
     user_id = event.get_user_id()
 
     if not config.enable_arcade_provider:
-        await UniMessage([At(flag="user", target=user_id), "机台源不可用，无法执行该操作"]).finish()
+        await _send_message(user_id, "机台源不可用，无法执行该操作", finish=True)
         return
 
     if not qr_code.available or not qr_code.result:
-        await UniMessage(
-            [
-                At(flag="user", target=user_id),
-                "请提供二维码内容: .unlock <qr_code>",
-            ]
-        ).finish()
+        await _send_message(user_id, "请提供二维码内容: .unlock <qr_code>", finish=True)
         return
 
     await run_unlock_workflow(qr_code.result)
-    await UniMessage([At(flag="user", target=user_id), "解锁成功！"]).finish()
+    await _send_message(user_id, "解锁成功！", finish=True)
 
 
 @alconna_unbind.handle()
@@ -1335,12 +1268,7 @@ async def handle_unbind(
     user_id = event.get_user_id()
 
     if not provider.available or provider.result not in ["all", "lxns", "divingfish", "maimai"]:
-        await UniMessage(
-            [
-                At(flag="user", target=user_id),
-                "请输入有效的查分器名称: all, lxns, divingfish 或 maimai",
-            ]
-        ).finish()
+        await _send_message(user_id, "请输入有效的查分器名称: all, lxns, divingfish 或 maimai", finish=True)
         return
 
     provider_name = provider.result if provider.result != "all" else None
@@ -1348,20 +1276,10 @@ async def handle_unbind(
     try:
         await UserBindInfoORM.unset_user_bind_info(db_session, user_id, provider_name)
     except ValueError as e:
-        await UniMessage(
-            [
-                At(flag="user", target=user_id),
-                str(e),
-            ]
-        ).finish()
+        await _send_message(user_id, str(e), finish=True)
         return
 
-    await UniMessage(
-        [
-            At(flag="user", target=user_id),
-            f"已解绑查分器: {provider.result}",
-        ]
-    ).finish()
+    await _send_message(user_id, f"已解绑查分器: {provider.result}", finish=True)
 
 
 @alconna_source.handle()
@@ -1373,31 +1291,16 @@ async def handle_source(
     user_id = event.get_user_id()
 
     if not provider.available or provider.result not in ["lxns", "divingfish"]:
-        await UniMessage(
-            [
-                At(flag="user", target=user_id),
-                "请输入有效的查分器名称: lxns 或 divingfish",
-            ]
-        ).finish()
+        await _send_message(user_id, "请输入有效的查分器名称: lxns 或 divingfish", finish=True)
         return
 
     try:
         await UserBindInfoORM.set_default_provider(db_session, user_id, provider.result)  # type: ignore
     except ValueError as e:
-        await UniMessage(
-            [
-                At(flag="user", target=user_id),
-                str(e),
-            ]
-        ).finish()
+        await _send_message(user_id, str(e), finish=True)
         return
 
-    await UniMessage(
-        [
-            At(flag="user", target=user_id),
-            f"已将默认查分器设置为: {provider.result} ⭐",
-        ]
-    ).finish()
+    await _send_message(user_id, f"已将默认查分器设置为: {provider.result} ⭐", finish=True)
 
 
 @alconna_b50.handle()
@@ -1426,7 +1329,7 @@ async def handle_mai_b50(
     logger.debug(f"[{user_id}] 4/4 渲染玩家数据...")
     pic = await renderer.render_mai_player_best50(player_b50, player_info)
 
-    await UniMessage([At(flag="user", target=user_id), UniImage(raw=pic)]).finish()
+    await _send_message(user_id, "", images=[pic], finish=True)
 
 
 @alconna_ap50.handle()
@@ -1453,7 +1356,11 @@ async def handle_mai_ap50(
     if isinstance(provider, LXNSProvider):
         user_bind_info = await UserBindInfoORM.get_user_bind_info(db_session, user_id)
         if user_bind_info is None or user_bind_info.lxns_api_key is None:
-            await UniMessage("你还没有绑定任何查分器喵，请先用 /bind 绑定一个查分器谢谢喵").finish()
+            await _send_message(
+                event.get_user_id(),
+                "你还没有绑定任何查分器喵，请先用 /bind 绑定一个查分器谢谢喵",
+                finish=True,
+            )
             return  # Avoid TypeError.
 
         identifier.credentials = user_bind_info.lxns_api_key
@@ -1464,7 +1371,7 @@ async def handle_mai_ap50(
     logger.debug(f"[{user_id}] 4/4 渲染玩家数据...")
     pic = await renderer.render_mai_player_best50(player_ap50, player_info)
 
-    await UniMessage([At(flag="user", target=user_id), UniImage(raw=pic)]).finish()
+    await _send_message(user_id, "", images=[pic], finish=True)
 
 
 @alconna_r50.handle()
@@ -1490,24 +1397,16 @@ async def handle_mai_r50(
         except ClientResponseError as e:
             logger.warning(f"[{user_id}] 无法通过 QQ 号请求玩家数据: {e.code}: {e.message}")
 
-            await UniMessage(
-                [
-                    At(flag="user", target=user_id),
-                    "查询 Recent 50 的操作需要绑定落雪查分器喵，还请使用 /bind 指令进行绑定喵呜",
-                ]
-            ).finish()
+            await _send_message(
+                user_id, "查询 Recent 50 的操作需要绑定落雪查分器喵，还请使用 /bind 指令进行绑定喵呜", finish=True
+            )
 
             return
 
     friend_code = new_player_friend_code or user_bind_info.mai_friend_code  # type: ignore
     if not friend_code:
         logger.warning(f"[{user_id}] 无法获取好友码，无法继续查询。")
-        await UniMessage(
-            [
-                At(flag="user", target=user_id),
-                "无法获取好友码，请确认已绑定或查分器可用。",
-            ]
-        ).finish()
+        await _send_message(user_id, "无法获取好友码，请确认已绑定或查分器可用。", finish=True)
         return
     logger.debug(f"[{user_id}] 2/4 发起 API 请求玩家信息...")
     params = score_provider.ParamsType(friend_code=friend_code)
@@ -1519,7 +1418,7 @@ async def handle_mai_r50(
     logger.debug(f"[{user_id}] 4/4 渲染玩家数据...")
     pic = await renderer.render_mai_player_scores(player_r50, player_info, title="Recent 50")
 
-    await UniMessage([At(flag="user", target=user_id), UniImage(raw=pic)]).finish()
+    await _send_message(user_id, "", images=[pic], finish=True)
 
 
 @alconna_pc50.handle()
@@ -1534,12 +1433,7 @@ async def handle_pc50(
     provider = await MaimaiPyScoreProvider.auto_get_score_provider(db_session, user_id)
 
     if not config.enable_arcade_provider:
-        await UniMessage(
-            [
-                At(flag="user", target=user_id),
-                "管理员未启用pc数查询喵呜",
-            ]
-        ).finish()
+        await _send_message(user_id, "管理员未启用pc数查询喵呜", finish=True)
 
     logger.info(f"[{user_id}] 获取玩家 PC50, 查分器类型: {type(provider)}")
 
@@ -1555,7 +1449,11 @@ async def handle_pc50(
     if isinstance(provider, LXNSProvider):
         user_bind_info = await UserBindInfoORM.get_user_bind_info(db_session, user_id)
         if user_bind_info is None or user_bind_info.lxns_api_key is None:
-            await UniMessage("你还没有绑定任何查分器喵，请先用 /bind 绑定一个查分器谢谢喵").finish()
+            await _send_message(
+                event.get_user_id(),
+                "你还没有绑定任何查分器喵，请先用 /bind 绑定一个查分器谢谢喵",
+                finish=True,
+            )
             return  # Avoid TypeError.
 
         identifier.credentials = user_bind_info.lxns_api_key
@@ -1566,7 +1464,7 @@ async def handle_pc50(
     logger.debug(f"[{user_id}] 4/4 渲染玩家数据...")
     pic = await renderer.render_mai_player_best50(player_scores, player_info)
 
-    await UniMessage([At(flag="user", target=user_id), UniImage(raw=pic)]).finish()
+    await _send_message(user_id, "", images=[pic], finish=True)
 
 
 @alconna_n50.handle()
@@ -1593,7 +1491,11 @@ async def handle_n50(
     if isinstance(provider, LXNSProvider):
         user_bind_info = await UserBindInfoORM.get_user_bind_info(db_session, user_id)
         if user_bind_info is None or user_bind_info.lxns_api_key is None:
-            await UniMessage("你还没有绑定任何查分器喵，请先用 /bind 绑定一个查分器谢谢喵").finish()
+            await _send_message(
+                event.get_user_id(),
+                "你还没有绑定任何查分器喵，请先用 /bind 绑定一个查分器谢谢喵",
+                finish=True,
+            )
             return  # Avoid TypeError.
 
         identifier.credentials = user_bind_info.lxns_api_key
@@ -1607,7 +1509,7 @@ async def handle_n50(
     logger.debug(f"[{user_id}] 5/5 渲染玩家数据...")
     pic = await renderer.render_mai_player_best50(player_n50, player_info, calc_song_level_value=False)
 
-    await UniMessage([At(flag="user", target=user_id), UniImage(raw=pic)]).finish()
+    await _send_message(user_id, "", images=[pic], finish=True)
 
 
 @alconna_minfo.handle()
@@ -1621,7 +1523,7 @@ async def handle_minfo(
     user_id = event.get_user_id()
 
     if not name.available:
-        await UniMessage([At(flag="user", target=user_id), "请输入有效的乐曲ID/名称/别名！"]).finish()
+        await _send_message(user_id, "请输入有效的乐曲ID/名称/别名！", finish=True)
 
     raw_query = name.result.extract_plain_text()
     logger.info(f"[{user_id}] 查询乐曲信息, 查询内容: {raw_query}")
@@ -1630,13 +1532,13 @@ async def handle_minfo(
     try:
         song = await get_maisong_by_id_or_alias(db_session, raw_query)
     except ValueError as e:
-        await UniMessage([At(flag="user", target=user_id), str(e)]).finish()
+        await _send_message(user_id, str(e), finish=True)
         return
 
     logger.debug(f"[{user_id}] 2/2 构建乐曲信息模板...")
-    response_content = _build_maisong_info_message(user_id, song)
+    message, images = _build_maisong_info_message(song)
 
-    await response_content.finish()
+    await _send_message(user_id, message, images, finish=True)
 
 
 @alconna_random.handle()
@@ -1653,7 +1555,7 @@ async def handle_random(
     tokens = [tok for tok in raw_filters.split() if tok]
 
     if len(tokens) > 2:
-        await UniMessage([At(flag="user", target=user_id), "参数过多，最多填写难度与等级/定数两个条件哦~"]).finish()
+        await _send_message(user_id, "参数过多，最多填写难度与等级/定数两个条件哦~", finish=True)
         return
 
     diff_value = None
@@ -1693,12 +1595,11 @@ async def handle_random(
         invalid_tokens.append(tok)
 
     if invalid_tokens:
-        await UniMessage(
-            [
-                At(flag="user", target=user_id),
-                f"以下参数无法识别: {' '.join(invalid_tokens)}，请使用难度(BASIC~RE:MASTER)、等级(如12+)或定数(如12.7)重试~",
-            ]
-        ).finish()
+        await _send_message(
+            user_id,
+            f"以下参数无法识别: {' '.join(invalid_tokens)}，请使用难度(BASIC~RE:MASTER)、等级(如12+)或定数(如12.7)重试~",
+            finish=True,
+        )
         return
 
     logger.info(f"[{user_id}] 随机抽取乐曲, 条件 diff={diff_name}, level={level_value}, const={level_const}")
@@ -1721,18 +1622,13 @@ async def handle_random(
     filtered_songs = [s for s in songs if match_song(s)]
 
     if not filtered_songs:
-        await UniMessage(
-            [
-                At(flag="user", target=user_id),
-                "未找到符合条件的乐曲喵，试试放宽条件再来一次吧~",
-            ]
-        ).finish()
+        await _send_message(user_id, "未找到符合条件的乐曲喵，试试放宽条件再来一次吧~", finish=True)
         return
 
     song = random.choice(filtered_songs)
-    response = _build_maisong_info_message(user_id, song)
+    message, images = _build_maisong_info_message(song)
 
-    await response.finish()
+    await _send_message(user_id, message, images, finish=True)
 
 
 @alconna_alias.assign("update")
@@ -1744,7 +1640,7 @@ async def handle_alias_update(
     nb_config = get_driver().config
 
     if user_id not in nb_config.superusers:
-        await UniMessage("更新乐曲别名需要管理员权限哦").finish()
+        await _send_message(event.get_user_id(), "更新乐曲别名需要管理员权限哦", finish=True)
 
     logger.info(f"[{user_id}] 更新乐曲别名列表")
 
@@ -1752,12 +1648,7 @@ async def handle_alias_update(
 
     logger.info(f"[{user_id}] 乐曲别名列表更新完成")
 
-    await UniMessage(
-        [
-            At(flag="user", target=user_id),
-            "乐曲别名列表已更新完成 ⭐",
-        ]
-    ).finish()
+    await _send_message(user_id, "乐曲别名列表已更新完成 ⭐", finish=True)
 
 
 @alconna_alias.assign("add")
@@ -1773,18 +1664,13 @@ async def handle_alias_add(
         nb_config = get_driver().config
 
         if user_id not in nb_config.superusers:
-            await UniMessage("更新乐曲别名需要管理员权限哦").finish()
+            await _send_message(event.get_user_id(), "更新乐曲别名需要管理员权限哦", finish=True)
 
     logger.info(f"[{user_id}] 添加乐曲别名, 乐曲ID: {song_id.result}, 别名: {name.result}")
 
     await MaiSongAliasORM.add_custom_alias(db_session, song_id.result, name.result)
 
-    await UniMessage(
-        [
-            At(flag="user", target=user_id),
-            f"已为乐曲 ID {song_id.result} 添加别名: {name.result} ⭐",
-        ]
-    ).finish()
+    await _send_message(user_id, f"已为乐曲 ID {song_id.result} 添加别名: {name.result} ⭐", finish=True)
 
 
 @alconna_alias.assign("query")
@@ -1796,7 +1682,7 @@ async def handle_alias_query(
     user_id = event.get_user_id()
 
     if not name.available:
-        await UniMessage([At(flag="user", target=user_id), "请输入有效的乐曲ID/名称/别名！"]).finish()
+        await _send_message(user_id, "请输入有效的乐曲ID/名称/别名！", finish=True)
 
     raw_query = name.result.extract_plain_text()
 
@@ -1806,7 +1692,7 @@ async def handle_alias_query(
     try:
         song = await get_maisong_by_id_or_alias(db_session, raw_query)
     except ValueError as e:
-        await UniMessage([At(flag="user", target=user_id), str(e)]).finish()
+        await _send_message(user_id, str(e), finish=True)
         return
 
     logger.debug(f"[{user_id}] 2/4 获取乐曲别名列表...")
@@ -1815,21 +1701,13 @@ async def handle_alias_query(
     logger.debug(f"[{user_id}] 3/4 构建乐曲别名模板...")
 
     if not aliases:
-        await UniMessage(
-            [
-                At(flag="user", target=user_id),
-                f"乐曲 ID {song.id} ('{song.title}') 暂无别名记录！",
-            ]
-        ).finish()
+        await _send_message(user_id, f"乐曲 ID {song.id} ('{song.title}') 暂无别名记录！", finish=True)
         return
 
     alias_list_content = ", ".join(aliases)
-    await UniMessage(
-        [
-            At(flag="user", target=user_id),
-            f"乐曲 ID {song.id} ('{song.title}') 的别名列表如下：\n{alias_list_content}",
-        ]
-    ).finish()
+    await _send_message(
+        user_id, f"乐曲 ID {song.id} ('{song.title}') 的别名列表如下：\n{alias_list_content}", finish=True
+    )
 
 
 @alconna_alias.assign("help")
@@ -1843,12 +1721,7 @@ async def handle_alias_help(event: Event):
         ".alias query <id|别名> 查询该歌曲有什么别名\n"
     )
 
-    await UniMessage(
-        [
-            At(flag="user", target=user_id),
-            help_text,
-        ]
-    ).finish()
+    await _send_message(user_id, help_text, finish=True)
 
 
 @alconna_alias.assign("$main")
@@ -1868,7 +1741,7 @@ async def handle_score(
     user_id = event.get_user_id()
 
     if not name.available:
-        await UniMessage([At(flag="user", target=user_id), "请输入有效的乐曲ID/名称/别名！"]).finish()
+        await _send_message(user_id, "请输入有效的乐曲ID/名称/别名！", finish=True)
 
     raw_query = name.result.extract_plain_text()
     logger.info(f"[{user_id}] 查询单曲游玩情况, 查询内容: {raw_query}")
@@ -1877,7 +1750,7 @@ async def handle_score(
     try:
         song = await get_maisong_by_id_or_alias(db_session, raw_query)
     except ValueError as e:
-        await UniMessage([At(flag="user", target=user_id), str(e)]).finish()
+        await _send_message(user_id, str(e), finish=True)
         return
 
     logger.debug(f"[{user_id}] 2/5 推断获取的是 DX 铺面还是标准铺面")
@@ -1899,18 +1772,13 @@ async def handle_score(
     scores = await score_provider.fetch_player_minfo(params, song.id, "dx" if is_dx else "standard")
 
     if not scores:
-        await UniMessage(
-            [
-                At(flag="user", target=user_id),
-                f"未找到乐曲 '{song.title}' 的游玩记录喵~不如先去挑战一下吧~",
-            ]
-        ).finish()
+        await _send_message(user_id, f"未找到乐曲 '{song.title}' 的游玩记录喵~不如先去挑战一下吧~", finish=True)
         return
 
     logger.debug(f"[{user_id}] 5/5 渲染玩家数据...")
     pic = await renderer.render_mai_player_song_info(song, scores)
 
-    await UniMessage([At(flag="user", target=user_id), UniImage(raw=pic)]).finish()
+    await _send_message(user_id, "", images=[pic], finish=True)
 
 
 @alconna_scorelist.handle()
@@ -1925,43 +1793,40 @@ async def handle_scorelist(
     user_id = event.get_user_id()
 
     if not arg.available or not arg.result:
-        await UniMessage(
-            [
-                At(flag="user", target=user_id),
-                (
-                    ".scorelist 使用帮助\n"
-                    ".scorelist <level> 获取指定等级的成绩列表\n"
-                    ".scorelist <level_value> 获取指定等级（定数）的成绩列表\n"
-                    ".scorelist ach<float> 获取指定达成率的成绩列表\n"
-                    ".scorelist <diff> 获取指定铺面难度的成绩列表\n"
-                    ".scorelist <条件> [page] 获取指定页（每页 50 条）\n"
-                    "eg.\n"
-                    ".scorelist 12+\n"
-                    ".scorelist 12.7\n"
-                    ".scorelist ach100.8\n"
-                    ".scorelist expert\n"
-                    ".scorelist ach100.8 2"
-                ),
-            ]
-        ).finish()
+        await _send_message(
+            user_id,
+            ".scorelist 使用帮助\n"
+            ".scorelist <level> 获取指定等级的成绩列表\n"
+            ".scorelist <level_value> 获取指定等级（定数）的成绩列表\n"
+            ".scorelist ach<float> 获取指定达成率的成绩列表\n"
+            ".scorelist <diff> 获取指定铺面难度的成绩列表\n"
+            ".scorelist <条件> [page] 获取指定页（每页 50 条）\n"
+            "eg.\n"
+            ".scorelist 12+\n"
+            ".scorelist 12.7\n"
+            ".scorelist ach100.8\n"
+            ".scorelist expert\n"
+            ".scorelist ach100.8 2",
+            finish=True,
+        )
 
     raw_input = arg.result.extract_plain_text().strip()
     query_parts = raw_input.split()
 
     if not query_parts:
-        await UniMessage([At(flag="user", target=user_id), "命令格式错误，请检查后重新输入！"]).finish()
+        await _send_message(user_id, "命令格式错误，请检查后重新输入！", finish=True)
         return
 
     raw_query = query_parts[0]
     page = 1
     if len(query_parts) >= 2:
         if not query_parts[1].isdigit() or int(query_parts[1]) <= 0:
-            await UniMessage([At(flag="user", target=user_id), "页码必须是大于 0 的整数"]).finish()
+            await _send_message(user_id, "页码必须是大于 0 的整数", finish=True)
             return
         page = int(query_parts[1])
 
     if len(query_parts) > 2:
-        await UniMessage([At(flag="user", target=user_id), "命令格式错误，请检查后重新输入！"]).finish()
+        await _send_message(user_id, "命令格式错误，请检查后重新输入！", finish=True)
         return
 
     logger.info(f"[{user_id}] 查询指定条件的成绩列表, 查询内容: {raw_query}")
@@ -1983,7 +1848,7 @@ async def handle_scorelist(
         diff = "REMASTER" if diff == "RE:MASTER" else diff
         title = f"铺面等级 {diff} 成绩列表"
     else:
-        await UniMessage([At(flag="user", target=user_id), "命令格式错误，请检查后重新输入！"]).finish()
+        await _send_message(user_id, "命令格式错误，请检查后重新输入！", finish=True)
         return
 
     logger.debug(f"[{user_id}] 1/4 获得用户鉴权凭证...")
@@ -2001,12 +1866,7 @@ async def handle_scorelist(
     scores = await score_provider.fetch_player_scoreslist(params, level, level_value, ach, diff)  # type: ignore
 
     if not scores:
-        await UniMessage(
-            [
-                At(flag="user", target=user_id),
-                "呜呜，未找到符合条件的游玩记录喵",
-            ]
-        ).finish()
+        await _send_message(user_id, "呜呜，未找到符合条件的游玩记录喵", finish=True)
         return
 
     page_size = 50
@@ -2016,12 +1876,9 @@ async def handle_scorelist(
     page_scores = scores[start:end]
 
     if not page_scores:
-        await UniMessage(
-            [
-                At(flag="user", target=user_id),
-                f"页码超出范围，当前共 {total_pages} 页，请输入 1~{total_pages} 之间的页码",
-            ]
-        ).finish()
+        await _send_message(
+            user_id, f"页码超出范围，当前共 {total_pages} 页，请输入 1~{total_pages} 之间的页码", finish=True
+        )
         return
 
     title = f"{title} - 第 {page}/{total_pages} 页"
@@ -2029,7 +1886,7 @@ async def handle_scorelist(
     logger.debug(f"[{user_id}] 4/4 渲染玩家数据...")
     pic = await renderer.render_mai_player_scores(page_scores, player_info, title)
 
-    await UniMessage([At(flag="user", target=user_id), UniImage(raw=pic)]).finish()
+    await _send_message(user_id, "", images=[pic], finish=True)
 
 
 @alconna_mai.assign("help")
@@ -2050,7 +1907,7 @@ async def handle_mai_help(event: Event):
         ".mai random 随机获取一首乐曲（可选难度、等级、定数）\n"
     )
 
-    await UniMessage([At("user", user_id), msg]).finish()
+    await _send_message(user_id, msg, finish=True)
 
 
 @alconna_mai.assign("$main")
@@ -2075,7 +1932,7 @@ async def handle_plate_process(
 
     m = re.match(r"^(.+)进度\s?(.+)?$", raw_text)
     if not m or len(m.group(1)) < 2:
-        await UniMessage([At(flag="user", target=user_id), "命令解析失败，请检查输入格式"]).finish()
+        await _send_message(user_id, "命令解析失败，请检查输入格式", finish=True)
         return
 
     plate_name = m.group(1)
@@ -2083,7 +1940,7 @@ async def handle_plate_process(
     use_difficult = "难" in extra_text
 
     if plate_name == "真将":
-        await UniMessage([At(flag="user", target=user_id), "真系没有真将哦"]).finish()
+        await _send_message(user_id, "真系没有真将哦", finish=True)
         return
 
     logger.info(f"[{user_id}] 查询牌子进度: {plate_name} {'难' if use_difficult else ''}")
@@ -2098,10 +1955,10 @@ async def handle_plate_process(
     try:
         plate = await maimai_client.plates(identifier, plate_name, provider)
     except InvalidPlateError:
-        await UniMessage([At(flag="user", target=user_id), f"无效的牌子: {plate_name}"]).finish()
+        await _send_message(user_id, f"无效的牌子: {plate_name}", finish=True)
         return
     except Exception as e:
-        await UniMessage([At(flag="user", target=user_id), f"查询牌子进度失败: {e}"]).finish()
+        await _send_message(user_id, f"查询牌子进度失败: {e}", finish=True)
         return
 
     remained = await plate.get_remained()
@@ -2149,7 +2006,7 @@ async def handle_plate_process(
     for title, diff_idx, level_value, song_type in unfinished_items[:10]:
         text += f"[{diff_names[diff_idx]} {level_value}] {title}[{song_type}]\n"
 
-    await UniMessage([At(flag="user", target=user_id), text.strip()]).finish()
+    await _send_message(user_id, text.strip(), finish=True)
 
 
 @alconna_level_process.handle()
@@ -2172,7 +2029,7 @@ async def handle_level_process(
         raw_text,
     )
     if not m:
-        await UniMessage([At(flag="user", target=user_id), "命令解析失败，请检查输入格式"]).finish()
+        await _send_message(user_id, "命令解析失败，请检查输入格式", finish=True)
         return
 
     raw_level = m.group(1)
@@ -2201,7 +2058,7 @@ async def handle_level_process(
     try:
         data = get_level_process_data(songs, scores, raw_level, raw_plan)
     except ProcessDataError as e:
-        await UniMessage([At(flag="user", target=user_id), str(e)]).finish()
+        await _send_message(user_id, str(e), finish=True)
         return
 
     diff_names = ["Basic", "Advanced", "Expert", "Master", "Re:MASTER"]
@@ -2254,7 +2111,7 @@ async def handle_level_process(
         song_type = "DX" if is_dx else "SD"
         text += f"[{diff_names[diff_idx]} {level_val}] {song.title}[{song_type}]\n"
 
-    await UniMessage([At(flag="user", target=user_id), text.strip()]).finish()
+    await _send_message(user_id, text.strip(), finish=True)
 
 
 @alconna_update.assign("songs")
@@ -2267,7 +2124,7 @@ async def handle_update_songs(
     nb_config = get_driver().config
 
     if user_id not in nb_config.superusers:
-        await UniMessage("更新乐曲信息需要管理员权限哦").finish()
+        await _send_message(event.get_user_id(), "更新乐曲信息需要管理员权限哦", finish=True)
 
     logger.info(f"[{user_id}] 更新乐曲信息数据库")
 
@@ -2279,12 +2136,7 @@ async def handle_update_songs(
 
     logger.info(f"[{user_id}] {msg}")
 
-    await UniMessage(
-        [
-            At(flag="user", target=user_id),
-            msg,
-        ]
-    ).finish()
+    await _send_message(user_id, msg, finish=True)
 
 
 @alconna_update.assign("alias")
@@ -2299,12 +2151,7 @@ async def handle_update_aliases(
 async def handle_update_chart(event: Event):
     await update_local_chart_file()
 
-    await UniMessage(
-        [
-            At(flag="user", target=event.get_user_id()),
-            "music_chart.json 文件已更新完成⭐",
-        ]
-    ).finish()
+    await _send_message(event.get_user_id(), "music_chart.json 文件已更新完成⭐", finish=True)
 
 
 @alconna_update.assign("$main")
@@ -2313,7 +2160,7 @@ async def handle_update_main(event: Event, db_session: async_scoped_session):
     nb_config = get_driver().config
 
     if user_id not in nb_config.superusers:
-        await UniMessage("更新乐曲信息需要管理员权限哦").finish()
+        await _send_message(event.get_user_id(), "更新乐曲信息需要管理员权限哦", finish=True)
 
     logger.info(f"[{event.get_user_id()}] 未提供 update 参数，默认执行全量更新")
 
@@ -2328,12 +2175,7 @@ async def handle_update_main(event: Event, db_session: async_scoped_session):
 
     logger.info(f"[{event.get_user_id()}] 全量更新完成，共更新 {updated_count} 首乐曲")
 
-    await UniMessage(
-        [
-            At(flag="user", target=event.get_user_id()),
-            f"全量更新已完成，共更新 {updated_count} 首乐曲 ⭐",
-        ]
-    ).finish()
+    await _send_message(event.get_user_id(), f"全量更新已完成，共更新 {updated_count} 首乐曲 ⭐", finish=True)
 
 
 @alconna_fortune.handle()
@@ -2346,7 +2188,12 @@ async def handle_fortune(
 
     fortune_message = await generate_today_fortune(user_id)
 
-    await fortune_message.finish()
+    await _send_message(
+        user_id,
+        fortune_message.extract_plain_text(),
+        images=[Path(image.path).read_bytes() for image in fortune_message[UniImage] if image.path],
+        finish=True,
+    )
 
 
 @alconna_analysis.handle()
@@ -2359,12 +2206,7 @@ async def handle_analysis(
     user_id = event.get_user_id()
 
     if not SONG_TAGS_DATA_AVAILABLE:
-        await UniMessage(
-            [
-                At(flag="user", target=user_id),
-                "管理员未配置乐曲标签，无法使用此功能喵",
-            ]
-        ).finish()
+        await _send_message(user_id, "管理员未配置乐曲标签，无法使用此功能喵", finish=True)
         return
 
     provider = await MaimaiPyScoreProvider.auto_get_score_provider(db_session, user_id)
@@ -2379,7 +2221,11 @@ async def handle_analysis(
     if isinstance(provider, LXNSProvider):
         user_bind_info = await UserBindInfoORM.get_user_bind_info(db_session, user_id)
         if user_bind_info is None or user_bind_info.lxns_api_key is None:
-            await UniMessage("你还没有绑定任何查分器喵，请先用 /bind 绑定一个查分器谢谢喵").finish()
+            await _send_message(
+                event.get_user_id(),
+                "你还没有绑定任何查分器喵，请先用 /bind 绑定一个查分器谢谢喵",
+                finish=True,
+            )
             return  # Avoid TypeError.
 
         identifier.credentials = user_bind_info.lxns_api_key
@@ -2395,7 +2241,7 @@ async def handle_analysis(
     pic = draw_player_strength_analysis(player_strength)
     byte = image_to_bytes(pic)
 
-    await UniMessage([At(flag="user", target=user_id), UniImage(raw=byte)]).finish()
+    await _send_message(user_id, "", images=[byte], finish=True)
 
 
 @alconna_trend.handle()
@@ -2420,21 +2266,15 @@ async def handle_trend(
             range_days = parsed_days
             range_desc = parsed_range_desc
         else:
-            await UniMessage(
-                [
-                    At(flag="user", target=user_id),
-                    "时间范围参数格式错误，请使用如 `.trend 7天` 或 `.trend 1个月`（不支持 `1 个月` 这种带空格写法）",
-                ]
-            ).finish()
+            await _send_message(
+                user_id,
+                "时间范围参数格式错误，请使用如 `.trend 7天` 或 `.trend 1个月`（不支持 `1 个月` 这种带空格写法）",
+                finish=True,
+            )
             return
 
     if render_mode not in ["simple", "detailed"]:
-        await UniMessage(
-            [
-                At(flag="user", target=user_id),
-                "渲染模式参数格式错误，请使用 `simple` 或 `detailed`",
-            ]
-        ).finish()
+        await _send_message(user_id, "渲染模式参数格式错误，请使用 `simple` 或 `detailed`", finish=True)
         return
 
     logger.info(
@@ -2454,24 +2294,16 @@ async def handle_trend(
         except ClientResponseError as e:
             logger.warning(f"[{user_id}] 无法通过 QQ 号请求玩家数据: {e.code}: {e.message}")
 
-            await UniMessage(
-                [
-                    At(flag="user", target=user_id),
-                    "查询 Rating 趋势的操作需要绑定落雪查分器喵，还请使用 /bind 指令进行绑定喵呜",
-                ]
-            ).finish()
+            await _send_message(
+                user_id, "查询 Rating 趋势的操作需要绑定落雪查分器喵，还请使用 /bind 指令进行绑定喵呜", finish=True
+            )
 
             return
 
     friend_code = new_player_friend_code or user_bind_info.mai_friend_code  # type: ignore
     if not friend_code:
         logger.warning(f"[{user_id}] 无法获取好友码，无法继续查询。")
-        await UniMessage(
-            [
-                At(flag="user", target=user_id),
-                "无法获取好友码，请确认已绑定或查分器可用。",
-            ]
-        ).finish()
+        await _send_message(user_id, "无法获取好友码，请确认已绑定或查分器可用。", finish=True)
         return
 
     logger.debug(f"[{user_id}] 2/4 发起 API 请求玩家 Trend 趋势")
@@ -2490,7 +2322,7 @@ async def handle_trend(
             dated_trends.append((trend_date, trend))
 
         if not dated_trends:
-            await UniMessage([At(flag="user", target=user_id), "趋势数据时间格式异常，暂时无法按时间范围筛选"]).finish()
+            await _send_message(user_id, "趋势数据时间格式异常，暂时无法按时间范围筛选", finish=True)
             return
 
         latest_date = max(item[0] for item in dated_trends)
@@ -2498,23 +2330,22 @@ async def handle_trend(
         trends = [item[1] for item in dated_trends if item[0] >= start_date]
 
     if len(trends) < 5:
-        await UniMessage(
-            [
-                At(flag="user", target=user_id),
-                (
-                    f"{range_desc}内的玩家 Rating 记录数据太少，无法进行渲染"
-                    if range_desc
-                    else "玩家 Rating 记录数据太少，无法进行渲染"
-                ),
-            ]
-        ).finish()
+        await _send_message(
+            user_id,
+            (
+                f"{range_desc}内的玩家 Rating 记录数据太少，无法进行渲染"
+                if range_desc
+                else "玩家 Rating 记录数据太少，无法进行渲染"
+            ),
+            finish=True,
+        )
         return
 
     logger.debug(f"[{user_id}] 4/4 渲染玩家数据...")
     pic = draw_player_rating_trend(trends, show_standard_dx=(render_mode == "detailed"))
     byte = image_to_bytes(pic)
 
-    await UniMessage([At(flag="user", target=user_id), UniImage(raw=byte)]).finish()
+    await _send_message(user_id, "", images=[byte], finish=True)
 
 
 @alconna_recommend.handle()
@@ -2537,7 +2368,11 @@ async def handle_recommend(
     if isinstance(provider, LXNSProvider):
         user_bind_info = await UserBindInfoORM.get_user_bind_info(db_session, user_id)
         if user_bind_info is None or user_bind_info.lxns_api_key is None:
-            await UniMessage("你还没有绑定任何查分器喵，请先用 /bind 绑定一个查分器谢谢喵").finish()
+            await _send_message(
+                event.get_user_id(),
+                "你还没有绑定任何查分器喵，请先用 /bind 绑定一个查分器谢谢喵",
+                finish=True,
+            )
             return  # Avoid TypeError.
 
         identifier.credentials = user_bind_info.lxns_api_key
@@ -2556,7 +2391,7 @@ async def handle_recommend(
     pic = DrawScores().draw_rise(recommend_songs, round(min_dx_score))
     byte = image_to_bytes(pic)
 
-    await UniMessage([At(flag="user", target=user_id), UniImage(raw=byte)]).finish()
+    await _send_message(user_id, "", images=[byte], finish=True)
 
 
 @alconna_maistatus.handle()
@@ -2570,7 +2405,7 @@ async def handle_maistatus(event: Event):
     except Exception as e:
         status_text = f"服务器状态检测失败：{e}"
 
-    await UniMessage([At(flag="user", target=user_id), status_text]).send()
+    await _send_message(user_id, status_text)
 
     if not config.maistatus_url:
         return
@@ -2582,10 +2417,10 @@ async def handle_maistatus(event: Event):
         et = perf_counter()
         render_time_message = f"渲染用时 {et - st:.2f} 秒"
     except Exception as e:
-        await UniMessage([At(flag="user", target=user_id), f"状态页截图渲染失败：{e}"]).finish()
+        await _send_message(user_id, f"状态页截图渲染失败：{e}", finish=True)
         return
 
-    await UniMessage([At(flag="user", target=user_id), UniImage(raw=png), render_time_message]).finish()
+    await _send_message(user_id, render_time_message, images=[png], finish=True)
 
 
 @alconna_rikka.handle()
@@ -2605,7 +2440,7 @@ async def handle_rikka(db_session: async_scoped_session, event: Event):
         f"状态页支持: {'已启用' if config.maistatus_url else '未启用'}\n"
     )
 
-    await UniMessage(message).send()
+    await _send_message(event.get_user_id(), message)
 
     await handle_help(event)
 
@@ -2627,9 +2462,11 @@ async def _get_chu_params(
 
     if lxns_bind_required:
         if (not bind_info) or (not bind_info.lxns_api_key):
-            await UniMessage(
-                "成绩的查询需要绑定落雪查分器哦, 请使用 /bind lxns <落雪查分器的成绩查询 API Key> 绑定喵~"
-            ).finish()
+            await _send_message(
+                user_id,
+                "成绩的查询需要绑定落雪查分器哦, 请使用 /bind lxns <落雪查分器的成绩查询 API Key> 绑定喵~",
+                finish=True,
+            )
 
     if (not bind_info) or (not bind_info.chu_friend_code):
         if user_id.isdigit():
@@ -2641,11 +2478,13 @@ async def _get_chu_params(
             except Exception as e:
                 logger.warning(f"[{user_id}] 中二好友码获取失败: {e}")
 
-        await UniMessage(
-            "成绩的查询需要绑定落雪查分器哦, 请使用 /bind lxns <落雪查分器的成绩查询 API Key> 绑定喵~"
-        ).finish()
+        await _send_message(
+            user_id,
+            "成绩的查询需要绑定落雪查分器哦, 请使用 /bind lxns <落雪查分器的成绩查询 API Key> 绑定喵~",
+            finish=True,
+        )
 
-    assert bind_info  # shut up mypy
+    assert bind_info and bind_info.chu_friend_code
     return LXNSChuParams(friend_code=int(bind_info.chu_friend_code), qq=user_id, user_key=bind_info.lxns_api_key)
 
 
@@ -2669,7 +2508,7 @@ async def handle_chu_b30(
     logger.debug(f"[{user_id}] 3/3 渲染玩家数据...")
     pic = await chu_renderer.render_chu_bests(player_info, bests)
 
-    await UniMessage([At(flag="user", target=user_id), UniImage(raw=pic)]).finish()
+    await _send_message(user_id, "", images=[pic], finish=True)
 
 
 @alconna_chu.assign("r50")
@@ -2688,13 +2527,13 @@ async def handle_chu_r50(
     recents = await score_provider.fetch_player_recents(params)
 
     if not recents:
-        await UniMessage([At(flag="user", target=user_id), "暂无最近游玩记录"]).finish()
+        await _send_message(user_id, "暂无最近游玩记录", finish=True)
         return
 
     logger.debug(f"[{user_id}] 渲染玩家数据...")
     pic = await chu_renderer.render_chu_player_scores(recents, player_info, title="Recent 50 列表")
 
-    await UniMessage([At(flag="user", target=user_id), UniImage(raw=pic)]).finish()
+    await _send_message(user_id, "", images=[pic], finish=True)
 
 
 @alconna_chu.assign("ap50")
@@ -2724,7 +2563,7 @@ async def handle_chu_ap30(
     logger.debug(f"[{user_id}] 渲染玩家数据...")
     pic = await chu_renderer.render_chu_player_scores(ap_scores, player_info, title="AP 50 列表")
 
-    await UniMessage([At(flag="user", target=user_id), UniImage(raw=pic)]).finish()
+    await _send_message(user_id, "", images=[pic], finish=True)
 
 
 @alconna_chu.assign("minfo")
@@ -2737,7 +2576,7 @@ async def handle_chu_minfo(
     user_id = event.get_user_id()
 
     if not name.available:
-        await UniMessage([At(flag="user", target=user_id), "请输入有效的乐曲ID/名称/别名！"]).finish()
+        await _send_message(user_id, "请输入有效的乐曲ID/名称/别名！", finish=True)
 
     raw_query = name.result.extract_plain_text().strip()
     logger.info(f"[{user_id}] [中二节奏] 查询乐曲信息, 查询内容: {raw_query}")
@@ -2745,11 +2584,11 @@ async def handle_chu_minfo(
     try:
         song = await get_chusong_by_id_or_alias(db_session, raw_query)
     except ValueError as e:
-        await UniMessage([At(flag="user", target=user_id), str(e)]).finish()
+        await _send_message(user_id, str(e), finish=True)
         return
 
-    response = _build_chusong_info_message(user_id, song)
-    await response.finish()
+    message, images = _build_chusong_info_message(song)
+    await _send_message(user_id, message, images, finish=True)
 
 
 @alconna_chu.assign("random")
@@ -2764,18 +2603,18 @@ async def handle_chu_random(
 
     song_ids = await ChuSongORM.get_all_song_ids(db_session)
     if not song_ids:
-        await UniMessage([At(flag="user", target=user_id), "乐曲数据库为空，请先执行 .update songs"]).finish()
+        await _send_message(user_id, "乐曲数据库为空，请先执行 .update songs", finish=True)
         return
 
     songs = await ChuSongORM.get_songs_info_by_ids(db_session, list(song_ids))
     if not songs:
-        await UniMessage([At(flag="user", target=user_id), "获取乐曲列表失败"]).finish()
+        await _send_message(user_id, "获取乐曲列表失败", finish=True)
         return
 
     song = random.choice(songs)
     await chu_renderer._ensure_cover(song.id)
-    response = _build_chusong_info_message(user_id, song)
-    await response.finish()
+    message, images = _build_chusong_info_message(song)
+    await _send_message(user_id, message, images, finish=True)
 
 
 @alconna_chu.assign("score")
@@ -2789,7 +2628,7 @@ async def handle_chu_score(
     user_id = event.get_user_id()
 
     if not name.available:
-        await UniMessage([At(flag="user", target=user_id), "请输入有效的乐曲ID/名称/别名！"]).finish()
+        await _send_message(user_id, "请输入有效的乐曲ID/名称/别名！", finish=True)
 
     raw_query = name.result.extract_plain_text()
     logger.info(f"[{user_id}] 查询单曲游玩情况, 查询内容: {raw_query}")
@@ -2798,7 +2637,7 @@ async def handle_chu_score(
     try:
         song = await get_chusong_by_id_or_alias(db_session, raw_query)
     except ValueError as e:
-        await UniMessage([At(flag="user", target=user_id), str(e)]).finish()
+        await _send_message(user_id, str(e), finish=True)
         return
 
     logger.debug(f"[{user_id}] 2/4 获得用户鉴权凭证...")
@@ -2810,18 +2649,13 @@ async def handle_chu_score(
     scores = [s for s in scores if s.song_id == song.id]
 
     if not scores:
-        await UniMessage(
-            [
-                At(flag="user", target=user_id),
-                f"未找到乐曲 '{song.title}' 的游玩记录喵~不如先去挑战一下吧~",
-            ]
-        ).finish()
+        await _send_message(user_id, f"未找到乐曲 '{song.title}' 的游玩记录喵~不如先去挑战一下吧~", finish=True)
         return
 
     logger.debug(f"[{user_id}] 4/4 渲染玩家数据...")
     pic = await chu_renderer.render_chu_player_song_info(song, scores)
 
-    await UniMessage([At(flag="user", target=user_id), UniImage(raw=pic)]).finish()
+    await _send_message(user_id, "", images=[pic], finish=True)
 
 
 @alconna_chu.assign("scorelist")
@@ -2835,44 +2669,41 @@ async def handle_chu_scorelist(
     user_id = event.get_user_id()
 
     if not arg.available or not arg.result:
-        await UniMessage(
-            [
-                At(flag="user", target=user_id),
-                (
-                    ".scorelist 使用帮助\n"
-                    ".scorelist <level> 获取指定等级的成绩列表\n"
-                    ".scorelist <level_value> 获取指定等级（定数）的成绩列表\n"
-                    ".scorelist ach<float> 获取指定分数的成绩列表\n"
-                    ".scorelist <diff> 获取指定铺面难度的成绩列表\n"
-                    ".scorelist <条件> [page] 获取指定页（每页 50 条）\n"
-                    "eg.\n"
-                    ".scorelist 12+\n"
-                    ".scorelist 12.7\n"
-                    ".scorelist ach1008000\n"
-                    ".scorelist ach1008"
-                    ".scorelist expert\n"
-                    ".scorelist 12+ 2"
-                ),
-            ]
-        ).finish()
+        await _send_message(
+            user_id,
+            ".scorelist 使用帮助\n"
+            ".scorelist <level> 获取指定等级的成绩列表\n"
+            ".scorelist <level_value> 获取指定等级（定数）的成绩列表\n"
+            ".scorelist ach<float> 获取指定分数的成绩列表\n"
+            ".scorelist <diff> 获取指定铺面难度的成绩列表\n"
+            ".scorelist <条件> [page] 获取指定页（每页 50 条）\n"
+            "eg.\n"
+            ".scorelist 12+\n"
+            ".scorelist 12.7\n"
+            ".scorelist ach1008000\n"
+            ".scorelist ach1008"
+            ".scorelist expert\n"
+            ".scorelist 12+ 2",
+            finish=True,
+        )
 
     raw_input = arg.result.extract_plain_text().strip()
     query_parts = raw_input.split()
 
     if not query_parts:
-        await UniMessage([At(flag="user", target=user_id), "命令格式错误，请检查后重新输入！"]).finish()
+        await _send_message(user_id, "命令格式错误，请检查后重新输入！", finish=True)
         return
 
     raw_query = query_parts[0]
     page = 1
     if len(query_parts) >= 2:
         if not query_parts[1].isdigit() or int(query_parts[1]) <= 0:
-            await UniMessage([At(flag="user", target=user_id), "页码必须是大于 0 的整数"]).finish()
+            await _send_message(user_id, "页码必须是大于 0 的整数", finish=True)
             return
         page = int(query_parts[1])
 
     if len(query_parts) > 2:
-        await UniMessage([At(flag="user", target=user_id), "命令格式错误，请检查后重新输入！"]).finish()
+        await _send_message(user_id, "命令格式错误，请检查后重新输入！", finish=True)
         return
 
     logger.info(f"[{user_id}] 查询指定条件的成绩列表, 查询内容: {raw_query}")
@@ -2898,7 +2729,7 @@ async def handle_chu_scorelist(
         diff = "WORLDS_END" if diff == "WORLDSEND" else diff
         title = f"铺面等级 {diff} 成绩列表"
     else:
-        await UniMessage([At(flag="user", target=user_id), "命令格式错误，请检查后重新输入！"]).finish()
+        await _send_message(user_id, "命令格式错误，请检查后重新输入！", finish=True)
         return
 
     logger.debug(f"[{user_id}] 1/4 获得用户鉴权凭证...")
@@ -2929,12 +2760,7 @@ async def handle_chu_scorelist(
                 filtered_scores.append(score)
 
     if not filtered_scores:
-        await UniMessage(
-            [
-                At(flag="user", target=user_id),
-                "呜呜，未找到符合条件的游玩记录喵",
-            ]
-        ).finish()
+        await _send_message(user_id, "呜呜，未找到符合条件的游玩记录喵", finish=True)
         return
 
     page_size = 50
@@ -2944,12 +2770,9 @@ async def handle_chu_scorelist(
     page_scores = filtered_scores[start:end]
 
     if not page_scores:
-        await UniMessage(
-            [
-                At(flag="user", target=user_id),
-                f"页码超出范围，当前共 {total_pages} 页，请输入 1~{total_pages} 之间的页码",
-            ]
-        ).finish()
+        await _send_message(
+            user_id, f"页码超出范围，当前共 {total_pages} 页，请输入 1~{total_pages} 之间的页码", finish=True
+        )
         return
 
     title = f"{title} - 第 {page}/{total_pages} 页"
@@ -2957,7 +2780,7 @@ async def handle_chu_scorelist(
     logger.debug(f"[{user_id}] 4/4 渲染玩家数据...")
     pic = await chu_renderer.render_chu_player_scores(page_scores, player_info, title)
 
-    await UniMessage([At(flag="user", target=user_id), UniImage(raw=pic)]).finish()
+    await _send_message(user_id, "", images=[pic], finish=True)
 
 
 # --- 店铺分布查询 handlers ---
@@ -2977,7 +2800,7 @@ async def handle_location_mai_list(
     locations = await get_mai_locations()
     result = "舞萌店铺一览:\n" + list_locations(locations, num=count)
 
-    await UniMessage([At(flag="user", target=user_id), result]).finish()
+    await _send_message(user_id, result, finish=True)
 
 
 @alconna_location_mai.assign("search")
@@ -2989,7 +2812,7 @@ async def handle_location_mai_search(
     user_id = event.get_user_id()
 
     if not name.available:
-        await UniMessage([At(flag="user", target=user_id), "请输入搜索关键词"]).finish()
+        await _send_message(user_id, "请输入搜索关键词", finish=True)
 
     keyword = name.result.extract_plain_text().strip()
     logger.info(f"[{user_id}] 搜索舞萌店铺, 关键词: {keyword}")
@@ -2997,21 +2820,25 @@ async def handle_location_mai_search(
     locations = await get_mai_locations()
     result = search_locations(locations, keyword=keyword)
 
-    await UniMessage([At(flag="user", target=user_id), result]).finish()
+    await _send_message(user_id, result, finish=True)
 
 
 @alconna_location_mai.assign("sync")
 async def handle_location_mai_reload(event: Event):
     user_id = event.get_user_id()
     if user_id not in get_driver().config.superusers:
-        await UniMessage("此命令仅限管理员使用！").finish()
+        await _send_message(event.get_user_id(), "此命令仅限管理员使用！", finish=True)
 
     diff = await location_sync("mai")
     if not diff or not diff.has_changes:
-        await UniMessage("更新完成，未检查到店铺更新").finish()
+        await _send_message(event.get_user_id(), "更新完成，未检查到店铺更新", finish=True)
         return
 
-    await UniMessage(f"更新成功，新增店铺 {len(diff.added)} 家，移除店铺 {len(diff.removed)} 家").finish()
+    await _send_message(
+        event.get_user_id(),
+        f"更新成功，新增店铺 {len(diff.added)} 家，移除店铺 {len(diff.removed)} 家",
+        finish=True,
+    )
 
 
 @alconna_location_mai.assign("$main")
@@ -3028,7 +2855,7 @@ async def handle_location_mai_main(event: Event):
         ".location-mai sync [管理员]重新同步店铺列表\n"
     )
 
-    await UniMessage([At(flag="user", target=user_id), help_text]).finish()
+    await _send_message(user_id, help_text, finish=True)
 
 
 # --- 店铺分布订阅 handlers ---
@@ -3043,26 +2870,26 @@ async def handle_location_mai_subscribe(
     keyword: Match[str] = AlconnaMatch("keyword"),
 ):
     if event_session.bot_type == "QQ":
-        await UniMessage("官Bot环境下不支持主动发送消息，因此无法使用订阅功能").finish()
+        await _send_message(event.get_user_id(), "官Bot环境下不支持主动发送消息，因此无法使用订阅功能", finish=True)
     elif not config.enable_subscribe_function:
-        await UniMessage("管理员关闭了该功能").finish()
+        await _send_message(event.get_user_id(), "管理员关闭了该功能", finish=True)
 
     user_id = event.get_user_id()
     group_id = event_session.get_id(SessionIdType.GROUP) if event_session.level != SessionLevel.LEVEL1 else None
 
     if not keyword.available:
-        await UniMessage([At(flag="user", target=user_id), "请输入订阅关键词"]).finish()
+        await _send_message(user_id, "请输入订阅关键词", finish=True)
 
     kw = keyword.result.strip()
     if not kw:
-        await UniMessage([At(flag="user", target=user_id), "关键词不能为空"]).finish()
+        await _send_message(user_id, "关键词不能为空", finish=True)
 
     logger.info(f"[{user_id}] 订阅舞萌店铺变动, 关键词: {kw}, 群组: {group_id}")
 
     await LocationSubscriptionORM.add_subscription(db_session, user_id, "mai", kw, group_id)
-    await UniMessage(
-        [At(flag="user", target=user_id), f"✅ 已订阅舞萌店铺变动提醒，关键词: {kw}（每次数据更新时检测新增/移除店铺）"]
-    ).finish()
+    await _send_message(
+        user_id, f"✅ 已订阅舞萌店铺变动提醒，关键词: {kw}（每次数据更新时检测新增/移除店铺）", finish=True
+    )
 
 
 @alconna_location_mai.assign("unsubscribe")
@@ -3078,9 +2905,9 @@ async def handle_location_mai_unsubscribe(
     success = await LocationSubscriptionORM.remove_subscription(db_session, user_id, "mai", kw)
     if success:
         msg = "已取消所有舞萌店铺变动订阅" if not kw else f'已取消关键词 "{kw}" 的舞萌店铺变动订阅'
-        await UniMessage([At(flag="user", target=user_id), msg]).finish()
+        await _send_message(user_id, msg, finish=True)
     else:
-        await UniMessage([At(flag="user", target=user_id), f'未找到关键词 "{kw}" 的舞萌店铺变动订阅']).finish()
+        await _send_message(user_id, f'未找到关键词 "{kw}" 的舞萌店铺变动订阅', finish=True)
 
 
 @alconna_location_mai.assign("subs")
@@ -3093,14 +2920,14 @@ async def handle_location_mai_subs(
 
     subs = await LocationSubscriptionORM.get_subscriptions_by_user(db_session, user_id, "mai")
     if not subs:
-        await UniMessage([At(flag="user", target=user_id), "当前没有订阅舞萌店铺变动提醒"]).finish()
+        await _send_message(user_id, "当前没有订阅舞萌店铺变动提醒", finish=True)
 
     lines = [f"舞萌店铺变动订阅列表（共 {len(subs)} 条）:"]
     for i, sub in enumerate(subs, 1):
         gid = f" (群组: {sub.group_id})" if sub.group_id else ""
         lines.append(f"  {i}. 关键词: {sub.keyword}{gid}")
 
-    await UniMessage([At(flag="user", target=user_id), "\n".join(lines)]).finish()
+    await _send_message(user_id, "\n".join(lines), finish=True)
 
 
 @alconna_location_chu.assign("list")
@@ -3117,7 +2944,7 @@ async def handle_location_chu_list(
     locations = await get_chu_locations()
     result = "中二店铺一览:\n" + list_locations(locations, num=count)
 
-    await UniMessage([At(flag="user", target=user_id), result]).finish()
+    await _send_message(user_id, result, finish=True)
 
 
 @alconna_location_chu.assign("search")
@@ -3129,7 +2956,7 @@ async def handle_location_chu_search(
     user_id = event.get_user_id()
 
     if not name.available:
-        await UniMessage([At(flag="user", target=user_id), "请输入搜索关键词"]).finish()
+        await _send_message(user_id, "请输入搜索关键词", finish=True)
 
     keyword = name.result.extract_plain_text().strip()
     logger.info(f"[{user_id}] 搜索中二店铺, 关键词: {keyword}")
@@ -3137,7 +2964,7 @@ async def handle_location_chu_search(
     locations = await get_chu_locations()
     result = search_locations(locations, keyword=keyword)
 
-    await UniMessage([At(flag="user", target=user_id), result]).finish()
+    await _send_message(user_id, result, finish=True)
 
 
 @alconna_location_chu.assign("subscribe")
@@ -3149,24 +2976,24 @@ async def handle_location_chu_subscribe(
     keyword: Match[str] = AlconnaMatch("keyword"),
 ):
     if event_session.bot_type == "QQ":
-        await UniMessage("官Bot环境下不支持主动发送消息，因此无法使用订阅功能").finish()
+        await _send_message(event.get_user_id(), "官Bot环境下不支持主动发送消息，因此无法使用订阅功能", finish=True)
     elif not config.enable_subscribe_function:
-        await UniMessage("管理员关闭了该功能").finish()
+        await _send_message(event.get_user_id(), "管理员关闭了该功能", finish=True)
 
     user_id = event.get_user_id()
     group_id = event_session.get_id(SessionIdType.GROUP) if event_session.level != SessionLevel.LEVEL1 else None
 
     if not keyword.available:
-        await UniMessage([At(flag="user", target=user_id), "请输入订阅关键词"]).finish()
+        await _send_message(user_id, "请输入订阅关键词", finish=True)
 
     kw = keyword.result.strip()
     if not kw:
-        await UniMessage([At(flag="user", target=user_id), "关键词不能为空"]).finish()
+        await _send_message(user_id, "关键词不能为空", finish=True)
 
     logger.info(f"[{user_id}] 订阅中二店铺变动, 关键词: {kw}, 群组: {group_id}")
 
     await LocationSubscriptionORM.add_subscription(db_session, user_id, "chu", kw, group_id)
-    await UniMessage([At(flag="user", target=user_id), "已订阅中二店铺变动提醒"]).finish()
+    await _send_message(user_id, "已订阅中二店铺变动提醒", finish=True)
 
 
 @alconna_location_chu.assign("unsubscribe")
@@ -3181,9 +3008,9 @@ async def handle_location_chu_unsubscribe(
     success = await LocationSubscriptionORM.remove_subscription(db_session, user_id, "chu", kw)
     if success:
         msg = "已取消所有中二店铺变动订阅" if not kw else f'已取消关键词 "{kw}" 的中二店铺变动订阅'
-        await UniMessage([At(flag="user", target=user_id), msg]).finish()
+        await _send_message(user_id, msg, finish=True)
     else:
-        await UniMessage([At(flag="user", target=user_id), f'未找到关键词 "{kw}" 的中二店铺变动订阅']).finish()
+        await _send_message(user_id, f'未找到关键词 "{kw}" 的中二店铺变动订阅', finish=True)
 
 
 @alconna_location_chu.assign("subs")
@@ -3196,28 +3023,32 @@ async def handle_location_chu_subs(
 
     subs = await LocationSubscriptionORM.get_subscriptions_by_user(db_session, user_id, "chu")
     if not subs:
-        await UniMessage([At(flag="user", target=user_id), "当前没有订阅中二店铺变动提醒"]).finish()
+        await _send_message(user_id, "当前没有订阅中二店铺变动提醒", finish=True)
 
     lines = [f"中二店铺变动订阅列表（共 {len(subs)} 条）:"]
     for i, sub in enumerate(subs, 1):
         gid = f" (群组: {sub.group_id})" if sub.group_id else ""
         lines.append(f"  {i}. 关键词: {sub.keyword}{gid}")
 
-    await UniMessage([At(flag="user", target=user_id), "\n".join(lines)]).finish()
+    await _send_message(user_id, "\n".join(lines), finish=True)
 
 
 @alconna_location_chu.assign("sync")
 async def handle_location_chu_reload(event: Event):
     user_id = event.get_user_id()
     if user_id not in get_driver().config.superusers:
-        await UniMessage("此命令仅限管理员使用！").finish()
+        await _send_message(event.get_user_id(), "此命令仅限管理员使用！", finish=True)
 
     diff = await location_sync("chu")
     if not diff or not diff.has_changes:
-        await UniMessage("更新完成，未检查到店铺更新").finish()
+        await _send_message(event.get_user_id(), "更新完成，未检查到店铺更新", finish=True)
         return
 
-    await UniMessage(f"更新成功，新增店铺 {len(diff.added)} 家，移除店铺 {len(diff.removed)} 家").finish()
+    await _send_message(
+        event.get_user_id(),
+        f"更新成功，新增店铺 {len(diff.added)} 家，移除店铺 {len(diff.removed)} 家",
+        finish=True,
+    )
 
 
 @alconna_location_chu.assign("$main")
@@ -3234,4 +3065,4 @@ async def handle_location_chu_main(event: Event):
         ".location-chu sync [管理员]重新同步店铺列表\n"
     )
 
-    await UniMessage([At(flag="user", target=user_id), help_text]).finish()
+    await _send_message(user_id, help_text, finish=True)
