@@ -11,11 +11,7 @@
   <a href="https://qm.qq.com/q/y1gC9PU4IU"><img src="https://img.shields.io/badge/QQ群-Nightcord-purple" alt="QQ Group"></a>
 </div>
 
-## 介绍✨
-
 基于 [Nonebot2](https://nonebot.dev/) 的舞萌DX / 中二节奏查分插件
-
-看板娘: [Rikka](https://bot.snowy.moe/about/Rikka)
 
 ## 功能🪄
 
