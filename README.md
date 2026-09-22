@@ -1,8 +1,7 @@
 <div align=center>
-  <img width=200 src="./assets/RikkaLogo.webp"  alt="image"/>
-  <h1 align="center">Nonebot-Plugin-Rikka</h1>
-  <p align="center">一个简单的 NoneBot2 舞萌DX / 中二节奏查询成绩插件</p>
+  <img width="100%" src="./assets/banner.webp"  alt="Nonebot-Plugin-Rikka banner"/>
 </div>
+
 <div align=center>
   <a href="#关于️"><img src="https://img.shields.io/github/stars/Moemu/Nonebot-Plugin-Rikka" alt="Stars"></a>
   <a href="https://pypi.org/project/Nonebot-Plugin-Rikka/"><img src="https://img.shields.io/pypi/v/Nonebot-Plugin-Rikka" alt="PyPI Version"></a>
@@ -10,14 +9,7 @@
   <a href="https://nonebot.dev/"><img src="https://img.shields.io/badge/nonebot-2-red" alt="nonebot2"></a>
   <a href="#"><img src="https://img.shields.io/badge/Code%20Style-Black-121110.svg" alt="codestyle"></a>
   <a href="https://qm.qq.com/q/y1gC9PU4IU"><img src="https://img.shields.io/badge/QQ群-Nightcord-purple" alt="QQ Group"></a>
-
 </div>
-
-> [!WARNING]
->
-> 由于 Bot 服务到期且没有续期计划，因此在 QQ 运营的 Bot 服务(@六花Bot)将暂停服务，预计恢复时间九月初。在这期间考虑使用其他 Bot 服务或自行构建。
->
-> 我们仍在排查 Rikka 插件的登出逻辑失效问题，在这期间若使用该插件进行成绩导入的操作，在接下来的 20 分钟内该账号将不能再次登入。
 
 ## 介绍✨
 
