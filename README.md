@@ -1,5 +1,8 @@
 <div align=center>
-  <img width="100%" src="./assets/banner.webp"  alt="Nonebot-Plugin-Rikka banner"/>
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="https://erika.snowy.moe/v1/banner/Moemu/Nonebot-Plugin-Rikka.webp?fresh=1&amp;iconPath=assets%2Fgrokbot-icon-transparent.png&amp;theme=dark&amp;meta=full_name%2Cstars%2Cforks%2Cissues%2Crelease%2Clast_updated" />
+    <img width="100%" src="https://erika.snowy.moe/v1/banner/Moemu/Nonebot-Plugin-Rikka.webp?fresh=1&amp;iconPath=assets%2Fgrokbot-icon-transparent.png&amp;theme=light&amp;meta=full_name%2Cstars%2Cforks%2Cissues%2Crelease%2Clast_updated" alt="Nonebot-Plugin-Rikka Banner" />
+  </picture>
 </div>
 
 <div align=center>
