@@ -157,9 +157,7 @@
 
 本项目的渲染逻辑 ([painters](./nonebot_plugin_rikka/painters/)) 和资源修改或引用自 [Yuri-YuzuChaN/maimaiDX](https://github.com/Yuri-YuzuChaN/maimaiDX)，感谢上游项目的代码实现和游戏资源整理
 
-本项目的分数查询功能基于 [TrueRou/maimai.py](https://github.com/TrueRou/maimai.py) 提供的框架进行开发。
-
-本项目同样是 [MuikaAI](https://github.com/MuikaAI) 的一部分
+本项目的分数查询功能基于 [TrueRou/maimai.py](https://github.com/TrueRou/maimai.py) 提供的框架进行开发，部分机台通信功能参考了某个w开头的我不知道能不能说但是它是开源的如果需要可以私下来找我更新的神秘项目。
 
 <a href="https://www.afdian.com/a/Moemu" target="_blank"><img src="https://pic1.afdiancdn.com/static/img/welcome/button-sponsorme.png" alt="afadian" style="height: 45px !important;width: 163px !important;"></a>
 
