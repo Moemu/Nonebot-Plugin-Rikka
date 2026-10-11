@@ -153,7 +153,7 @@
 
 本项目的产生离不开下列开发者的支持，感谢你们的贡献：
 
-![[Rikka 的贡献者们](https://github.com/eryajf/Moemu/Nonebot-Plugin-Rikka/contributors)](https://contrib.rocks/image?repo=Moemu/Nonebot-Plugin-Rikka)
+![[Rikka 的贡献者们](https://github.com/Moemu/Nonebot-Plugin-Rikka/contributors)](https://contrib.rocks/image?repo=Moemu/Nonebot-Plugin-Rikka)
 
 本项目的渲染逻辑 ([painters](./nonebot_plugin_rikka/painters/)) 和资源修改或引用自 [Yuri-YuzuChaN/maimaiDX](https://github.com/Yuri-YuzuChaN/maimaiDX)，感谢上游项目的代码实现和游戏资源整理
 
