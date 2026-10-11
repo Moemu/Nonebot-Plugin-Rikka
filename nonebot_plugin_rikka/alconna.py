@@ -48,7 +48,9 @@ from .database import (
 )
 from .database.crud import ChuSongORM
 from .extra_proxy import (
+    download_update_packages,
     get_maistatus,
+    get_update_event,
     run_extend_score_workflow,
     run_extend_ticket_workflow,
     run_extent_force_logout,
@@ -562,6 +564,23 @@ alconna_maistatus = on_alconna(
     rule=to_me(),
 )
 
+alconna_netupdate = on_alconna(
+    Alconna(
+        COMMAND_PREFIXES,
+        "netupdate",
+        Args["title_ver?", str],
+        Subcommand("download", help_text=".netupdate download [版本] 下载全部机台更新包（管理员）"),
+        meta=CommandMeta(
+            "[舞萌DX]查询机台更新事件（ALL.Net 配信指示書）",
+            usage=".netupdate [版本]",
+        ),
+    ),
+    aliases={"机台更新", "更新包"},
+    priority=10,
+    block=True,
+    rule=to_me(),
+)
+
 alconna_rikka = on_alconna(
     Alconna(
         COMMAND_PREFIXES,
@@ -840,6 +859,8 @@ async def handle_help(event: Event):
         f".成分分析 根据 B100 获取玩家成分分析 {'(当前不可用)' if not SONG_TAGS_DATA_AVAILABLE else ''}\n"
         ".今日舞萌 获取今日出勤运势\n"
         ".舞萌状态 检测服务器状态\n"
+        ".netupdate [版本] 查询机台更新事件（更新包清单）\n"
+        ".netupdate download [版本] 下载全部机台更新包（管理员）\n"
         f".推分推荐 生成随机推分曲目 {'(当前不可用)' if not SONG_TAGS_DATA_AVAILABLE else ''}\n"
         f".import [divingfish] <qr_code> 导入游玩次数或同步到水鱼 {'当前不可用' if not config.enable_arcade_provider else ''}\n"
         f"{'.ticket <qr_code> 发送六倍票' if not config.enable_arcade_write else ''}\n"
@@ -2421,6 +2442,46 @@ async def handle_maistatus(event: Event):
         return
 
     await _send_message(user_id, render_time_message, images=[png], finish=True)
+
+
+@alconna_netupdate.assign("$main")
+@catch_exception(reply_prefix="查询机台更新事件失败")
+async def handle_netupdate(
+    event: Event,
+    title_ver: Match[str] = AlconnaMatch("title_ver"),
+):
+    user_id = event.get_user_id()
+    version = title_ver.result.strip() if title_ver.available else None
+
+    logger.debug(f"[{user_id}] 正在查询机台更新事件（title_ver={version or '默认'}）")
+    await _send_message(user_id, "正在查询机台更新事件，请稍候...")
+
+    update_text = await get_update_event(title_ver=version)
+
+    logger.debug(f"[{user_id}] 机台更新事件查询完成")
+    await _send_message(user_id, update_text, finish=True)
+
+
+@alconna_netupdate.assign("download")
+@catch_exception(reply_prefix="下载机台更新包失败")
+async def handle_netupdate_download(
+    event: Event,
+    title_ver: Match[str] = AlconnaMatch("title_ver"),
+):
+    user_id = event.get_user_id()
+
+    if user_id not in get_driver().config.superusers:
+        await _send_message(user_id, "下载机台更新包需要管理员权限哦", finish=True)
+
+    version = title_ver.result.strip() if title_ver.available else None
+
+    logger.info(f"[{user_id}] 开始下载机台更新包（title_ver={version or '默认'}）")
+    await _send_message(user_id, "正在查询并下载机台更新包，耗时较长，请耐心等待...")
+
+    download_text = await download_update_packages(title_ver=version)
+
+    logger.info(f"[{user_id}] 机台更新包下载结束")
+    await _send_message(user_id, download_text, finish=True)
 
 
 @alconna_rikka.handle()

@@ -6,7 +6,7 @@ import re
 import sys
 from dataclasses import asdict, is_dataclass
 from pathlib import Path
-from typing import Any, Callable, Mapping, Optional
+from typing import Any, Callable, Mapping, Optional, Sequence
 
 from nonebot import logger
 
@@ -110,6 +110,106 @@ async def get_maistatus(
     )
     data = _status_obj_to_dict(status)
     return format_allnet_server_status(data)
+
+
+_PACKAGE_KIND_TEXT = {
+    "app": "本体/补丁",
+    "opt": "选项包",
+    "pack": "资源包",
+}
+
+
+def _fmt_size(value: Any) -> str:
+    """复用 extra 包里的字节格式化，保证两边显示一致。"""
+    human_size = _load_extra_attr("netdelivery", "human_size")
+    return human_size(value)
+
+
+async def get_update_event(
+    *,
+    title_ver: Optional[str] = None,
+    timeout_seconds: float = 20.0,
+) -> str:
+    """Proxy to nonebot_plugin_rikka_extra.netdelivery.get_download_event.
+
+    Returns a human-readable text summary, so callers don't need to care about
+    extra package's dict shapes.
+    """
+
+    fetch = _load_extra_attr("netdelivery", "get_download_event")
+    version_kwargs = {"title_ver": title_ver} if title_ver else {}
+    event = await fetch(timeout_seconds=timeout_seconds, **version_kwargs)
+    return format_update_event(event)
+
+
+async def download_update_packages(
+    *,
+    title_ver: Optional[str] = None,
+    timeout_seconds: float = 20.0,
+) -> str:
+    """Proxy to nonebot_plugin_rikka_extra.netdelivery.download_updates.
+
+    Returns a human-readable text summary of every package's download result.
+    """
+
+    download = _load_extra_attr("netdelivery", "download_updates")
+    version_kwargs = {"title_ver": title_ver} if title_ver else {}
+    results = await download(timeout_seconds=timeout_seconds, **version_kwargs)
+    return format_update_download(results)
+
+
+def format_update_event(event: Mapping[str, Any]) -> str:
+    """Format an update event dict into a human-readable summary."""
+
+    meta = event.get("meta") or {}
+    items = list(event.get("items") or [])
+
+    lines = [f"舞萌DX 机台更新检测（{meta.get('title_ver', '?')}）"]
+
+    for entry in meta.get("instructions") or []:
+        name = entry.get("name") or entry.get("url", "?")
+        if entry.get("status") != 200:
+            lines.append(f"- 配信指示書 {name} 获取失败：{entry.get('error', '未知错误')}")
+            continue
+        common = entry.get("common") or {}
+        release = common.get("RELEASE_TIME")
+        desc = common.get("GAME_DESC") or "?"
+        lines.append(f"- 配信指示書 {name}：{desc}" + (f"（配信时间 {release}）" if release else ""))
+
+    if not items:
+        lines.append("没有需要下载的更新包（本体与选项包均已是最新）。")
+        return "\n".join(lines)
+
+    lines.append(f"共 {len(items)} 个更新包，可用 `.netupdate download` 下载全部：")
+    for item in items:
+        size = item.get("size")
+        size_text = _fmt_size(size) if size is not None else (item.get("note") or "大小未知")
+        kind_text = _PACKAGE_KIND_TEXT.get(item.get("kind", "?"), "其他包")
+        lines.append(f"  [{item.get('idx')}] {kind_text}｜{size_text}｜{item.get('name', '?')}")
+
+    return "\n".join(lines)
+
+
+def format_update_download(results: Sequence[Mapping[str, Any]]) -> str:
+    """Format per-package download results into a human-readable summary."""
+
+    if not results:
+        return "没有需要下载的更新包（本体与选项包均已是最新）。"
+
+    succeeded = [item for item in results if item.get("ok")]
+    lines = [f"更新包下载完成：成功 {len(succeeded)} 个，失败 {len(results) - len(succeeded)} 个"]
+
+    directories = {str(Path(str(item["path"])).parent) for item in results if item.get("path")}
+    if len(directories) == 1:
+        lines.append(f"保存目录：{directories.pop()}")
+
+    for item in results:
+        if item.get("ok"):
+            lines.append(f"- ✅ {item.get('name', '?')}（{_fmt_size(item.get('size'))}）")
+        else:
+            lines.append(f"- ❌ {item.get('name', '?')}：{item.get('error', '未知错误')}")
+
+    return "\n".join(lines)
 
 
 async def _check_allnet_server_status_obj(
