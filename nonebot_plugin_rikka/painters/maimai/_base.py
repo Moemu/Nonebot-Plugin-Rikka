@@ -328,7 +328,9 @@ class ScoreBaseImage:
             self._tb.draw(x + 26, y + 98, 13, info.song_id, self.id_color[info.song_difficulty.value], anchor="mm")
             # Song title
             title = info.song_name
-            if coloum_width(title) > 12:
+            if coloum_width(title) > 18 and not info.play_count:
+                title = change_column_width(title, 18) + "..."
+            elif coloum_width(title) > 12:
                 title = change_column_width(title, 12) + "..."
             self._sy.draw(x + 93, y + 14, 14, title, self.t_color[info.song_difficulty.value], anchor="lm")
             # Play Count
