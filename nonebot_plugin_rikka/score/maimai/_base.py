@@ -49,7 +49,7 @@ class BaseScoreProvider(ABC, Generic[P]):
                 raise RuntimeError("请求过于频繁(429): 请稍后重试") from e
             raise
 
-    async def _post_resp(self, endpoint: str, params: dict, auth_token: Optional[str] = None) -> Any:
+    async def _post_resp(self, endpoint: str, params: Optional[Any] = None, auth_token: Optional[str] = None) -> Any:
         """发起 POST 请求，自动拼接 URL 并附带鉴权。"""
         session = await self._get_session()
         headers = self._build_headers(auth_token)

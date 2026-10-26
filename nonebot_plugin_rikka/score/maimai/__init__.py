@@ -12,7 +12,7 @@ from nonebot import get_driver
 
 from ._base import BaseScoreProvider
 from ._schema import PlayerMaiB50, PlayerMaiInfo, PlayerMaiScore
-from .providers.diving_fish import DivingFishScoreProvider
+from .providers.diving_fish import DivingFishParams, DivingFishScoreProvider
 from .providers.lxns import LXNSScoreProvider
 from .providers.maimai import MaimaiPyScoreProvider
 
@@ -57,7 +57,7 @@ async def auto_get_score_provider(user_id: str) -> LXNSScoreProvider | DivingFis
     session = get_scoped_session()
     bind_info = await UserBindInfoORM.get_user_bind_info(session, user_id)
 
-    if bind_info and not bind_info.lxns_api_key and bind_info.diving_fish_import_token:
+    if bind_info and not bind_info.lxns_api_key and bind_info.diving_fish_oauth:
         return _divingfish_provider
 
     return _lxns_provider
@@ -76,6 +76,7 @@ async def _close_score_providers():
 __all__ = [
     "BaseScoreProvider",
     "LXNSScoreProvider",
+    "DivingFishParams",
     "DivingFishScoreProvider",
     "MaimaiPyScoreProvider",
     "get_lxns_provider",

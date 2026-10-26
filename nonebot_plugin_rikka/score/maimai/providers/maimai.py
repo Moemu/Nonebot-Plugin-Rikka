@@ -44,7 +44,9 @@ _SUPPORT_PROVIDER: TypeAlias = DivingFishProvider | LXNSProvider | ArcadeProvide
 S = TypeVar("S", bound=list[PlayerMaiScore] | PlayerMaiB50)
 
 maimai_client = MaimaiClient()
-_divingfish_provider = DivingFishProvider(developer_token=config.divingfish_developer_api_key)
+_divingfish_provider = DivingFishProvider(
+    client_id=config.divingfish_client_id, client_secret=config.divingfish_client_secret
+)
 _lxns_provider = LXNSProvider(developer_token=config.lxns_developer_api_key)
 _arcade_provider = ArcadeProvider(http_proxy=config.arcade_provider_http_proxy)
 
@@ -142,7 +144,7 @@ class MaimaiPyScoreProvider(BaseScoreProvider[MaimaiPyParams]):
             return _lxns_provider
 
         if bind_info.default_provider is None:
-            if bind_info.diving_fish_import_token:
+            if bind_info.diving_fish_oauth:
                 return _divingfish_provider
             else:
                 return _lxns_provider
@@ -227,13 +229,9 @@ class MaimaiPyScoreProvider(BaseScoreProvider[MaimaiPyParams]):
         # 水鱼查分器
         # elif isinstance(score_provider, DivingFishScoreProvider):
         else:
-            # When score_provider is DivingFish, user_bind_info and diving_fish_username is not None.
+            # TODO: 并不知道 Maimai.py 的内部 OAuth 机制，玩家鉴权可能存在问题
             user_bind_info = cast(UserBindInfo, user_bind_info)
-            diving_fish_username = user_bind_info.diving_fish_username
-            assert diving_fish_username
-            identifier = PlayerIdentifier(
-                username=diving_fish_username, credentials=user_bind_info.diving_fish_import_token
-            )
+            identifier = PlayerIdentifier(qq=int(user_id), ref=user_id)
 
         return identifier
 

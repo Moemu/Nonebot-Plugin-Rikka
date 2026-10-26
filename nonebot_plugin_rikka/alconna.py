@@ -57,7 +57,6 @@ from .extra_proxy import (
     run_unlock_workflow,
 )
 from .functions.analysis import get_player_strength
-from .functions.diving_fish import convert_to_diving_fish_format, upload_to_diving_fish
 from .functions.fortunate import generate_today_fortune
 from .functions.location import (
     get_chu_locations,
@@ -95,6 +94,7 @@ from .score.chunithm import (
 )
 from .score.chunithm.providers.lxns import LXNSChuParams
 from .score.maimai import (
+    DivingFishParams,
     DivingFishScoreProvider,
     LXNSScoreProvider,
     MaimaiPyScoreProvider,
@@ -350,9 +350,7 @@ alconna_bind = on_alconna(
         "bind",
         Subcommand("help"),
         Subcommand("lxns", Args["token", str], help_text=".bind lxns <落雪咖啡屋的个人 API 密钥> 绑定落雪咖啡屋查分器"),
-        Subcommand(
-            "divingfish", Args["token", str], help_text=".bind divingfish <水鱼查分器的成绩导入密钥> 绑定水鱼查分器"
-        ),
+        Subcommand("divingfish", help_text=".bind divingfish 绑定水鱼查分器"),
         meta=CommandMeta("[查分器相关]绑定游戏账号/查分器"),
     ),
     priority=10,
@@ -937,30 +935,18 @@ async def handle_bind_lxns(
 
 @alconna_bind.assign("divingfish")
 async def handle_bind_divingfish(
-    event: Event,
     db_session: async_scoped_session,
-    score_provider: DivingFishScoreProvider = Depends(get_divingfish_provider),
-    token: Match[str] = AlconnaMatch("token"),
+    event: Event,
+    divingfish_provider: DivingFishScoreProvider = Depends(get_divingfish_provider),
 ):
     user_id = event.get_user_id()
 
-    if not token.available:
-        await _send_message(user_id, "请输入有效的水鱼查分器成绩导入密钥", finish=True)
-        return
+    await divingfish_provider.start_binding(user_id)
+    player_info = await divingfish_provider.fetch_player_info(DivingFishParams(user_id))
 
-    import_token = token.result
+    await UserBindInfoORM.set_diving_fish_as_binded(db_session, user_id)
 
-    logger.debug("尝试验证玩家 API 密钥是否正确")
-    try:
-        player_info = await score_provider.fetch_player_records_by_import_token(import_token)
-    except ClientResponseError as e:
-        logger.warning(f"玩家提供的 import_token 可能有误: {e.message}")
-        await _send_message(user_id, "请输入有效的水鱼查分器成绩导入密钥", finish=True)
-        return
-
-    await UserBindInfoORM.set_diving_fish_import_token(db_session, user_id, import_token, player_info["username"])
-
-    await _send_message(user_id, f"已绑定至水鱼账号: {player_info['username']} ⭐", finish=True)
+    await _send_message(user_id, f"已绑定至水鱼账号: {player_info.name}", finish=True)
 
 
 @alconna_bind.assign("help")
@@ -970,7 +956,7 @@ async def handle_bind_help(event: Event):
     help_text = (
         "查分器绑定帮助:\n"
         ".bind lxns <落雪咖啡屋的个人 API 密钥> 绑定落雪咖啡屋查分器\n"
-        ".bind divingfish <水鱼查分器的成绩导入密钥> 绑定水鱼查分器\n"
+        ".bind divingfish 绑定水鱼查分器\n"
     )
 
     await _send_message(user_id, help_text, finish=True)
@@ -986,7 +972,7 @@ async def handle_bind_main(event: Event, db_session: async_scoped_session):
     if user_bind_info:
         if user_bind_info.lxns_api_key and user_bind_info.mai_friend_code:
             lxns_binded = True
-        if user_bind_info.diving_fish_import_token:
+        if user_bind_info.diving_fish_oauth:
             divingfish_binded = True
         if user_bind_info.default_provider:
             default_source = "落雪" if user_bind_info.default_provider == "lxns" else "水鱼"
@@ -1051,7 +1037,10 @@ async def handle_import_play_count(
 @alconna_import.assign("divingfish")
 @catch_exception("更新水鱼查分器失败")
 async def handle_import_divingfish(
-    event: Event, db_session: async_scoped_session, qr_code: Match[str] = AlconnaMatch("qr_code")
+    event: Event,
+    db_session: async_scoped_session,
+    qr_code: Match[str] = AlconnaMatch("qr_code"),
+    divingfish_provider: DivingFishScoreProvider = Depends(get_divingfish_provider),
 ):
     user_id = event.get_user_id()
 
@@ -1063,23 +1052,21 @@ async def handle_import_divingfish(
         await _send_message(user_id, "请提供二维码内容: .import <qr_code>", finish=True)
         return
 
-    # 检查是否绑定了水鱼 Token
+    # 检查是否绑定了水鱼
     bind_info = await UserBindInfoORM.get_user_bind_info(db_session, user_id)
-    if not bind_info or not bind_info.diving_fish_import_token:
-        await _send_message(
-            user_id, "未绑定水鱼查分器导入 Token，请使用 .bind divingfish <Token> 命令绑定", finish=True
-        )
-        return  # 防止 mypy 报错 bind_info 可能为 None 的情况
+    if not bind_info or bind_info.diving_fish_oauth:
+        await _send_message(user_id, "未绑定水鱼查分器，请使用 `.bind divingfish` 进行绑定", finish=True)
+        return
 
-    import_token = bind_info.diving_fish_import_token
+    identifier = DivingFishParams(user_id=event.get_user_id())
 
     workflow_result = await run_extend_score_workflow(qr_code.result)
     if not workflow_result:
         await _send_message(user_id, "未获取到可用的游玩次数数据", finish=True)
         return
 
-    divingfish_scores = await convert_to_diving_fish_format(workflow_result)
-    await upload_to_diving_fish(import_token, divingfish_scores)
+    divingfish_scores = await divingfish_provider.convert_to_diving_fish_format(workflow_result)
+    await divingfish_provider.upload_to_diving_fish(identifier, divingfish_scores)
 
     # 同时更新本地游玩次数数据库
     records: list[tuple[int, int, int]] = []
@@ -1165,6 +1152,7 @@ async def handle_import_all(
     event: Event,
     db_session: async_scoped_session,
     qr_code: Match[str] = AlconnaMatch("qr_code"),
+    divingfish_provider: DivingFishScoreProvider = Depends(get_divingfish_provider),
 ):
     user_id = event.get_user_id()
 
@@ -1178,11 +1166,11 @@ async def handle_import_all(
 
     # 检查是否绑定了落雪查分器和水鱼查分器
     bind_info = await UserBindInfoORM.get_user_bind_info(db_session, user_id)
-    if not bind_info or not bind_info.lxns_api_key or not bind_info.diving_fish_import_token:
-        await _send_message(user_id, "未同时绑定落雪和水鱼查分器，请使用 .bind 命令绑定", finish=True)
+    if not bind_info or not bind_info.lxns_api_key or not bind_info.diving_fish_oauth:
+        await _send_message(user_id, "未同时绑定落雪查分器，请使用 .bind 命令绑定", finish=True)
         return
-    divingfish_import_token = bind_info.diving_fish_import_token
     lxns_user_token = bind_info.lxns_api_key
+    divingfish_param = DivingFishParams(user_id=user_id)
 
     all_scores = await run_extend_score_workflow(qr_code.result)
     if not all_scores:
@@ -1192,8 +1180,8 @@ async def handle_import_all(
 
     # divingfish
     logger.debug("更新水鱼查分器...")
-    divingfish_scores = await convert_to_diving_fish_format(all_scores)
-    await upload_to_diving_fish(divingfish_import_token, divingfish_scores)
+    divingfish_scores = await divingfish_provider.convert_to_diving_fish_format(all_scores)
+    await divingfish_provider.upload_to_diving_fish(divingfish_param, divingfish_scores)
 
     # lxns
     logger.debug("更新落雪查分器...")

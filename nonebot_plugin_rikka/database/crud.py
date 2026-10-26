@@ -79,21 +79,17 @@ class UserBindInfoORM:
         await session.commit()
 
     @staticmethod
-    async def set_diving_fish_import_token(
-        session: async_scoped_session, user_id: str, import_token: str, diving_fish_username: str
-    ) -> None:
-        """设置用户的水鱼查分器导入密钥"""
+    async def set_diving_fish_as_binded(session: async_scoped_session, user_id: str):
+        """
+        将水鱼查分器设置为已绑定
+        """
         bind_info = await UserBindInfoORM.get_user_bind_info(session, user_id)
         if bind_info:
             await session.execute(
-                update(UserBindInfo)
-                .where(UserBindInfo.user_id == user_id)
-                .values(diving_fish_import_token=import_token, diving_fish_username=diving_fish_username)
+                update(UserBindInfo).where(UserBindInfo.user_id == user_id).values(diving_fish_oauth=True)
             )
         else:
-            new_bind_info = UserBindInfo(
-                user_id=user_id, diving_fish_import_token=import_token, diving_fish_username=diving_fish_username
-            )
+            new_bind_info = UserBindInfo(user_id=user_id, diving_fish_oauth=True)
             session.add(new_bind_info)
         await session.commit()
 
@@ -128,8 +124,8 @@ class UserBindInfoORM:
             raise ValueError("用户未绑定任何查分器账号，无法设置默认查分器")
         elif provider == "lxns" and not bind_info.lxns_api_key:
             raise ValueError("用户未设置落雪咖啡屋 API 密钥，无法设置为默认查分器")
-        elif provider == "divingfish" and not bind_info.diving_fish_import_token:
-            raise ValueError("用户未设置水鱼查分器导入密钥，无法设置为默认查分器")
+        elif provider == "divingfish" and not bind_info.diving_fish_oauth:
+            raise ValueError("用户未绑定水鱼查分器，无法设置为默认查分器")
         await session.execute(
             update(UserBindInfo).where(UserBindInfo.user_id == user_id).values(default_provider=provider)
         )
@@ -156,7 +152,7 @@ class UserBindInfoORM:
             await session.execute(
                 update(UserBindInfo)
                 .where(UserBindInfo.user_id == user_id)
-                .values(diving_fish_import_token=None, diving_fish_username=None)
+                .values(diving_fish_import_token=None, diving_fish_username=None, diving_fish_oauth=False)
             )
         elif provider == "maimai":
             await session.execute(

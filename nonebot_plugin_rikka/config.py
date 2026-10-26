@@ -17,6 +17,10 @@ class Config(BaseModel):
     """落雪咖啡屋开发者密钥"""
     divingfish_developer_api_key: Optional[str] = None
     """水鱼查分器开发者密钥"""
+    divingfish_client_id: Optional[str] = None
+    """水鱼查分器 Client ID"""
+    divingfish_client_secret: Optional[str] = None
+    """水鱼查分器 Client Secret"""
 
     enable_arcade_provider: bool = False
     """启用 Maimai.py 的机台源查询"""
