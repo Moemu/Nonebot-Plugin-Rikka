@@ -266,6 +266,7 @@ class ScoreBaseImage:
         """
         dy = 114
         y = height
+        x = 16
 
         for num, info in enumerate(data):
             if num % 5 == 0:
