@@ -3,9 +3,11 @@ from typing import Any, Dict, List, Optional
 
 import httpx
 from nonebot_plugin_alconna import UniMessage
+from nonebot_plugin_orm import get_scoped_session
 from typing_extensions import TypedDict
 
 from ..database import MaiSongORM
+from ..updater.songs import update_maimai_song_database
 
 logger = logging.getLogger("sdgb_workflow")
 
@@ -79,6 +81,7 @@ async def convert_to_diving_fish_format(
     """将 UserMusicDetail 列表转换为水鱼查分器格式"""
     df_list = []
     send_warning_message = False
+    updated = False
     for score in scores:
         music_id = score["musicId"]
 
@@ -87,6 +90,15 @@ async def convert_to_diving_fish_format(
             continue
 
         title = _get_song_title(music_id)
+
+        if not title and not updated:
+            db_session = get_scoped_session()
+            logger.debug("发现未跟踪的曲目，自动进行同步中...")
+            count = await update_maimai_song_database(db_session)
+            logger.info(f"自动更新了 {count} 条曲目")
+            updated = True
+            title = _get_song_title(music_id)
+
         if not title:
             logger.warning(f"未知曲目 ID: {music_id}, 已跳过")
             if not send_warning_message:
