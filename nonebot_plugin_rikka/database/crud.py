@@ -20,9 +20,14 @@ from ..models.song import (
     SongNotes,
 )
 from .orm_models import ChuSong as ChuSongORMModel
-from .orm_models import ChuSongAlias, LocationSubscription, MaiPlayCount
+from .orm_models import (
+    ChuSongAlias,
+    LocationSubscription,
+    MaiPlayCount,
+    MaiSongAlias,
+    UserBindInfo,
+)
 from .orm_models import MaiSong as MaiSongORMModel
-from .orm_models import MaiSongAlias, UserBindInfo
 
 if TYPE_CHECKING:
     from ..updater.songs import MusicAliasResponseItem
