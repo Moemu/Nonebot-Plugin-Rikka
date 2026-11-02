@@ -18,8 +18,7 @@ init_logger()
 from nonebot import get_driver  # noqa: E402
 from nonebot_plugin_orm import get_scoped_session  # noqa: E402
 
-from . import alconna  # noqa: E402, F401
-from . import database  # noqa: E402, F401
+from . import alconna, database  # noqa: E402, F401
 from .database import ChuSongORM, MaiSongORM  # noqa: E402
 
 

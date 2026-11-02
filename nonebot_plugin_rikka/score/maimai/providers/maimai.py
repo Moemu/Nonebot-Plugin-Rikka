@@ -18,9 +18,9 @@ from maimai_py import (
     Player,
     PlayerIdentifier,
     ScoreExtend,
+    current_version,
 )
 from maimai_py import SongType as MaimaiPySongType
-from maimai_py import current_version
 from nonebot import logger
 from nonebot.internal.matcher import current_event
 from nonebot_plugin_alconna import At, UniMessage
