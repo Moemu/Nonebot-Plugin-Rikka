@@ -14,7 +14,7 @@ from arclet.alconna import Alconna, AllParam, Args
 from maimai_py import InvalidPlateError, LevelIndex, LXNSProvider
 from maimai_py import SongType as MaimaiPySongType
 from nonebot import get_driver, logger
-from nonebot.adapters import Event
+from nonebot.adapters import Bot, Event
 from nonebot.exception import FinishedException
 from nonebot.matcher import current_bot, current_event
 from nonebot.params import Depends
@@ -54,9 +54,11 @@ from .extra_proxy import (
     run_extend_score_workflow,
     run_extend_ticket_workflow,
     run_extent_force_logout,
+    run_give_collectible_workflow,
     run_unlock_workflow,
 )
 from .functions.analysis import get_player_strength
+from .functions.chart import build_chart_archive
 from .functions.fortunate import generate_today_fortune
 from .functions.location import (
     get_chu_locations,
@@ -413,6 +415,21 @@ alconna_unlock = on_alconna(
     permission=lambda: config.enable_arcade_write,
 )
 
+alconna_give = on_alconna(
+    Alconna(
+        COMMAND_PREFIXES,
+        "give",
+        Args["kind", str],
+        Args["item_id", int],
+        Args["qr_code", str],
+        meta=CommandMeta("[舞萌DX]发放收藏品", usage=".give <类型> <物品ID> <qr_code>"),
+    ),
+    priority=10,
+    block=True,
+    rule=to_me(),
+    permission=lambda: config.enable_arcade_write,
+)
+
 alconna_unbind = on_alconna(
     Alconna(
         COMMAND_PREFIXES,
@@ -600,6 +617,11 @@ alconna_mai = on_alconna(
         Subcommand("n50", help_text="[舞萌DX] 生成玩家基于拟合系数的 Top-50"),
         Subcommand("ap50", help_text="[舞萌DX] 生成玩家 ALL PERFECT 50"),
         Subcommand("pc50", help_text="[舞萌DX] 生成玩家游玩次数 Top-50"),
+        Subcommand(
+            "chart",
+            Args["music_id", str],
+            help_text="[舞萌DX] 下载谱面并打包 /mai chart <乐曲ID>",
+        ),
         Subcommand(
             "minfo",
             Args["name", AllParam(str)],
@@ -846,6 +868,7 @@ async def handle_help(event: Event):
         ".mai r50 获取玩家 Recent 50 (需绑定落雪查分器)\n"
         ".mai n50 获取玩家拟合系数 Top-50\n"
         f".mai pc50 生成玩家游玩次数 Top50 （{'当前不可用' if not config.enable_arcade_provider else '需通过 `.import` 导入游戏成绩'})\n"
+        ".mai chart <乐曲ID> 下载谱面并打包为 adx\n"
         ".mai minfo <乐曲ID/别名> 获取乐曲信息\n"
         ".mai score <乐曲ID/别名> 获取单曲游玩情况\n"
         ".mai scorelist <level|ach|diff> [页码] 获取指定条件的成绩列表\n"
@@ -864,6 +887,7 @@ async def handle_help(event: Event):
         f"{'.ticket <qr_code> 发送六倍票' if not config.enable_arcade_write else ''}\n"
         f"{'.logout <qr_code> 尝试强制登出' if not config.enable_arcade_write else ''}\n"
         f"{'.unlock <qr_code> 解锁新框紫铺\n' if not config.enable_arcade_write else '\n'}\n"
+        f"{'.give <类型> <物品ID> <qr_code> 发放收藏品\n' if not config.enable_arcade_write else '\n'}\n"
         "--- 中二节奏 ---\n"
         ".chu help 获取中二相关指令列表\n"
         ".chu b30 获取玩家 Best 30\n"
@@ -1223,7 +1247,7 @@ async def handle_ticket(
         await _send_message(user_id, "请提供二维码内容: .ticket <qr_code>", finish=True)
         return
 
-    await run_extend_ticket_workflow(qr_code.result)
+    await run_extend_ticket_workflow(qr_code.result, user_id=user_id)
 
     await _send_message(user_id, "已成功发送了 6 倍票", finish=True)
 
@@ -1244,7 +1268,7 @@ async def handle_logout(
         await _send_message(user_id, "请提供二维码内容: .logout <qr_code>", finish=True)
         return
 
-    await run_extent_force_logout(qr_code.result)
+    await run_extent_force_logout(qr_code.result, user_id=user_id)
     await _send_message(user_id, "已尝试强制登出，请尝试重新登录", finish=True)
 
 
@@ -1264,8 +1288,75 @@ async def handle_rikka_unlock(
         await _send_message(user_id, "请提供二维码内容: .unlock <qr_code>", finish=True)
         return
 
-    await run_unlock_workflow(qr_code.result)
+    await run_unlock_workflow(qr_code.result, user_id=user_id)
     await _send_message(user_id, "解锁成功！", finish=True)
+
+
+_COLLECTIBLE_KIND_ZH = {
+    "姓名框": 1,
+    "称号": 2,
+    "头像": 3,
+    "歌": 5,
+    "紫谱": 6,
+    "白谱": 7,
+    "搭档": 10,
+    "背景板": 11,
+    "功能票": 12,
+}
+_COLLECTIBLE_KIND_EN = {
+    "PLATE": 1,
+    "TITLE": 2,
+    "ICON": 3,
+    "MUSIC": 5,
+    "MUSIC_MASTER": 6,
+    "MUSIC_RE_MASTER": 7,
+    "PARTNER": 10,
+    "FRAME": 11,
+    "TICKET": 12,
+}
+
+
+def _parse_collectible_kind(raw: str) -> int | None:
+    text = raw.strip()
+    if text.isdigit():
+        kind = int(text)
+        return kind if kind in set(_COLLECTIBLE_KIND_ZH.values()) else None
+    if text in _COLLECTIBLE_KIND_ZH:
+        return _COLLECTIBLE_KIND_ZH[text]
+    return _COLLECTIBLE_KIND_EN.get(text.upper())
+
+
+@alconna_give.handle()
+@catch_exception()
+async def handle_rikka_give(
+    event: Event,
+    kind: Match[str] = AlconnaMatch("kind"),
+    item_id: Match[int] = AlconnaMatch("item_id"),
+    qr_code: Match[str] = AlconnaMatch("qr_code"),
+):
+    user_id = event.get_user_id()
+
+    if not config.enable_arcade_provider:
+        await _send_message(user_id, "机台源不可用，无法执行该操作", finish=True)
+        return
+
+    if not qr_code.available or not qr_code.result:
+        await _send_message(user_id, "请提供二维码内容: .give <类型> <物品ID> <qr_code>", finish=True)
+        return
+
+    kind_id = _parse_collectible_kind(kind.result) if kind.available else None
+    if kind_id is None:
+        available = "、".join(_COLLECTIBLE_KIND_ZH)
+        await _send_message(user_id, f"不支持的类型，可用：{available}", finish=True)
+        return
+
+    if not item_id.available:
+        await _send_message(user_id, "请提供物品 ID: .give <类型> <物品ID> <qr_code>", finish=True)
+        return
+
+    result = await run_give_collectible_workflow(qr_code.result, kind_id, item_id.result, user_id=user_id)
+    message = str(result.get("message", "已处理"))
+    await _send_message(user_id, f"{message}（itemKind {kind_id} / {item_id.result}）", finish=True)
 
 
 @alconna_unbind.handle()
@@ -1313,6 +1404,45 @@ async def handle_source(
 
 
 @alconna_b50.handle()
+@alconna_mai.assign("chart")
+@catch_exception()
+async def handle_mai_chart(
+    event: Event,
+    bot: Bot,
+    music_id: Match[str] = AlconnaMatch("music_id"),
+):
+    user_id = event.get_user_id()
+    if not music_id.available or not music_id.result:
+        await _send_message(user_id, "请提供乐曲 ID: .mai chart <乐曲ID>", finish=True)
+        return
+
+    await _send_message(user_id, "正在获取谱面，请稍候...")
+    archive, title, source = await build_chart_archive(music_id.result.strip())
+
+    group_id = getattr(event, "group_id", None)
+    if group_id is not None:
+        await bot.call_api(
+            "upload_group_file",
+            group_id=group_id,
+            file=str(archive),
+            name=archive.name,
+        )
+        target = "群文件"
+    else:
+        await bot.call_api(
+            "upload_private_file",
+            user_id=user_id,
+            file=str(archive),
+            name=archive.name,
+        )
+        target = "私聊"
+    await _send_message(
+        user_id,
+        f"✅ 谱面 {title} 已发送到{target}\n来源：{source}",
+        finish=True,
+    )
+
+
 @alconna_mai.assign("b50")
 @catch_exception()
 async def handle_mai_b50(
@@ -1910,6 +2040,7 @@ async def handle_mai_help(event: Event):
         ".mai r50 获取玩家 Recent 50 (需绑定落雪查分器)\n"
         ".mai n50 获取玩家拟合系数 Top-50\n"
         f".mai pc50 生成玩家游玩次数 Top50 （{'当前不可用' if not config.enable_arcade_provider else '需通过 `.import` 导入游戏成绩'})\n"
+        ".mai chart <乐曲ID> 下载谱面并打包为 adx\n"
         ".mai minfo <乐曲ID/别名> 获取乐曲信息\n"
         ".mai score <乐曲ID/别名> 获取单曲游玩情况\n"
         ".mai scorelist <level|ach|diff> [页码] 获取指定条件的成绩列表\n"

@@ -47,6 +47,13 @@ async def _run_extra_function(func: Callable, *args):
     return result
 
 
+def _call_workflow(workflow: Callable, qr_code: str, user_id: str | None = None):
+    """调用 extra 工作流；旧版 extra 没有 user_id 参数时退回旧签名。"""
+    if user_id and "user_id" in inspect.signature(workflow).parameters:
+        return workflow(qr_code, user_id=user_id)
+    return workflow(qr_code)
+
+
 async def run_extend_score_workflow(qr_code: str) -> list[dict[str, Any]]:
     """Proxy to nonebot-plugin-rikka-extra.score.run_workflow"""
 
@@ -57,27 +64,43 @@ async def run_extend_score_workflow(qr_code: str) -> list[dict[str, Any]]:
     return result
 
 
-async def run_extend_ticket_workflow(qr_code: str) -> None:
+async def run_extend_ticket_workflow(qr_code: str, user_id: str | None = None) -> None:
     """Proxy to nonebot-plugin-rikka-extra.ticket.run_workflow"""
 
     workflow = _load_extra_attr("ticket", "run_workflow")
-    result = workflow(qr_code)
+    result = _call_workflow(workflow, qr_code, user_id)
     if inspect.isawaitable(result):
         await result
 
 
-async def run_unlock_workflow(qr_code: str) -> None:
+async def run_unlock_workflow(qr_code: str, user_id: str | None = None) -> None:
     """Proxy to nonebot-plugin-rikka-extra.unlock_all.run_workflow"""
 
     workflow = _load_extra_attr("unlock_all", "run_workflow")
-    result = workflow(qr_code)
+    result = _call_workflow(workflow, qr_code, user_id)
     if inspect.isawaitable(result):
         await result
 
 
-async def run_extent_force_logout(qr_code: str):
+async def run_give_collectible_workflow(
+    qr_code: str, kind: int, item_id: int, user_id: str | None = None
+) -> dict[str, Any]:
+    """Proxy to nonebot-plugin-rikka-extra.collectibles.run_workflow"""
+
+    workflow = _load_extra_attr("collectibles", "run_workflow")
+    parameters = inspect.signature(workflow).parameters
+    kwargs = {"user_id": user_id} if user_id and "user_id" in parameters else {}
+    result = workflow(qr_code, kind, item_id, **kwargs)
+    if inspect.isawaitable(result):
+        result = await result
+    if not isinstance(result, dict):
+        raise RuntimeError("run_workflow 返回结果格式异常")
+    return result
+
+
+async def run_extent_force_logout(qr_code: str, user_id: str | None = None):
     func = _load_extra_attr("logout", "force_logout")
-    result = func(qr_code)
+    result = _call_workflow(func, qr_code, user_id)
     if inspect.isawaitable(result):
         await result
 
