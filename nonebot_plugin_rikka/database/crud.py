@@ -224,6 +224,8 @@ class MaiSongORM:
             map=row.map,
             version=row.version,
             difficulties=SongDifficulties(standard=standard_difficulties, dx=dx_difficulties, utage=utage_difficulties),
+            locked=bool(row.locked),
+            disabled=bool(row.disabled),
         )
 
     @staticmethod
