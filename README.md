@@ -3,6 +3,8 @@
     <source media="(prefers-color-scheme: dark)" srcset="https://erika.snowy.moe/v1/banner/Moemu/Nonebot-Plugin-Rikka.webp?accent=auto&amp;meta=full_name%2Cstars%2Cforks%2Cissues%2Crelease%2Clast_updated" />
     <img width="100%" src="https://erika.snowy.moe/v1/banner/Moemu/Nonebot-Plugin-Rikka.webp?accent=auto&amp;iconPath=assets%2Fgrokbot-icon-transparent.png&amp;theme=light&amp;meta=full_name%2Cstars%2Cforks%2Cissues%2Crelease%2Clast_updated" alt="Nonebot-Plugin-Rikka Banner" />
   </picture>
+  <h1 align="center">Nonebot-Plugin-Rikka</h1>
+  <p align="center">NoneBot2 舞萌DX / 中二节奏查询成绩插件</p>
 </div>
 
 <div align=center>
@@ -13,8 +15,6 @@
   <a href="#"><img src="https://img.shields.io/badge/Code%20Style-Black-121110.svg" alt="codestyle"></a>
   <a href="https://qm.qq.com/q/y1gC9PU4IU"><img src="https://img.shields.io/badge/QQ群-Nightcord-purple" alt="QQ Group"></a>
 </div>
-
-基于 [Nonebot2](https://nonebot.dev/) 的舞萌DX / 中二节奏查分插件
 
 ## 功能🪄
 
@@ -157,7 +157,7 @@
 
 本项目的渲染逻辑 ([painters](./nonebot_plugin_rikka/painters/)) 和资源修改或引用自 [Yuri-YuzuChaN/maimaiDX](https://github.com/Yuri-YuzuChaN/maimaiDX)，感谢上游项目的代码实现和游戏资源整理
 
-本项目的分数查询功能基于 [TrueRou/maimai.py](https://github.com/TrueRou/maimai.py) 提供的框架进行开发，部分机台通信功能参考了某个w开头的我不知道能不能说但是它是开源的如果需要可以私下来找我更新的神秘项目。
+本项目的分数查询功能基于 [TrueRou/maimai.py](https://github.com/TrueRou/maimai.py) 提供的框架进行开发，部分机台通信功能参考了某些神秘项目 ~~（我不知道能不能说但是它是开源的如果需要可以私下来找我更新反正阿里嘎多）~~。
 
 <a href="https://www.afdian.com/a/Moemu" target="_blank"><img src="https://pic1.afdiancdn.com/static/img/welcome/button-sponsorme.png" alt="afadian" style="height: 45px !important;width: 163px !important;"></a>
 
