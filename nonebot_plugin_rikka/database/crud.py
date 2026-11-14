@@ -244,6 +244,7 @@ class MaiSongORM:
             bpm=song.bpm,
             map=song.map,
             version=song.version,
+            locked=bool(song.locked),
             # ORM 列为 String，这里序列化为 JSON 字符串
             difficulties=json.dumps(difficulties_dict, ensure_ascii=False),
         )
@@ -281,6 +282,7 @@ class MaiSongORM:
                 existing_obj.bpm = song.bpm
                 existing_obj.map = song.map
                 existing_obj.version = song.version
+                existing_obj.locked = bool(song.locked)
                 existing_obj.difficulties = difficulties_json  # type: ignore
             else:
                 # 插入新记录
@@ -292,6 +294,7 @@ class MaiSongORM:
                     bpm=song.bpm,
                     map=song.map,
                     version=song.version,
+                    locked=bool(song.locked),
                     # ORM 列为 String，这里序列化为 JSON 字符串
                     difficulties=difficulties_json,
                 )

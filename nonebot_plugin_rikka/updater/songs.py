@@ -158,6 +158,7 @@ async def fetch_song_info(song_id: int, interval: float = 0.3) -> MaiSong:
     song_info_fields = {f.name for f in fields(MaiSong)}
     song_info_dict = {k: v for k, v in content.items() if k in song_info_fields}
     song_info_dict["difficulties"] = SongDifficulties.init_from_dict(content.get("difficulties", {}))
+    song_info_dict["locked"] = bool(song_info_dict.get("locked"))
 
     await _update_song_fit_diff(song_info_dict["difficulties"], song_id)
 
@@ -205,6 +206,7 @@ async def update_maimai_song_database(db_session: async_scoped_session) -> int:
     for song in songs:
         song_info_dict = {k: v for k, v in song.items() if k in song_info_fields}
         song_info_dict["difficulties"] = SongDifficulties.init_from_dict(song.get("difficulties", {}))
+        song_info_dict["locked"] = bool(song_info_dict.get("locked"))
 
         # 获取拟合定数
         await _update_song_fit_diff(song_info_dict["difficulties"], song_info_dict["id"])
